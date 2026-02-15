@@ -1,9 +1,0 @@
-{
-  "name": "Student Form Viewer",
-  "short_name": "SF Viewer",
-  "start_url": ".",
-  "display": "standalone",
-  "background_color": "#f6fbff",
-  "theme_color": "#f6fbff",
-  "icons": []
-}
