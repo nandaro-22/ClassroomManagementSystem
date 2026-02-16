@@ -465,19 +465,139 @@ state.learnerDev = {
   scores: {}
 };
 
+state.gradeTasks = [];
+
 /* ===========================
   GRADES SEED MODEL (TEMP) - > trial lang  delete later
 =========================== */
 
-state.grades.items = [
-  { code:"QUIZ", name:"Quiz", max:50, weight:20 },
-  { code:"ASSIGN", name:"Assignment", max:100, weight:30 },
-  { code:"EXAM", name:"Exam", max:100, weight:50 }
+state.grades.tasks = [
+  { date:"2026-01-15", category:"ASSIGNMENT", taskCode: "ASS1" , taskName: "Blog Entry", max: 20, score: null },
+  { date:"2026-02-13", category:"ASSIGNMENT", taskCode: "ASS2" , taskName: "Movie Review", max: 50, score: null },
+  { date:"2026-02-02", category:"QUIZ", taskCode: "QUIZ1" , taskName: "Quiz1", max: 20, score: null },
+  { date:"2026-02-15", category:"EXAM", taskCode: "EXAM1" , taskName: "EXAM", max: 20, score: null }
 ];
 
 /* ===========================
    UI HELPERS
 =========================== */
+
+/*******************************************************
+* function name: loadGradeTasks
+* parameter: studentId (string)
+* return: -
+* purpose: -
+*******************************************************/
+async function loadGradeTasks(studentId){
+
+  const res = await apiGet({
+    action:"gradesTaskLoad",
+    studentId
+  });
+
+  if (res.status === "success") {
+    state.gradeTasks = res.tasks || [];
+    renderGradeTaskTable();
+    recomputeTaskFinal();
+  }
+}
+
+/*******************************************************
+* function name: renderGradeTaskTable
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function renderGradeTaskTable(){
+
+  const body = document.getElementById("gradeTaskBody");
+  if (!body) return;
+
+  body.innerHTML = "";
+
+  state.gradeTasks.forEach(t => {
+
+    const pct = (t.score!=null && t.max>0)
+      ? ((t.score/t.max)*100).toFixed(1)+"%"
+      : "—";
+
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${t.date||""}</td>
+      <td>${t.category}</td>
+      <td>${t.taskName}</td>
+      <td>${t.max}</td>
+      <td>
+        <input type="number" min="0" max="${t.max}"
+          value="${t.score ?? ""}"
+          oninput="updateTaskScore('${t.taskCode}',this.value)">
+      </td>
+      <td>${pct}</td>
+    `;
+
+    body.appendChild(tr);
+  });
+}
+
+/*******************************************************
+* function name: updateTaskScore
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+function updateTaskScore(code,val){
+  const t = state.gradeTasks.find(x=>x.taskCode===code);
+  if (!t) return;
+  t.score = val==="" ? null : Number(val);
+  renderGradeTaskTable();
+  recomputeTaskFinal();
+}
+
+/*******************************************************
+* function name: recomputeTaskFinal
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+function recomputeTaskFinal(){
+
+  let sumScore = 0;
+  let sumMax = 0;
+
+  state.gradeTasks.forEach(t=>{
+    if (t.score!=null){
+      sumScore += t.score;
+      sumMax += t.max;
+    }
+  });
+
+  const final = sumMax>0 ? (sumScore/sumMax*100) : 0;
+
+  finalGradeValue.textContent = final.toFixed(2)+"%";
+  finalGradeStatus.textContent = final>=75 ? "PASSED":"FAILED";
+}
+
+/*******************************************************
+* function name: saveGradeTasks
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+async function saveGradeTasks(){
+
+  const student = state.currentStudent;
+  if (!student) return alert("No student");
+
+  const res = await apiPost({
+    action:"gradesTaskSave"
+  },{
+    studentId: student.studentId,
+    tasks: state.gradeTasks
+  });
+
+  alert(res.status==="success" ? "Saved" : res.message);
+}
 
 /*******************************************************
 * function name: isSessionValid
@@ -588,7 +708,7 @@ async function resetApp(){
   state.list.total = 0;
   state.seat = { room:"", editMode:false, seats:[], masterStudents:[], editingSeat:null };
 
-  toast("Cache cleared. App reset.");
+  toast("Cache cleared. Logging out.");
   showScreen(screenConfig);
 }
 
@@ -2829,15 +2949,24 @@ async function apiGet(params = {}){
 
     const isHttpDenied = (res.status === 401 || res.status === 403);
 
-    if (isDenied || isHttpDenied) {
-      forceLogout(data?.message || "Access denied. Please login again.");
+    // logout ONLY if server explicitly says invalid token / access denied
+    if (isDenied) {
+      forceLogout(data?.message || "Access denied");
       return { status:"error", message:"Access denied" };
+    }
+
+    // DO NOT logout on plain HTTP error
+    if (isHttpDenied) {
+      console.warn("HTTP denied but not forcing logout");
+      return { status:"error", message:"http_error" };
     }
 
     return data;
 
   } catch (err) {
-    return { status:"error", message: err.toString() };
+    //return { status:"error", message: err.toString() };
+    console.warn("apiGet network error:", err);
+    return { status:"network_error", message: err.toString() };
   }
 }
 
@@ -3009,7 +3138,7 @@ async function apiPost(actionOrParams, payload = {}){
   const url = `${base}?action=${encodeURIComponent(action)}&idToken=${encodeURIComponent(idToken)}`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120000);
+  const timeout = setTimeout(() => controller.abort(), 240000);
 
   try {
     const fd = new FormData();
@@ -3204,14 +3333,12 @@ async function uploadEvidenceInChunks({ email, timestamp, studentId, fileName, m
 function waitForGoogleThenRun(fn){
 
   try {
-    showLoading("Loading Google Sign-In...");
     if (window.google && google.accounts && google.accounts.id) {
       fn();
       return;
     }
   } catch (e) {}
   setTimeout(() => waitForGoogleThenRun(fn), 150);
-  hideLoading();
 }
 
 /*******************************************************
@@ -3269,10 +3396,12 @@ async function onGoogleCredential(resp){
 
     // ✅ store user
     state.me = me;
+    applyRoleUI();
 
+    showLoading("Loading Google Sign-In...");
     localStorage.setItem("sf_id_token", state.idToken);
     localStorage.setItem("sf_user_email", me.email || "");
-
+    document.body.classList.remove("student-mode");
     if (state.me?.role === "student") {
       document.body.classList.add("student-mode");
       try {
@@ -3404,6 +3533,7 @@ async function onGoogleCredential(resp){
     hideLoading();
     
   } catch (err) {
+    hideLoading();
     forceLogout("Login error: " + err.toString());
   }
 }
@@ -4139,6 +4269,7 @@ async function openDetails(item, idxInList = 0){
 
         // load evidence in background (no blocking)
         loadEvidenceList();
+        applyRoleUI();
   } catch (e) {
     console.error("🔥 openDetails crash:", e.stack);
     alert(e.stack);
@@ -5377,6 +5508,69 @@ async function loadSeatMapMaster(){
   }
 }
 
+/*******************************************************
+* function name: applyRoleUI
+* parameter: -
+* return: -
+* purpose: -
+********************************************************/
+function applyRoleUI() {
+
+  if (!state.me) return;
+
+  const role = String(state.me.role || "").toLowerCase();
+
+  // ===== STUDENT MODE =====
+  if (role === "student") {
+
+    // hide left record nav
+    document.querySelectorAll(".recordNav")
+      .forEach(el => el.classList.add("hidden"));
+
+    // hide header nav buttons
+    document.querySelectorAll(".detailsHeaderBtns")
+      .forEach(el => el.classList.add("hidden"));
+
+    // hide photo card
+    document.querySelectorAll(".photo-card")
+      .forEach(el => el.classList.add("hidden"));
+
+    // force single-column layout
+    document.querySelectorAll(".details-grid")
+      .forEach(el => el.classList.add("student-mode"));
+
+    // disable admin inputs
+    if (dRemarks) dRemarks.disabled = true;
+    if (dDone) dDone.disabled = true;
+
+    // hide admin buttons
+    if (btnSave) btnSave.classList.add("hidden");
+    if (btnHistory) btnHistory.classList.add("hidden");
+
+  }
+
+  // ===== REVIEWER / ADMIN =====
+  else {
+
+    document.querySelectorAll(".recordNav")
+      .forEach(el => el.classList.remove("hidden"));
+
+    document.querySelectorAll(".detailsHeaderBtns")
+      .forEach(el => el.classList.remove("hidden"));
+
+    document.querySelectorAll(".photo-card")
+      .forEach(el => el.classList.remove("hidden"));
+
+    document.querySelectorAll(".details-grid")
+      .forEach(el => el.classList.remove("student-mode"));
+
+    if (dRemarks) dRemarks.disabled = false;
+    if (dDone) dDone.disabled = false;
+
+    if (btnSave) btnSave.classList.remove("hidden");
+    if (btnHistory) btnHistory.classList.remove("hidden");
+  }
+}
 
 /* ===========================
    ACCORDION
@@ -5504,6 +5698,8 @@ if (netBadge) {
 
 if (btnLogout) {
   btnLogout.onclick = () => {
+    localStorage.removeItem("sf_id_token");
+    localStorage.removeItem("sf_login_time");
     // ✅ Clear saved session + offline queue
     clearSession();
     localStorage.removeItem(LS_PENDING_UPDATES);
@@ -5579,6 +5775,7 @@ if (btnLogout) {
 
     // hide grading summary
     document.getElementById('tabContentGrades')?.classList.add('hidden');
+    document.body.classList.remove("student-mode");
 
     // go back to login/setup screen
     showScreen(screenConfig);
@@ -6412,15 +6609,24 @@ function hideLoading(){
 * purpose: Initializes app configuration, restores session, validates token, loads base data, and routes initial screen.
 ********************************************************/
 (function init(){
+  // prevent login screen flash during refresh restore
+  document.body.classList.add("app-booting");
 
   const cfg = loadSetup();
 
-  // ✅ restore persistent login token
-  const savedToken = localStorage.getItem("sf_id_token");
-  const savedTime = Number(localStorage.getItem("sf_login_time") || 0);
+  // ✅ strict token restore check (no ghost session)
+  const token = localStorage.getItem("sf_id_token");
+  const loginTime = Number(localStorage.getItem("sf_login_time") || 0);
 
-  if (savedToken && savedTime && (Date.now() - savedTime < SESSION_MAX_AGE_MS)) {
-    state.idToken = savedToken;
+  const isValid =
+    token &&
+    loginTime &&
+    (Date.now() - loginTime < SESSION_MAX_AGE_MS);
+
+  if (isValid) {
+    state.idToken = token;
+  } else {
+    state.idToken = "";
   }
 
   startNetWatcherOnce();
@@ -6441,14 +6647,7 @@ function hideLoading(){
   const sess = loadSession();
 
   // ✅ SESSION EXPIRY CHECK
-  const loginTime = Number(localStorage.getItem("sf_login_time") || 0);
   const age = Date.now() - loginTime;
-
-  // SAFE expiry check
-  if (loginTime && (Date.now() - loginTime > SESSION_MAX_AGE_MS)) {
-    forceLogout("Session expired (1 week). Please login again.");
-    return;
-  }
 
   if (sess.apiUrl) state.apiUrl = sess.apiUrl;
   if (sess.clientId) state.clientId = sess.clientId;
@@ -6474,36 +6673,37 @@ function hideLoading(){
   }
 
   // ✅ IF may token, wag muna show screenConfig (avoid flicker)
-  if (state.idToken) {
+  if (isValid) {
     // show temporary loading screen (best is Menu)
     //showScreen(screenMenu);
+    showLoading("Loading, after refresh");
 
     (async () => {
       try {
         refreshNetBadgeNow();
 
-        const me = await apiGet({
-          action: "me",
-          idToken: state.idToken
-        });
+        let me = await apiGet({ action:"me", idToken: state.idToken });
+
+        if (me.status === "network_error") {
+          console.warn("me() network error — retrying once...");
+          await new Promise(r => setTimeout(r, 800));
+          me = await apiGet({ action:"me", idToken: state.idToken });
+        }
 
         if (!me || me.status !== "success") {
-          console.warn("me() failed once — retrying...");
-          const me2 = await apiGet({
-            action: "me",
-            idToken: state.idToken
-          });
-          if (!me2 || me2.status !== "success") {
-            forceLogout(me2?.message || "Session invalid.");
-            return;
-          }
-          state.me = me2;
-        } else {
-          state.me = me;
+          forceLogout();
+          hideLoading();
+          return;
         }
 
         state.me = me;
         updateSeatEditUI();
+        applyRoleUI();
+
+        document.body.classList.remove("student-mode");
+        if (state.me?.role === "student") {
+          document.body.classList.add("student-mode");
+        }
 
         const displayName = (me.name || "").trim() || me.email;
         if (userBadge) {
@@ -6562,7 +6762,9 @@ function hideLoading(){
             await openStudentDetailsByEmail(state.me.email);
 
           } catch (e) {
-            alert(e.stack);
+            console.warn("Init me() failed:", e);
+            forceLogout("Session check failed. Please login again.");
+            hideLoading();
           }
           return;
         } else {
@@ -6597,7 +6799,7 @@ function hideLoading(){
 		    renderPendingUI();
 
         // ✅ RESTORE CURRENT SCREEN (default: list)
-        const target = sess.currentScreen || "list";
+        const target = sess.currentScreen || "menu";
 
         if (target === "details" && sess.selectedEmail) {
           await openStudentDetailsByEmail(sess.selectedEmail);
@@ -6622,20 +6824,22 @@ function hideLoading(){
 
         saveSession();
         showNetBadge();
+        document.body.classList.remove("app-booting");
 
       } catch (e) {
-        clearSession();
-        showScreen(screenConfig);
-        hideNetBadge();
+        console.warn("Init me() failed:", e);
+        showScreen(screenMenu); // stay inside app
+        hideLoading();
       }
     })();
-
     return; // ✅ stop here (important)
   }
 
   // ✅ No token = show setup/login
-  showScreen(screenConfig);
-  hideNetBadge();
+  if (isValid) {
+    showScreen(screenConfig);
+    hideNetBadge();
+  }
 })();
 
 // ✅ GLOBAL MODAL CLOSE HANDLER (SAFE)
@@ -6667,11 +6871,10 @@ document.addEventListener("click", (e) => {
 * purpose: Updates last activity timestamp in localStorage to extend session lifetime.
 ********************************************************/
 function refreshActivityStamp(){
-  if (localStorage.getItem("sf_id_token")) {
+  if (state.idToken) {
     localStorage.setItem("sf_login_time", Date.now());
   }
 }
 
 document.addEventListener("click", refreshActivityStamp);
 document.addEventListener("keydown", refreshActivityStamp);
-document.addEventListener("mousemove", refreshActivityStamp);

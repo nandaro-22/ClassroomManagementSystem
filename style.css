@@ -1715,11 +1715,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .inpSmall{
   padding: 6px 10px;
   border-radius: 10px;
@@ -2990,56 +2985,31 @@ button:disabled {
   }
 }
 
-/* =====================================
-   STUDENT MODE — DETAILS LAYOUT FIX
-   prevents grid collapse when photo/left
-   column is hidden
-===================================== */
+/* ================================
+   STUDENT MODE — SAFE LAYOUT
+   ================================ */
 
-.student-mode .details-grid {
-  grid-template-columns: 1fr !important;
-}
-
-.student-mode .detailsLayout,
-.student-mode .details-shell {
-  grid-template-columns: 1fr !important;
-}
-
-/* hide left-side panels cleanly */
+/* hide left nav + photo only */
 .student-mode .recordNav,
 .student-mode .photo-card {
   display: none !important;
 }
 
-/* ================================
-   STUDENT MODE — FULL GRID FIX
-   ================================ */
-
+/* collapse outer layout to 1 column */
 .student-mode .detailsLayout,
-.student-mode .details-shell,
+.student-mode .details-shell {
+  grid-template-columns: 1fr !important;
+}
+
+/* rebuild details grid cleanly */
 .student-mode .details-grid {
-  display: block !important;
-}
-
-/* remove left visual panels */
-.student-mode .recordNav,
-.student-mode .photo-card,
-.student-mode .detailsPhotoWrap,
-.student-mode .detailsLeftCol {
-  display: none !important;
-}
-
-/* ensure info cards expand normally */
-.student-mode .info-grid,
-.student-mode .basic-grid {
   display: grid !important;
-  grid-template-columns: 1fr 1fr !important;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) !important;
 }
 
-/* prevent vertical text stacking */
-.student-mode .info-row,
-.student-mode .info-item {
-  min-width: 0 !important;
-  width: 100% !important;
+/* info card becomes full width */
+.student-mode .info-card {
+  grid-column: 1 !important;
 }
+
+.app-booting #screenConfig { display:none !important; }
