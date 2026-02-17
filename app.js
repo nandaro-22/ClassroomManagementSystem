@@ -6609,8 +6609,6 @@ function hideLoading(){
 * purpose: Initializes app configuration, restores session, validates token, loads base data, and routes initial screen.
 ********************************************************/
 (function init(){
-  // prevent login screen flash during refresh restore
-  document.body.classList.add("app-booting");
 
   const cfg = loadSetup();
 
@@ -6676,10 +6674,13 @@ function hideLoading(){
   if (isValid) {
     // show temporary loading screen (best is Menu)
     //showScreen(screenMenu);
-    showLoading("Loading, after refresh");
 
     (async () => {
       try {
+
+        // prevent login screen flash during refresh restore
+        document.body.classList.add("app-booting");
+        showLoading("Loading, after refresh");
         refreshNetBadgeNow();
 
         let me = await apiGet({ action:"me", idToken: state.idToken });
@@ -6825,6 +6826,7 @@ function hideLoading(){
         saveSession();
         showNetBadge();
         document.body.classList.remove("app-booting");
+        hideLoading();
 
       } catch (e) {
         console.warn("Init me() failed:", e);
