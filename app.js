@@ -378,7 +378,8 @@ const LS_SESSION = "sf_session_v1"; // ✅ keep login + current page on refresh
 /* ===========================
    Google OAuth and Web API Base URL (Apps Script Web App)
 =========================== */
-const FIXED_API_URL = "https://script.google.com/macros/s/AKfycbwjtnD9r1uPmOgEe7c3oE1__UazCfJOvseJZzrfvNCODIPXBMCvbnlvHxAcj3VfNC9DYQ/exec";
+//const FIXED_API_URL = "https://script.google.com/macros/s/AKfycbwjtnD9r1uPmOgEe7c3oE1__UazCfJOvseJZzrfvNCODIPXBMCvbnlvHxAcj3VfNC9DYQ/exec";
+const FIXED_API_URL = "https://script.google.com/macros/s/AKfycbxXC__2kB9B6VhTIE3pggIsDFbeX4-YFn7h9ew0TzTTk9ms22erbzeDZHQvQeLNL2we/exec";
 const FIXED_CLIENT_ID = "157290002152-c2ngtbf8312no72eotpqo9j0nfvt5io1.apps.googleusercontent.com";
 
 /* ===========================
@@ -458,46 +459,250 @@ const state = {
     items: [],     // grading model (Quiz, Exam, etc.)
     scores: {}     // per student scores { itemCode: score }
   },
+
+  gradeTasks: [],
+
+  learnerDev: {
+    categories: [],
+    scores: {}
+  }
 };
 
-state.learnerDev = {
+/*state.learnerDev = {
   categories: [],
   scores: {}
-};
+};*/
 
-state.gradeTasks = [];
+//state.gradeTasks = [];
 
-/* ===========================
-  GRADES SEED MODEL (TEMP) - > trial lang  delete later
-=========================== */
-
-state.grades.tasks = [
-  { date:"2026-01-15", category:"ASSIGNMENT", taskCode: "ASS1" , taskName: "Blog Entry", max: 20, score: null },
-  { date:"2026-02-13", category:"ASSIGNMENT", taskCode: "ASS2" , taskName: "Movie Review", max: 50, score: null },
-  { date:"2026-02-02", category:"QUIZ", taskCode: "QUIZ1" , taskName: "Quiz1", max: 20, score: null },
-  { date:"2026-02-15", category:"EXAM", taskCode: "EXAM1" , taskName: "EXAM", max: 20, score: null }
-];
+state.grades = state.grades || {};
 
 /* ===========================
    UI HELPERS
 =========================== */
 
 /*******************************************************
-* function name: loadGradeTasks
-* parameter: studentId (string)
+* function name: formatShortDate
+* parameter: -
 * return: -
 * purpose: -
 *******************************************************/
-async function loadGradeTasks(studentId){
+function formatShortDate(d){
+  if (!d) return "-";
+  const date = new Date(d);
+  if (isNaN(date)) return d;
+  return date.toISOString().split("T")[0];
+}
 
-  const res = await apiGet({
-    action:"gradesTaskLoad",
-    studentId
+/*******************************************************
+* function name: formatGradeDate
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function formatGradeDate(dateStr){
+
+  if(!dateStr) return "-";
+
+  try{
+
+    const d=new Date(dateStr);
+
+    return d.toLocaleDateString("en-PH",{
+    year:"numeric",
+    month:"short",
+    day:"numeric"
   });
 
-  if (res.status === "success") {
-    state.gradeTasks = res.tasks || [];
-    renderGradeTaskTable();
+  }catch(e){
+
+    return dateStr;
+
+  }
+
+}
+
+/*******************************************************
+* function name: getDefaultGradeTemplate
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function getDefaultGradeTemplate() {
+  return [
+    { date:"2026-01-15", category:"ASSIGNMENT", taskCode:"ASS1", taskName:"Blog Entry", max:20, score:"" },
+    { date:"2026-02-13", category:"ASSIGNMENT", taskCode:"ASS2", taskName:"Movie Review", max:50, score:"" },
+    { date:"2026-02-02", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz 1", max:20, score:"" },
+    { date:"2026-02-15", category:"EXAM", taskCode:"EXAM1", taskName:"Midterm Exam", max:100, score:"" }
+  ];
+}
+
+/*******************************************************
+* function name: renderTaskGrades
+* parameter: studentId (string)
+* return: -
+* purpose: Save all task grades for current student
+*******************************************************/
+function renderTaskGrades(){
+
+  const tbody = document.getElementById("gradeTableBody");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  const tasks = state.gradeTasks || [];
+
+  if (!tasks.length){
+
+    tbody.innerHTML = `
+    <tr>
+      <td colspan="6" style="text-align:center;color:#64748b;">
+        No grade items
+      </td>
+    </tr>
+    `;
+
+    return;
+  }
+
+  // student context
+  if (state.currentStudent){
+
+    const seatEl = document.getElementById("gradeSeatNo");
+    if (seatEl) seatEl.textContent = state.currentStudent.seatNo || "—";
+
+    const idEl = document.getElementById("gradeStudentId");
+    if (idEl) idEl.textContent = state.currentStudent.studentId || "—";
+  }
+
+  // build rows
+  tasks.forEach((t,index)=>{
+
+    const tr=document.createElement("tr");
+
+    const percent = (t.score!=="" && t.max>0) ? ((Number(t.score)/Number(t.max))*100).toFixed(1) : "0.0";
+
+    tr.innerHTML=`
+
+      <td>${formatGradeDate(t.date)}</td>
+
+      <td>${escapeHtml(t.category||"-")}</td>
+
+      <td>${escapeHtml(t.taskName||"-")}</td>
+
+      <td>${t.max||0}</td>
+
+      <td>
+
+        <input
+        class="gradeInput"
+        type="number"
+        min="0"
+        max="${t.max||0}"
+        value="${t.score ?? ""}"
+
+        oninput="
+        state.grades.tasks[${index}].score=this.value;
+        renderTaskGrades();
+        recomputeTaskFinal();
+        "
+        />
+
+      </td>
+
+      <td class="gradeReadonly">${percent}%</td>
+
+    `;
+
+    tbody.appendChild(tr);
+
+  });
+
+  recomputeTaskFinal();
+
+}
+
+/*******************************************************
+* function name: updateFinalGradeUI
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function updateFinalGradeUI(val){
+
+  const gradeEl = document.getElementById("finalGradeValue");
+  const statusEl = document.getElementById("finalGradeStatus");
+
+  if (gradeEl){
+    gradeEl.textContent = val.toFixed(2) + "%";
+  }
+
+  if (statusEl){
+    if (val >= 75){
+      statusEl.textContent = "PASSED";
+      statusEl.className = "tag pass";
+    } else {
+      statusEl.textContent = "FAILED";
+      statusEl.className = "tag fail";
+    }
+  }
+}
+
+/*******************************************************
+* function name: updateTaskScore
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function updateTaskScore(index, value) {
+
+  if (value === "") {
+    state.grades.tasks[index].score = "";
+  } else {
+    state.grades.tasks[index].score = Number(value);
+  }
+
+  renderTaskGrades();
+}
+
+/*******************************************************
+* function name: loadTaskGrades
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+async function loadTaskGrades(studentId) {
+
+  try {
+
+  const res = await apiGet({
+    action: "gradesTaskLoad",
+    studentId,
+    idToken: state.idToken
+  });
+
+  console.log("GRADES LOAD:", res);
+
+  if (!res || res.status !== "success") {
+    throw new Error(res?.message || "Load failed");
+  }
+
+  if (!res.items || res.items.length === 0) {
+    console.log("No sheet data. Using default template.");
+    state.gradeTasks = getDefaultGradeTemplate();
+  } else {
+    state.gradeTasks = res.items;
+  }
+
+  renderTaskGrades();
+  recomputeTaskFinal();
+
+  } catch (err) {
+
+    console.error("TASK LOAD ERROR:", err);
+
+    state.gradeTasks = getDefaultGradeTemplate();
+    renderTaskGrades();
     recomputeTaskFinal();
   }
 }
@@ -517,9 +722,7 @@ function renderGradeTaskTable(){
 
   state.gradeTasks.forEach(t => {
 
-    const pct = (t.score!=null && t.max>0)
-      ? ((t.score/t.max)*100).toFixed(1)+"%"
-      : "—";
+    const pct = (t.score!=null && t.max>0)?((t.score/t.max)*100).toFixed(1)+"%": "—";
 
     const tr = document.createElement("tr");
 
@@ -555,6 +758,43 @@ function updateTaskScore(code,val){
 }
 
 /*******************************************************
+* function name: computeFinalGrade
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+function computeFinalGrade() {
+
+  const tasks = state.grades.tasks;
+
+  let totalScore = 0;
+  let totalMax = 0;
+
+  tasks.forEach(t => {
+  if (t.score !== "" && t.max > 0) {
+    totalScore += Number(t.score);
+    totalMax += Number(t.max);
+    }
+  });
+
+  const final = totalMax === 0
+  ? 0
+  : Math.round((totalScore / totalMax) * 100);
+
+  document.getElementById("finalGradeValue").innerText = final + "%";
+
+  const statusEl = document.getElementById("finalGradeStatus");
+
+  if (final >= 75) {
+    statusEl.innerText = "PASSED";
+    statusEl.className = "gradeStatus pass";
+  } else {
+    statusEl.innerText = "FAILED";
+    statusEl.className = "gradeStatus fail";
+  }
+}
+
+/*******************************************************
 * function name: recomputeTaskFinal
 * parameter: 
 * return: -
@@ -562,41 +802,94 @@ function updateTaskScore(code,val){
 *******************************************************/
 function recomputeTaskFinal(){
 
-  let sumScore = 0;
-  let sumMax = 0;
+  let total=0;
+  let count=0;
 
-  state.gradeTasks.forEach(t=>{
-    if (t.score!=null){
-      sumScore += t.score;
-      sumMax += t.max;
+  (state.gradeTasks||[]).forEach(t=>{
+
+    if(t.score!=="" && t.max>0){
+
+      total+=Number(t.score)/Number(t.max);
+      count++;
+
     }
+
   });
 
-  const final = sumMax>0 ? (sumScore/sumMax*100) : 0;
+  const final = count?(total/count)*100:0;
 
-  finalGradeValue.textContent = final.toFixed(2)+"%";
-  finalGradeStatus.textContent = final>=75 ? "PASSED":"FAILED";
+  document.getElementById("finalGradeValue").textContent=final.toFixed(2)+"%";
+
+  const statusEl=document.getElementById("finalGradeStatus");
+
+  if(statusEl){
+
+    statusEl.textContent=
+    final>=75 ? "PASSED":"FAILED";
+
+  }
+
 }
 
 /*******************************************************
-* function name: saveGradeTasks
+* function name: saveTaskGrades
+* parameter: 
+* return: -
+* purpose: Save all task grades for current student
+*******************************************************/
+async function saveTaskGrades() {
+
+  try {
+
+    const student = state.currentStudent;
+    if (!student) {
+      alert("No student selected");
+      return;
+    }
+
+    if (!state.grades || !state.grades.tasks) {
+      alert("No grade data to save");
+      return;
+    }
+
+    const res = await apiPost({
+      action: "gradesTaskSave",
+      idToken: state.idToken,
+      studentId: student.studentId,
+      items: state.gradeTasks
+    });
+
+    if (!res || res.status !== "success") {
+      throw new Error(res?.message || "Save failed");
+    }
+
+    alert(res.status==="success" ? "Saved" : res.message);
+
+  } catch (err) {
+    console.error("SAVE TASK ERROR:", err);
+    alert("Save error: " + err.message);
+  }
+}
+
+/*******************************************************
+* function name: addTaskRow
 * parameter: 
 * return: -
 * purpose: -
 *******************************************************/
-async function saveGradeTasks(){
+async function addTaskRow(){
 
-  const student = state.currentStudent;
-  if (!student) return alert("No student");
-
-  const res = await apiPost({
-    action:"gradesTaskSave"
-  },{
-    studentId: student.studentId,
-    tasks: state.gradeTasks
+  state.gradeTasks.push({
+    date: new Date().toISOString().slice(0,10),
+    category: "QUIZ",
+    taskCode: "NEW",
+    taskName: "New Task",
+    max: 10,
+    score: "",
+    percent: 0
   });
 
-  alert(res.status==="success" ? "Saved" : res.message);
+  renderTaskGrades();
 }
 
 /*******************************************************
@@ -4102,7 +4395,6 @@ async function openDetails(item, idxInList = 0){
     state.currentStudent = item;
     state.selectedEmail = item.email;
 
-    renderGradeTable();
     saveSession();
 
     renderRecordNav(idxInList);
@@ -4263,7 +4555,10 @@ async function openDetails(item, idxInList = 0){
           seedLearnerDevDefaults();
         }
 
-        renderGradeTable();            // build table
+        //renderGradeTable();            // build table
+        if (state.currentStudent?.studentId) {
+          await loadTaskGrades(state.currentStudent.studentId);
+        }
 
         saveSession();
 
@@ -4493,7 +4788,8 @@ function openDetailsTab(tab){
     const student = state.currentStudent;
     if (!student) return;
 
-    loadGradesForStudent(student.studentId);
+    //loadGradesForStudent(student.studentId); -> old
+    loadTaskGrades(student.studentId);
     document.getElementById("tabContentGrades")?.classList.remove("hidden");
 
     // 🔥 add this

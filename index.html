@@ -75,7 +75,7 @@
           <select id="fCourseSubject"></select>
         </div>
         <div>
-          <label>PROGRAM</label>
+          <label>SECTION</label>
           <select id="fProgram"></select>
 		  <!-- <option value="">-- Select --</option> -->
         </div>
@@ -328,18 +328,18 @@
 					<input id="newGradeName" placeholder="Item name (Quiz, Exam)">
 					<input id="newGradeMax" type="number" placeholder="Max">
 					<input id="newGradeWeight" type="number" placeholder="Weight %">
-					<button class="btn btn-primary" onclick="addGradeItem()">Add Item</button>
+					<button class="btn btn-primary" onclick="addTaskRow()">Add Item</button>
 				</div>
 		
 				<!-- Student context -->
 				<div class="muted" style="margin-bottom:12px;">
-					Seat: <b id="gradeSeatNo">—</b> |
-					Student ID: <b id="gradeStudentId">—</b>
+					Seat: <b style="color: #00f" id="gradeSeatNo">—</b> |
+					Student ID: <b style="color: #00f" id="gradeStudentId">—</b>
 				</div>
 
 				<!-- Grades Table -->
 				<div style="overflow-x:auto;">
-					<table class="gradeTable">
+					<table class="taskGradeTable">
 						<thead>
 							<tr>
 								<th>Date</th>
@@ -350,7 +350,7 @@
 								<th>%</th>
 							</tr>
 						</thead>
-					<tbody id="gradeTaskBody"></tbody>
+					<tbody id="gradeTableBody"></tbody>
 					</table>
 				</div>
 
@@ -370,7 +370,7 @@
 					</div>
 
 					<div class="row gap" style="margin-top:16px;" id="gradeAdminButtons">
-						<button class="btn btn-primary" onclick="saveGrades()">Save Grades</button>
+						<button class="btn btn-primary" onclick="saveTaskGrades()">Save Grades</button>
 						<button class="btn btn-ghost" onclick="resetGradesUI()">Reset</button>
 					</div>
 

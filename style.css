@@ -3013,3 +3013,80 @@ button:disabled {
 }
 
 .app-booting #screenConfig { display:none !important; }
+
+.gradeTable{
+width:100%;
+border-collapse: collapse;
+margin-top: 10px;
+}
+
+.gradeTable th{
+text-align:left;
+font-weight:600;
+padding:8px 6px;
+border-bottom:1px solid #e2e8f0;
+font-size:13px;
+color:#64748b;
+}
+
+.gradeTable td{
+padding:8px 6px;
+border-bottom:1px solid #f1f5f9;
+font-size:14px;
+}
+
+.gradeInput{
+width:70px;
+padding:4px 6px;
+border:1px solid #cbd5e1;
+border-radius:6px;
+}
+
+.gradePercent.pass{
+color:#16a34a;
+font-weight:600;
+}
+
+.gradePercent.fail{
+color:#dc2626;
+font-weight:600;
+}
+
+.taskGradeTable{
+
+width:100%;
+border-collapse:collapse;
+
+}
+
+.taskGradeTable th{
+
+text-align:left;
+padding:8px;
+font-weight:800;
+border-bottom:1px solid #e2e8f0;
+
+}
+
+.taskGradeTable td{
+
+padding:8px;
+border-bottom:1px solid #f1f5f9;
+
+}
+
+.gradeInput{
+
+width:90px;
+padding:6px;
+border-radius:8px;
+border:1px solid #cbd5e1;
+
+}
+
+.gradeReadonly{
+
+font-weight:800;
+color:#2563eb;
+
+}
