@@ -538,6 +538,40 @@ function getDefaultGradeTemplate() {
 }
 
 /*******************************************************
+* function name: updateGradeSeat
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+async function updateGradeSeat(){
+
+  //const student = state.currentStudent;
+  const student = state.selected;
+
+  if (!state.idToken){
+    console.log("Seat skipped - no token yet!");
+    return;
+  }
+
+  if(!student) return;
+
+  // ============================
+  // FIND SEAT
+  // ============================
+  let seatNo="—";
+  const found = (state.seat.masterStudents || []).find(s=>String(s.studentEmail||"").toLowerCase() === String(student.email||"").toLowerCase());
+    if(found?.seatNo){
+      seatNo=found.seatNo;
+    }
+
+  // ============================
+  // UPDATE UI
+  // ============================
+  document.getElementById("gradeStudentId").textContent = student.studentId || "—";
+  document.getElementById("gradeSeatNo").textContent = seatNo;
+}
+
+/*******************************************************
 * function name: renderTaskGrades
 * parameter: studentId (string)
 * return: -
@@ -565,35 +599,20 @@ function renderTaskGrades(){
     return;
   }
 
-  // student context
-  if (state.currentStudent){
-
-    const seatEl = document.getElementById("gradeSeatNo");
-    if (seatEl) seatEl.textContent = state.currentStudent.seatNo || "—";
-
-    const idEl = document.getElementById("gradeStudentId");
-    if (idEl) idEl.textContent = state.currentStudent.studentId || "—";
-  }
-
   // build rows
   tasks.forEach((t,index)=>{
 
     const tr=document.createElement("tr");
 
-    const percent = (t.score!=="" && t.max>0) ? ((Number(t.score)/Number(t.max))*100).toFixed(1) : "0.0";
+    const percent = (t.score!=="" && Number(t.max)>0) ? ((Number(t.score)/Number(t.max))*100).toFixed(1) : "0.0";
 
     tr.innerHTML=`
 
       <td>${formatGradeDate(t.date)}</td>
-
       <td>${escapeHtml(t.category||"-")}</td>
-
       <td>${escapeHtml(t.taskName||"-")}</td>
-
       <td>${t.max||0}</td>
-
       <td>
-
         <input
         class="gradeInput"
         type="number"
@@ -602,16 +621,18 @@ function renderTaskGrades(){
         value="${t.score ?? ""}"
 
         oninput="
-        state.grades.tasks[${index}].score=this.value;
-        renderTaskGrades();
+        state.gradeTasks[${index}].score=this.value === '' ? '' : Number(this.value);
         recomputeTaskFinal();
         "
         />
-
       </td>
 
-      <td class="gradeReadonly">${percent}%</td>
-
+      <td
+        class="gradeReadonly"
+        id="taskPct_${t.taskCode}"
+        >
+        ${percent}%
+      </td>
     `;
 
     tbody.appendChild(tr);
@@ -649,23 +670,6 @@ function updateFinalGradeUI(val){
 }
 
 /*******************************************************
-* function name: updateTaskScore
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function updateTaskScore(index, value) {
-
-  if (value === "") {
-    state.grades.tasks[index].score = "";
-  } else {
-    state.grades.tasks[index].score = Number(value);
-  }
-
-  renderTaskGrades();
-}
-
-/*******************************************************
 * function name: loadTaskGrades
 * parameter: -
 * return: -
@@ -675,6 +679,15 @@ async function loadTaskGrades(studentId) {
 
   try {
 
+  // Stop API call if logged out
+  if (!state.idToken) {
+    console.log("Skipped grades load - no session.");
+    return;
+  }
+
+  const student = state.currentStudent;
+  if (!student) return;
+
   const res = await apiGet({
     action: "gradesTaskLoad",
     studentId,
@@ -682,8 +695,10 @@ async function loadTaskGrades(studentId) {
   });
 
   console.log("GRADES LOAD:", res);
+  showLoading("Loading grades, please wait...");
 
   if (!res || res.status !== "success") {
+    hideLoading();
     throw new Error(res?.message || "Load failed");
   }
 
@@ -694,12 +709,16 @@ async function loadTaskGrades(studentId) {
     state.gradeTasks = res.items;
   }
 
-  renderTaskGrades();
-  recomputeTaskFinal();
+  document.getElementById("gradeStudentId").textContent = student.studentId || "—";
 
+  renderTaskGrades();
+  //updateGradeSeat();
+  recomputeTaskFinal();
+  hideLoading();
   } catch (err) {
 
     console.error("TASK LOAD ERROR:", err);
+    hideLoading();
 
     state.gradeTasks = getDefaultGradeTemplate();
     renderTaskGrades();
@@ -708,127 +727,80 @@ async function loadTaskGrades(studentId) {
 }
 
 /*******************************************************
-* function name: renderGradeTaskTable
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function renderGradeTaskTable(){
-
-  const body = document.getElementById("gradeTaskBody");
-  if (!body) return;
-
-  body.innerHTML = "";
-
-  state.gradeTasks.forEach(t => {
-
-    const pct = (t.score!=null && t.max>0)?((t.score/t.max)*100).toFixed(1)+"%": "—";
-
-    const tr = document.createElement("tr");
-
-    tr.innerHTML = `
-      <td>${t.date||""}</td>
-      <td>${t.category}</td>
-      <td>${t.taskName}</td>
-      <td>${t.max}</td>
-      <td>
-        <input type="number" min="0" max="${t.max}"
-          value="${t.score ?? ""}"
-          oninput="updateTaskScore('${t.taskCode}',this.value)">
-      </td>
-      <td>${pct}</td>
-    `;
-
-    body.appendChild(tr);
-  });
-}
-
-/*******************************************************
-* function name: updateTaskScore
-* parameter: 
-* return: -
-* purpose: -
-*******************************************************/
-function updateTaskScore(code,val){
-  const t = state.gradeTasks.find(x=>x.taskCode===code);
-  if (!t) return;
-  t.score = val==="" ? null : Number(val);
-  renderGradeTaskTable();
-  recomputeTaskFinal();
-}
-
-/*******************************************************
-* function name: computeFinalGrade
-* parameter: 
-* return: -
-* purpose: -
-*******************************************************/
-function computeFinalGrade() {
-
-  const tasks = state.grades.tasks;
-
-  let totalScore = 0;
-  let totalMax = 0;
-
-  tasks.forEach(t => {
-  if (t.score !== "" && t.max > 0) {
-    totalScore += Number(t.score);
-    totalMax += Number(t.max);
-    }
-  });
-
-  const final = totalMax === 0
-  ? 0
-  : Math.round((totalScore / totalMax) * 100);
-
-  document.getElementById("finalGradeValue").innerText = final + "%";
-
-  const statusEl = document.getElementById("finalGradeStatus");
-
-  if (final >= 75) {
-    statusEl.innerText = "PASSED";
-    statusEl.className = "gradeStatus pass";
-  } else {
-    statusEl.innerText = "FAILED";
-    statusEl.className = "gradeStatus fail";
-  }
-}
-
-/*******************************************************
 * function name: recomputeTaskFinal
 * parameter: 
 * return: -
-* purpose: -
+* purpose: -color per row, - compute final grade, - update PASSED / FAILED badge
 *******************************************************/
 function recomputeTaskFinal(){
 
-  let total=0;
-  let count=0;
+  let total = 0;
+  let count = 0;
 
-  (state.gradeTasks||[]).forEach(t=>{
+  (state.gradeTasks || []).forEach(task=>{
 
-    if(t.score!=="" && t.max>0){
+    const score = task.score === "" ? "" : Number(task.score);
+    const max = Number(task.max || 0);
+    let pct = 0;
 
-      total+=Number(t.score)/Number(t.max);
+    // compute %
+    if(score !== "" && max > 0){
+      pct = (score/max)*100;
+      total += pct;
       count++;
-
     }
 
+    // save percent in memory
+    task.percent = pct;
+
+    // ===== UPDATE ROW % CELL =====
+    const cell = document.getElementById("taskPct_"+task.taskCode);
+
+    if(cell){
+      cell.textContent = pct.toFixed(1)+"%";
+      if(pct>=75){
+        cell.style.color="#1f7a3f"; // green
+      }
+      else if(pct>=50){
+        cell.style.color="#b26a00"; // orange
+      }
+      else{
+        cell.style.color="#b42318"; // red
+      }
+    }
   });
 
-  const final = count?(total/count)*100:0;
 
-  document.getElementById("finalGradeValue").textContent=final.toFixed(2)+"%";
+  // ===== FINAL GRADE =====
+  const final = count ? (total/count) : 0;
 
-  const statusEl=document.getElementById("finalGradeStatus");
+  // FINAL VALUE
+  const finalEl = document.getElementById("finalGradeValue");
 
-  if(statusEl){
-
-    statusEl.textContent=
-    final>=75 ? "PASSED":"FAILED";
-
+  if(finalEl){
+    finalEl.textContent = final.toFixed(2)+"%";
   }
 
+  // ===== BADGE =====
+  const badge = document.getElementById("finalGradeStatus");
+  if (!badge) return;
+
+  // reset class safely
+  badge.classList.remove("passed","failed");
+
+  // if no grade yet
+  if (count === 0) {
+    badge.textContent="-";
+    return;
+  }
+
+  if(final>=75){
+    badge.textContent="PASSED";
+    badge.classList.add("passed");
+  } else{
+    badge.textContent="FAILED";
+    badge.classList.add("failed");
+  }
 }
 
 /*******************************************************
@@ -837,37 +809,38 @@ function recomputeTaskFinal(){
 * return: -
 * purpose: Save all task grades for current student
 *******************************************************/
-async function saveTaskGrades() {
+async function saveTaskGrades(){
 
-  try {
+showLoading("Saving task grades...");
+
+  try{
 
     const student = state.currentStudent;
-    if (!student) {
-      alert("No student selected");
+    if(!student){
+      hideLoading();
+      alert("No student loaded");
       return;
     }
 
-    if (!state.grades || !state.grades.tasks) {
-      alert("No grade data to save");
-      return;
+    const res = await apiPost(
+    "gradesTaskSave",
+      {
+        studentId: student.studentId,
+        items: state.gradeTasks
+      }
+    );
+
+    console.log("TASK SAVE RESPONSE:",res);
+    hideLoading();
+    if(res.status==="success"){
+      alert("Grades saved");
+    }else{
+
+      alert("Save failed: "+(res.message||"unknown"));
     }
-
-    const res = await apiPost({
-      action: "gradesTaskSave",
-      idToken: state.idToken,
-      studentId: student.studentId,
-      items: state.gradeTasks
-    });
-
-    if (!res || res.status !== "success") {
-      throw new Error(res?.message || "Save failed");
-    }
-
-    alert(res.status==="success" ? "Saved" : res.message);
-
-  } catch (err) {
-    console.error("SAVE TASK ERROR:", err);
-    alert("Save error: " + err.message);
+  }catch(err){
+    hideLoading();
+    alert("Save error: "+err.message);
   }
 }
 
@@ -881,12 +854,11 @@ async function addTaskRow(){
 
   state.gradeTasks.push({
     date: new Date().toISOString().slice(0,10),
-    category: "QUIZ",
-    taskCode: "NEW",
+    category: "ASSIGNMENT",
+    taskCode: "TASK"+new Date().toISOString().slice(0,10),
     taskName: "New Task",
-    max: 10,
-    score: "",
-    percent: 0
+    max: 20,
+    score: ""
   });
 
   renderTaskGrades();
@@ -960,6 +932,8 @@ async function loadSeatRoom(room){
 *******************************************************/
 async function loadLearnerDev(studentId){
 
+  if (!state.idToken) return;
+  
   const res = await apiGet({
     action: "learnerDevLoad",
     idToken: state.idToken,
@@ -2254,7 +2228,7 @@ function addGradeItem(){
 * return: void
 * purpose: Builds and renders the grade table UI for the current student including inputs and computed percentage cells.
 ********************************************************/
-function renderGradeTable(){
+/*function renderGradeTable(){
   const student = state.currentStudent;
   if (!student) return;
 
@@ -2311,7 +2285,7 @@ function renderGradeTable(){
   });
 
   recomputeGrades();
-}
+}*/
 
 /*******************************************************
 * function name: onGradeScoreChange
@@ -2898,11 +2872,11 @@ function startNetWatcherOnce(){
     syncPendingQueue();
   }
 
-window.addEventListener("online", async () => {
-  setNetBadge("online");
-  await syncPendingUpdates(); // remarks/done
-  await syncPendingQueue();   // evidence + seatmapSave + updateRecord
-});
+  window.addEventListener("online", async () => {
+    setNetBadge("online");
+    await syncPendingUpdates(); // remarks/done
+    await syncPendingQueue();   // evidence + seatmapSave + updateRecord
+  });
 
   window.addEventListener("offline", () => {
     setNetBadge("offline");
@@ -3494,7 +3468,7 @@ async function apiPostNoCors(action, payload = {}){
 
   if (!action) throw new Error("Missing action");
   if (!state.apiUrl) throw new Error("Missing API URL");
-  if (!state.idToken) throw new Error("Missing idToken");
+  //if (!state.idToken) throw new Error("Missing idToken");
 
   const base = String(state.apiUrl || "").trim();
   const url = `${base}?action=${encodeURIComponent(action)}&idToken=${encodeURIComponent(state.idToken)}`;
@@ -3854,6 +3828,12 @@ function forceLogout(message){
     state.idToken = "";
     state.me = null;
     state.selected = null;
+    state.currentStudent = null;
+    state.gradeTasks = [];
+    state.learnerDev = {
+      categories:[],
+      scores:{}
+    };
 
     if (userBadge) userBadge.classList.add("hidden");
     if (btnHelp) btnHelp.classList.add("hidden");
@@ -4395,6 +4375,7 @@ async function openDetails(item, idxInList = 0){
     state.currentStudent = item;
     state.selectedEmail = item.email;
 
+    //updateGradeSeat();
     saveSession();
 
     renderRecordNav(idxInList);
@@ -4407,12 +4388,9 @@ async function openDetails(item, idxInList = 0){
         <div class="infoGrid">
           <div class="infoCard"><div class="label">School Year</div><div class="value">${escapeHtml(item.schoolYear || "-")}</div></div>
           <div class="infoCard"><div class="label">Term</div><div class="value">${escapeHtml(item.term || "-")}</div></div>
-
           <div class="infoCard"><div class="label">Course (Subject)</div><div class="value">${escapeHtml(item.courseSubject || "-")}</div></div>
           <div class="infoCard"><div class="label">Program</div><div class="value">${escapeHtml(item.program || "-")}</div></div>
-
           <div class="infoCard"><div class="label">Year Level</div><div class="value">${escapeHtml(item.yearLevel || "-")}</div></div>
-
           <div class="infoCard">
             <div class="label">Proof of Enrollment</div>
             <a class="valueLink" href="#" id="btnProofOpen">Open</a>
@@ -4480,6 +4458,7 @@ async function openDetails(item, idxInList = 0){
           const dataUrl = `data:${mime};base64,${res.base64}`;
           openImageModalFromUrl(dataUrl);
         } catch (err) {
+          hideLoading();
           toast("Proof open failed: " + err.toString());
         }
       };
@@ -4491,7 +4470,6 @@ async function openDetails(item, idxInList = 0){
         if (i <= 0) return toast("This is the first record.");
         openDetailsByIndex(i - 1);
       };
-
       document.getElementById('tabContentGrades')?.classList.add('hidden');
     }
 
@@ -4501,7 +4479,6 @@ async function openDetails(item, idxInList = 0){
         if (i >= state.list.items.length - 1) return toast("This is the last record.");
         openDetailsByIndex(i + 1);
       };
-
       document.getElementById('tabContentGrades')?.classList.add('hidden');
     }
 
@@ -4555,6 +4532,7 @@ async function openDetails(item, idxInList = 0){
           seedLearnerDevDefaults();
         }
 
+        await loadSeatRoom(state.seat.room);
         //renderGradeTable();            // build table
         if (state.currentStudent?.studentId) {
           await loadTaskGrades(state.currentStudent.studentId);
@@ -4779,10 +4757,8 @@ function positionFloatingPreview(event, el){
 ********************************************************/
 function openDetailsTab(tab){
 
-
   // hide all tab contents first
-  document.querySelectorAll(".tabContent")
-    .forEach(el => el.classList.add("hidden"));
+  document.querySelectorAll(".tabContent").forEach(el => el.classList.add("hidden"));
 
   if (tab === "grades") {
     const student = state.currentStudent;
@@ -4791,9 +4767,8 @@ function openDetailsTab(tab){
     //loadGradesForStudent(student.studentId); -> old
     loadTaskGrades(student.studentId);
     document.getElementById("tabContentGrades")?.classList.remove("hidden");
-
-    // 🔥 add this
     setTimeout(renderLearnerDevChart, 50);
+    alert("Grading Summary is still under constructions!");
   }
 
   if (tab === "info") {
@@ -4832,6 +4807,7 @@ function fileToBase64(file){
 ********************************************************/
 async function loadEvidenceList(){
 
+  if (!state.idToken) return;
   if (!state.selected) return;
   if (!evidenceList) return;
 
@@ -5632,8 +5608,9 @@ async function openStudentDetailsByEmail(email){
     if (!lastScreenBeforeDetails) {
       lastScreenBeforeDetails = state.currentScreen;
     }
-
+    console.log("items: ", item);
     await openDetails(item, 0);
+    //updateGradeSeat();
     clearRemarksBox();
   } catch (err) {
     toast("Open student error: " + err.toString());
@@ -5994,18 +5971,25 @@ if (netBadge) {
 
 if (btnLogout) {
   btnLogout.onclick = () => {
-    localStorage.removeItem("sf_id_token");
-    localStorage.removeItem("sf_login_time");
+
     // ✅ Clear saved session + offline queue
     clearSession();
     localStorage.removeItem(LS_PENDING_UPDATES);
 	  localStorage.removeItem(PENDING_SYNC_KEY);
+    localStorage.removeItem("sf_id_token");
+    localStorage.removeItem("sf_login_time");
 
     // ✅ Reset auth
     state.idToken = "";
     state.me = null;
     state.selected = null;
-
+    state.currentStudent = null;
+    state.gradeTasks = [];
+    state.learnerDev = {
+      categories:[],
+      scores:{}
+    };
+    
     // ✅ Reset filters + UI
     state.filters.schoolYear = "";
     state.filters.term = "";
@@ -6912,10 +6896,7 @@ function hideLoading(){
   const token = localStorage.getItem("sf_id_token");
   const loginTime = Number(localStorage.getItem("sf_login_time") || 0);
 
-  const isValid =
-    token &&
-    loginTime &&
-    (Date.now() - loginTime < SESSION_MAX_AGE_MS);
+  const isValid = token && loginTime && (Date.now() - loginTime < SESSION_MAX_AGE_MS);
 
   if (isValid) {
     state.idToken = token;
@@ -7094,6 +7075,19 @@ function hideLoading(){
         loadInitialFilters();
         loadSeatMapMaster();
 		    renderPendingUI();
+
+        if (state.idToken){
+          console.log("Preloading Seat Master");
+
+          const res = await apiGet({
+            action: "seatmapMaster",
+            idToken: state.idToken
+          });
+
+          if (res?.status === "success"){
+            state.seat.masterStudents = res.students || [];
+          }
+        }
 
         // ✅ RESTORE CURRENT SCREEN (default: list)
         const target = sess.currentScreen || "menu";

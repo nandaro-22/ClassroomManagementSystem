@@ -3085,8 +3085,28 @@ border:1px solid #cbd5e1;
 }
 
 .gradeReadonly{
+  font-weight:800;
+  color:#2563eb;
+}
 
-font-weight:800;
-color:#2563eb;
+#gradeStatusBadge{
+  padding:6px 14px;
+  border-radius:14px;
+  font-weight:600;
+}
 
+.passed{
+  background:#e6f9ed;
+  color:#15803d;
+  font-weight:800;
+  padding:4px 12px;
+  border-radius:10px;
+}
+
+.failed{
+  background:#fde8e8;
+  color:#b42318;
+  font-weight:800;
+  padding:4px 12px;
+  border-radius:10px;
 }
