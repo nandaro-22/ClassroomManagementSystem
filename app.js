@@ -410,6 +410,8 @@ let seatPreviewTimer = null;
 let lastSeatClicked = null;
 let learnerChart = null;
 
+let gradeEditing = false;
+
 /* ===========================
    GLOBAL STATE
 =========================== */
@@ -500,23 +502,16 @@ function formatShortDate(d){
 function formatGradeDate(dateStr){
 
   if(!dateStr) return "-";
-
   try{
-
     const d=new Date(dateStr);
-
     return d.toLocaleDateString("en-PH",{
     year:"numeric",
     month:"short",
     day:"numeric"
   });
-
   }catch(e){
-
     return dateStr;
-
   }
-
 }
 
 /*******************************************************
@@ -532,7 +527,8 @@ function getDefaultGradeTemplate() {
     { date:"2026-02-02", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz 1", max:20, score:"" },
     { date:"2026-02-02", category:"EXERCISE", taskCode:"EXER1", taskName:"Exercise 1", max:20, score:"" },
     { date:"2026-02-15", category:"EXAM", taskCode:"MID1", taskName:"Midterm Exam", max:100, score:"" },
-    { date:"2026-02-15", category:"EXAM", taskCode:"FIN1", taskName:"Final Exam", max:100, score:"" }
+    { date:"2026-02-15", category:"EXAM", taskCode:"FIN1", taskName:"Final Exam", max:100, score:"" },
+    { date:"2026-02-15", category:"PROJECT", taskCode:"PROJ1", taskName:"Project", max:100, score:"" }
   ];
 }
 
@@ -542,9 +538,22 @@ function getDefaultGradeTemplate() {
 * return: -
 * purpose: -
 *******************************************************/
-function isTaskMissing(score){
+/*function isTaskMissing(score){
 
-  return (score === "" || score === null || score === undefined || isNaN(Number(score)));
+  // normalize
+  if(score === undefined) return true;
+  if(score === null) return true;
+  const raw = String(score).trim();
+  if(raw === "") return true;
+  const num = Number(raw);
+  if(Number.isNaN(num)) return true;
+  return false;
+}*/
+function isTaskMissing(score){
+  //return score === "" || score === null || score === undefined;
+  if(score === "" || score === null || score === undefined) return true;
+  if(Number.isNaN(Number(score))) return true;
+  return false;
 }
 
 /*******************************************************
@@ -554,7 +563,7 @@ function isTaskMissing(score){
 * purpose: Save all task grades for current student
 *******************************************************/
 function renderTaskGrades(){
-
+  console.log("renderTaskGrades: called");
   const tbody = document.getElementById("gradeTableBody");
   if(!tbody) return;
 
@@ -563,6 +572,7 @@ function renderTaskGrades(){
   // sort automatically
   //const tasks = [...(state.gradeTasks || [])];
   const tasks = state.gradeTasks || [];
+  console.log("tasks: ",tasks);
   // ⭐ AUTO SORT BY CATEGORY + DATE
 
   tasks.sort((a,b)=>{
@@ -577,16 +587,13 @@ function renderTaskGrades(){
   });
 
   if(!tasks.length){
-    tbody.innerHTML=`
-    <tr>
-      <td colspan="6" style="text-align:center;color:#64748b;">No grade items</td>
-    </tr>
-    `;
+    tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:#64748b;">No grade items</td></tr>`;
     return;
   }
 
   // ===== STUDENT CONTEXT =====
   const student = state.currentStudent;
+  console.log("student: ", student);
   if(student){
     document.getElementById("gradeStudentId").textContent = student.studentId || "—";
   }
@@ -607,7 +614,9 @@ function renderTaskGrades(){
     "ASSIGNMENT",
     "EXAM",
     "PROJECT",
-    "OTHERS"
+    "OTHERS",
+    "EXERCISE",
+    "RECITATION"
   ];
 
   const sortedCategories = Object.keys(grouped).sort((a,b)=>{
@@ -628,12 +637,15 @@ function renderTaskGrades(){
     // ⭐ DEFAULT COLLAPSE IF NOT EXIST
     if(state.gradeCategoryState[safeCat]===undefined){state.gradeCategoryState[safeCat]=false;}
     // ⭐ COUNT FIRST (IMPORTANT)
+    console.log("missingCount-before: ", missingCount);
     grouped[cat].forEach(t=>{
       const isMissing = isTaskMissing(t.score);
       if(isMissing){
         missingCount++;
+        console.log("missingCount-current: ", missingCount);
       }
     });
+    console.log("missingCount-after: ", missingCount);
 
     // ⭐ DEFAULT COLLAPSE
     if(state.gradeCategoryState[safeCat]===undefined){
@@ -644,6 +656,7 @@ function renderTaskGrades(){
     const headerRow=document.createElement("tr");
     headerRow.className="gradeCategoryHeader";
     headerRow.dataset.category = safeCat;
+    console.log("safeCat: ", safeCat);
     headerRow.innerHTML=`
       <td colspan="6"
         style="
@@ -656,16 +669,17 @@ function renderTaskGrades(){
       ${escapeHtml(cat)}
       ${
       missingCount>0 ?
-      `<span style="
-        margin-left:10px;
-        background:#fee2e2;
-        color:#b42318;
-        padding:3px 8px;
-        border-radius:999px;
-        font-size:12px;
-        font-weight:700;
-      ">
-      ${missingCount} Missing
+      `<span 
+        class="missingBadge"
+        style="
+          margin-left:10px;
+          background:#fee2e2;
+          color:#b42318;
+          padding:3px 8px;
+          border-radius:999px;
+          font-size:12px;
+          font-weight:700;
+      ">${missingCount} Missing
       </span>`
       :""
       }
@@ -693,14 +707,15 @@ function renderTaskGrades(){
       tr.dataset.taskCode = t.taskCode;
       tr.classList.add("catRow_"+safeCat);
       if(!state.gradeCategoryState[safeCat]){tr.classList.add("hidden");}
-      const percent = (t.score!=="" && Number(t.max)>0) ? ((Number(t.score)/Number(t.max))*100) : 0;
+      //const percent = (t.score!=="" && Number(t.max)>0) ? ((Number(t.score)/Number(t.max))*100) : 0;
+      const percent = (!isTaskMissing(t.score) && Number(t.max)>0)?((Number(t.score)/Number(t.max))*100):0;
       // ⭐ Missing submission detection
       const isMissing = isTaskMissing(t.score);
       if(isMissing){
         tr.style.background="#fff1f2";
       }
       // ⭐ accumulate category average
-      if(t.score!=="" && Number(t.max)>0){
+      if(!isTaskMissing(t.score) && Number(t.max)>0){
         catTotal += percent;
         catCount++;
       }
@@ -711,7 +726,8 @@ function renderTaskGrades(){
       <td>
         ${escapeHtml(t.taskName||"-")}
         ${isMissing ?
-        `<span style="
+        `<span class="notSubmitted"
+          style="
           color:#b42318;
           font-weight:700;
           margin-left:8px;
@@ -726,7 +742,7 @@ function renderTaskGrades(){
           type="number"
           min="0"
           max="${t.max||0}"
-          value="${t.score ?? ""}"
+          value="${t.score !== undefined ? t.score : ""}"
           data-taskcode="${t.taskCode}"
         />
       </td>
@@ -735,7 +751,9 @@ function renderTaskGrades(){
       </td>
       `;
       tbody.appendChild(tr);
+      console.log("t.score: ",t.score);
     });
+    
 
       // ⭐ CATEGORY AVERAGE ROW
       let avgColor = "#b42318"; // red default
@@ -771,13 +789,91 @@ function renderTaskGrades(){
   });
   document.querySelectorAll(".gradeInput").forEach(input=>{
     input.oninput=function(){
-        updateGradeRealtime(
-          this.dataset.taskCode,
-          this
-        );
+      updateGradeRealtime(this.dataset.taskcode, this);
+      console.log("render-updateGrade");
+      recomputeTaskFinal();
     };
   });
-  recomputeTaskFinal();
+}
+
+/*******************************************************
+* function name: recomputeCategoryAverage
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+/*function recomputeCategoryAverage(category){
+
+  const safeCat = category.toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+  const rows = document.querySelectorAll(`.catRow_${safeCat}`);
+
+  let total=0;
+  let count=0;
+
+  rows.forEach(row=>{
+    const pctCell = row.querySelector(".gradeReadonly");
+    if(!pctCell) return;
+    const val = Number(pctCell.textContent.replace("%",""));
+    if(!isNaN(val)){
+      total+=val;
+      count++;
+    }
+  });
+  const avg = count ? total/count : 0;
+  // find average row
+  document.querySelectorAll("tr").forEach(tr=>{
+    if(tr.textContent.includes(category+" AVERAGE")){
+      const cell = tr.lastElementChild;
+      cell.textContent = avg.toFixed(2)+"%";
+      if(avg>=75){
+        cell.style.color="#1f7a3f";
+      }
+      else if(avg>=50){
+        cell.style.color="#b26a00";
+      }
+      else{
+        cell.style.color="#b42318";
+      }
+    }
+  });
+}*/
+function recomputeCategoryAverage(category){
+
+  const safeCat = category.toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+  const tasks = (state.gradeTasks || []).filter(t=>{
+    const safe = (t.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+    return safe === safeCat;
+  });
+
+  let total = 0;
+  let count = 0;
+
+  tasks.forEach(t=>{
+    const score = Number.isFinite(Number(t.score)) ? Number(t.score) : null;
+    const max = Number(t.max)||0;
+    if(score !== null && max>0){
+      total += (score/max)*100;
+      count++;
+    }
+  });
+
+  const avg = count ? total/count : 0;
+  // update UI
+  document.querySelectorAll("tr").forEach(tr=>{
+    if(tr.textContent.includes(category+" AVERAGE")){
+      const cell = tr.lastElementChild;
+      cell.textContent = avg.toFixed(2)+"%";
+      if(avg>=75){
+        cell.style.color="#1f7a3f";
+      }
+      else if(avg>=50){
+        cell.style.color="#b26a00";
+      }
+      else{
+        cell.style.color="#b42318";
+      }
+    }
+  });
 }
 
 /*******************************************************
@@ -815,43 +911,48 @@ function updateFinalGradeUI(val){
 async function loadTaskGrades(studentId) {
 
   try {
+    console.log("loadTaskGrades loaded.");
+    showLoading("Loading grades, please wait...");
 
-  // Stop API call if logged out
-  if (!state.idToken) {
-    console.log("Skipped grades load - no session.");
-    return;
-  }
+    // Stop API call if logged out
+    if (!state.idToken) {
+      console.log("Skipped grades load - no session.");
+      return;
+    }
 
-  const student = state.currentStudent;
-  if (!student) return;
+    const student = state.currentStudent;
+    if (!student) return;
 
-  const res = await apiGet({
-    action: "gradesTaskLoad",
-    studentId,
-    idToken: state.idToken
-  });
+    const res = await apiGet({
+      action: "gradesTaskLoad",
+      studentId,
+      idToken: state.idToken
+    });
 
-  //console.log("GRADES LOAD:", res);
-  showLoading("Loading grades, please wait...");
+    console.log("GRADES LOAD:", res);
 
-  if (!res || res.status !== "success") {
+    if (!res || res.status !== "success") {
+      hideLoading();
+      throw new Error(res?.message || "Load failed");
+    }
+
+    if (!res.items || res.items.length === 0) {
+      console.log("No sheet data. Using default template.");
+      state.gradeTasks = getDefaultGradeTemplate();
+      console.log("getDefaultGradeTemplate:", state.gradeTasks);      
+    } else {
+      state.gradeTasks = res.items;
+    }
+
+    document.getElementById("gradeStudentId").textContent = student.studentId || "—";
+
+    console.log("gradeEditing:", gradeEditing);   
+    if(!gradeEditing){
+      renderTaskGrades();
+      //updateGradeSeat();
+      recomputeTaskFinal();
+    }
     hideLoading();
-    throw new Error(res?.message || "Load failed");
-  }
-
-  if (!res.items || res.items.length === 0) {
-    console.log("No sheet data. Using default template.");
-    state.gradeTasks = getDefaultGradeTemplate();
-  } else {
-    state.gradeTasks = res.items;
-  }
-
-  document.getElementById("gradeStudentId").textContent = student.studentId || "—";
-
-  renderTaskGrades();
-  //updateGradeSeat();
-  recomputeTaskFinal();
-  hideLoading();
   } catch (err) {
 
     console.error("TASK LOAD ERROR:", err);
@@ -870,13 +971,13 @@ async function loadTaskGrades(studentId) {
 * purpose: -color per row, - compute final grade, - update PASSED / FAILED badge
 *******************************************************/
 function recomputeTaskFinal(){
-
+  console.log("recomputeTaskFinal called");
   let total = 0;
   let count = 0;
 
   (state.gradeTasks || []).forEach(task=>{
-
-    const score = task.score === "" ? "" : Number(task.score);
+    //const score = task.score === "" ? "" : Number(task.score);
+    const score = Number.isFinite(Number(task.score))?Number(task.score):"";
     const max = Number(task.max || 0);
     let pct = 0;
 
@@ -889,10 +990,10 @@ function recomputeTaskFinal(){
 
     // save percent in memory
     task.percent = pct;
-
+    console.log("pct: ", pct);
     // ===== UPDATE ROW % CELL =====
     const cell = document.getElementById("taskPct_"+task.taskCode);
-
+    console.log("cell: ", cell);
     if(cell){
       cell.textContent = pct.toFixed(1)+"%";
       if(pct>=75){
@@ -946,57 +1047,244 @@ function recomputeTaskFinal(){
 * return: -
 * purpose: 
 *******************************************************/
-function updateGradeRealtime(taskCode,input){
+/*function updateGradeRealtime(taskCode,input){
 
-const raw = input.value.trim();
-const value = raw === "" ? "": Number(raw);
-const task=state.gradeTasks.find(t=>String(t.taskCode) === String(taskCode));
+  console.log("updateGradeRealtime called");
+  const raw = input.value.trim();
 
-if(!task) return;
+  let value = "";
 
-// ⭐ MEMORY UPDATE
-task.score = value;
-console.log("score updated: ",task.taskCode,value);
+  if(raw === ""){
+    value = "";
+  } else if(!isNaN(raw)){
+    value = Number(raw);
+  } else{
+    value = "";
+  }
 
-// ⭐ CATEGORY
-const safeCat = (task.category||"OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+  // ===== SAFE NUMBER =====
+  //const value = raw === "" ? "" : parseFloat(raw);
+  const task = state.gradeTasks.find(t=>String(t.taskCode)===String(taskCode));
+  if(!task) return;
 
-// ⭐ ROW UPDATE
-const row = input.closest("tr");
-const missing = isTaskMissing(value);
+  // ===== SAVE MEMORY =====
+  task.score = value;
+  console.log("score: ", task.score);
+  // ===== ROW =====
+  const row = input.closest("tr");
+  const isMissing = raw === "" || Number.isNaN(value);
 
-// BACKGROUND
-row.style.background = missing ? "#fff1f2": "";
+  // remove warning
+  //const warn = row.querySelector(".notSubmitted");
+  //if(!isMissing && warn){
+  //  warn.remove();
+  //}
+  // ===== NOT SUBMITTED FIX =====
 
-// ⭐ NOT SUBMITTED TEXT FIX
-const taskCell = row.children[2];
+  const taskCell =  row.children[2]; // TASK COLUMN
 
-if(taskCell){
-  taskCell.innerHTML = escapeHtml(task.taskName||"-") +
-  (missing?
-    `<span style="
+  if(!isMissing){
+    // remove warning fully
+    taskCell.querySelectorAll(".notSubmitted").forEach(e=>e.remove());
+  }else{
+    // add warning if not exist
+    if(!taskCell.querySelector(".notSubmitted")){
+      taskCell.insertAdjacentHTML(
+      "beforeend",
+      `
+      <span class="notSubmitted"
+      style="
       color:#b42318;
       font-weight:700;
       margin-left:8px;
       ">
       ⚠️ NOT SUBMITTED
-    </span>`
-  :"");
-}
+      </span>
+      `
+      );
+    }
+  }
 
-// ⭐ PERCENT UPDATE
-const pctCell = document.getElementById("taskPct_"+taskCode);
-if(pctCell){
-  const pct = (!missing && task.max>0) ? (Number(value)/Number(task.max))*100:0;
-  pctCell.textContent = pct.toFixed(1)+"%";
-}
-console.log("UPDATED",task.taskCode,task.score);
-console.log("safeCat",safeCat);
-// ⭐⭐⭐ BADGE REALTIME ⭐⭐⭐
-updateCategoryMissingBadge(safeCat);
+  // background
+  row.style.background = isMissing ? "#fff1f2" : "";
+  // ===== COMPUTE PERCENT =====
+  const max = Number(task.max) || 0;
+  let pct = 0;
+  if(!isMissing && max>0){
+    pct = (value/max)*100;
+  }
 
-// ⭐ FINAL ONLY
-recomputeTaskFinal();
+  // ===== UPDATE CELL =====
+  const pctCell = input.closest("tr").querySelector(".gradeReadonly");
+  if(pctCell){
+    pctCell.textContent = pct.toFixed(1)+"%";
+    // realtime color
+    if(pct>=75){
+      pctCell.style.color="#1f7a3f";
+    }
+    else if(pct>=50){
+      pctCell.style.color="#b26a00";
+    }
+    else{
+      pctCell.style.color="#b42318";
+    }
+  }
+
+  // ===== CATEGORY BADGE =====
+  const safeCat = (task.category||"OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+  console.log("safecat: ", safeCat);
+  updateCategoryMissingBadge(safeCat);
+  // ===== FINAL =====
+  recomputeTaskFinal();
+}*/
+/*function updateGradeRealtime(taskCode,input){
+
+  console.log("updateGradeRealtime called");
+  const raw = input.value.trim();
+  const value = raw === "" ? "" : Number(raw);
+  //let value = "";
+
+  //if(raw !== ""){
+  //  const num = Number(raw);
+  //  if(!Number.isNaN(num)){
+  //  }
+  //}
+
+  // ===== FORCE FIND TASK SAFE =====
+  const task = (state.gradeTasks || []).find(
+    t=>String(t.taskCode).trim().toUpperCase() === String(taskCode).trim().toUpperCase()
+  );
+  console.warn("Task:", task);
+  if(!task){
+    console.warn("Task not found:", taskCode, state.gradeTasks);
+    return;
+  }
+
+  // ===== UPDATE MEMORY =====
+  task.score = value;
+
+  // ===== UPDATE ROW =====
+  const row = input.closest("tr");
+  const isMissing = isTaskMissing(value);
+
+  // background
+  row.style.background = isMissing ? "#fff1f2" : "";
+
+  // ===== NOT SUBMITTED =====
+  const taskCell = row.children[2];
+  taskCell.querySelectorAll(".notSubmitted").forEach(e=>e.remove());
+
+  if(isMissing){
+    taskCell.insertAdjacentHTML(
+      "beforeend",
+      `
+      <span class="notSubmitted"
+      style="
+      color:#b42318;
+      font-weight:700;
+      margin-left:8px;
+      ">
+      ⚠️ NOT SUBMITTED
+      </span>
+      `
+    );
+  }
+
+  // ===== CATEGORY =====
+  const safeCat = (task.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+  updateCategoryMissingBadge(safeCat);
+  // ===== FINAL =====
+  recomputeTaskFinal();
+}*/
+function updateGradeRealtime(taskCode,input){
+
+  console.log("updateGradeRealtime called");
+  const raw = input.value.trim();
+  const value = raw === "" ? "" : Number(raw);
+
+  // ===== FIND TASK SAFE =====
+  const task = (state.gradeTasks || []).find(t=>String(t.taskCode).trim().toUpperCase() === String(taskCode).trim().toUpperCase());
+
+  if(!task){
+    console.warn("Task not found:", taskCode);
+    return;
+  }
+
+  // ===== UPDATE MEMORY =====
+  task.score = value;
+
+  // ===== ROW FIRST =====
+  const row = input.closest("tr");
+
+  // ===== REALTIME PERCENT CALC =====
+  //const maxCell = row.children[3]; // get max from 4th column (Max column)
+  const max = Number(task.max) || 0;
+  //const max = Number(maxCell?.textContent?.trim()) || 0;
+  console.log("max:",max);
+  /*let pct = 0;
+  if(raw !== "" && max > 0){
+    pct = (Number(raw) / max) * 100;
+  }*/
+ let pct = 0;
+ const scoreNum = Number(input.value);
+ if(Number.isFinite(scoreNum) && max>0){
+  pct = (scoreNum/max)*100;
+ }
+
+  // find percent cell
+  //const pctCell = row.querySelector(".gradeReadonly");
+  const pctCell = document.getElementById("taskPct_"+task.taskCode);
+  if(pctCell){
+    pctCell.textContent = pct.toFixed(1) + "%";
+    // realtime color
+    if(pct >= 75){
+      pctCell.style.color = "#1f7a3f";   // green
+    }
+    else if(pct >= 50){
+      pctCell.style.color = "#b26a00";   // orange
+    }
+    else{
+      pctCell.style.color = "#b42318";   // red
+    }
+  }
+
+  // ===== ROW =====
+  const isMissing = raw === "";
+
+  // ===== BACKGROUND =====
+  row.style.background = isMissing ? "#fff1f2" : "";
+
+  // ===== NOT SUBMITTED =====
+  const taskCell = row.children[2];
+  taskCell.querySelectorAll(".notSubmitted").forEach(e=>e.remove());
+
+  if(isMissing){
+    taskCell.insertAdjacentHTML(
+      "beforeend",
+      `
+      <span class="notSubmitted"
+      style="
+      color:#b42318;
+      font-weight:700;
+      margin-left:8px;
+      ">
+      ⚠️ NOT SUBMITTED
+      </span>
+      `
+    );
+  }
+
+  // ⭐⭐⭐ IMPORTANT ⭐⭐⭐
+  // Wait DOM update before badge compute
+
+  setTimeout(()=>{
+    const safeCat = (task.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+    updateCategoryMissingBadge(safeCat);
+  },0);
+
+  // ===== FINAL =====
+  recomputeCategoryAverage(task.category);
+  recomputeTaskFinal();
 }
 
 /*******************************************************
@@ -1005,40 +1293,44 @@ recomputeTaskFinal();
 * return: -
 * purpose: 
 *******************************************************/
-function updateCategoryMissingBadge(safeCat){
+function updateCategoryMissingBadge(category){
 
-  const header=document.querySelector(`.gradeCategoryHeader[data-category="${safeCat}"]`);
+  const header = document.querySelector(`.gradeCategoryHeader[data-category="${category}"]`);
 
   if(!header) return;
 
-  // ⭐ COUNT AGAIN
-  const missing = state.gradeTasks.filter(t=>{
-    const cat=(t.category||"OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
-    return cat === safeCat && isTaskMissing(t.score);
-  }).length;
+  // Count directly from visible rows
+  const rows = document.querySelectorAll(`.catRow_${category}`);
 
-  // REMOVE OLD
-  const old=header.querySelector(".missingBadge");
+  let missing = 0;
 
-  if(old) old.remove();
+  rows.forEach(row=>{
+    const input = row.querySelector(".gradeInput");
+    if(!input) return;
+    const raw = input.value.trim();
+    if(raw === ""){
+      missing++;
+    }
+  });
 
-  // ADD AGAIN
-  if(missing>0){
-    header.children[0].insertAdjacentHTML(
-      "beforeend",
-      `<span class="missingBadge"
-      style="
-      margin-left:10px;
-      background:#fee2e2;
-      color:#b42318;
-      padding:3px 8px;
-      border-radius:999px;
-      font-size:12px;
-      font-weight:700;
-      ">
-      ${missing} Missing
-      </span>`
-    );
+  const td = header.querySelector("td");
+
+  // Remove old badge
+  td.querySelectorAll(".missingBadge").forEach(e=>e.remove());
+
+  // Add new badge
+  if(missing > 0){
+    const badge = document.createElement("span");
+    badge.className = "missingBadge";
+    badge.style.marginLeft = "10px";
+    badge.style.background = "#fee2e2";
+    badge.style.color = "#b42318";
+    badge.style.padding = "3px 8px";
+    badge.style.borderRadius = "999px";
+    badge.style.fontSize = "12px";
+    badge.style.fontWeight = "700";
+    badge.textContent = missing + " Missing";
+    td.appendChild(badge);
   }
 }
 
@@ -1048,9 +1340,9 @@ function updateCategoryMissingBadge(safeCat){
 * return: -
 * purpose: Save all task grades for current student
 *******************************************************/
-async function saveTaskGrades(){
+/*async function saveTaskGrades(){
 
-showLoading("Saving task grades...");
+showLoading("Please wait, saving Grades...");
 
   try{
     await apiPost({
@@ -1059,11 +1351,49 @@ showLoading("Saving task grades...");
       idToken:state.idToken
     });
     hideLoading();
+    alert("Grade(s) saved!")
     console.log("Grades autosaved");
   }catch(e){
     hideLoading();
     console.error(e);
     alert("Saved failed");
+  }
+}*/
+async function saveTaskGrades(){
+
+  showLoading("Saving task grades...");
+  try{
+    const student = state.currentStudent;
+    if(!student){
+      hideLoading();
+      alert("No student selected");
+      return;
+    }
+
+    // ===== CORRECT API POST =====
+    const res = await apiPost(
+    {
+      action:"gradesTaskSave",
+      idToken:state.idToken
+    },
+    {
+    studentId: student.studentId,
+    items: state.gradeTasks
+    });
+
+    hideLoading();
+    console.log("SAVE RESPONSE:", res);
+    if(!res || res.status!=="success"){
+      alert(res?.message || "Save failed");
+      return;
+    }
+    alert("Grades Saved Successfully ✅");
+    // ⭐ reload from sheet (important)
+    await loadTaskGrades(student.studentId);
+  }catch(e){
+      hideLoading();
+      console.error(e);
+      alert("Save Failed ❌");
   }
 }
 
@@ -1073,18 +1403,105 @@ showLoading("Saving task grades...");
 * return: -
 * purpose: -
 *******************************************************/
-async function addTaskRow(){
+/*async function addTaskRow(){
 
   state.gradeTasks.push({
     date: new Date().toISOString().slice(0,10),
     category: "OTHER",
-    taskCode: "OTHER"+new Date().toISOString().slice(0,10),
+    taskCode: "OTHER",//+new Date().toISOString().slice(0,10),
     taskName: "Other",
     max: 20,
     score: ""
   });
-
   renderTaskGrades();
+}*/
+/*async function addTaskRow(){
+
+  const category = document.getElementById("newTaskCategory")?.value || "ASSIGNMENT";
+  const max = Number(document.getElementById("newTaskMax")?.value) || 20;
+  const upperCat = category.toUpperCase();
+
+  // ===== FIND LAST INDEX =====
+  const sameCategory = (state.gradeTasks || []).filter(t =>(t.category || "").toUpperCase() === upperCat);
+  let lastNumber = 0;
+  sameCategory.forEach(t=>{
+    const match = String(t.taskCode).match(/\d+$/);
+    if(match){
+      const num = Number(match[0]);
+      if(num > lastNumber){
+        lastNumber = num;
+      }
+    }
+  });
+
+  const nextNumber = lastNumber + 1;
+  const newTaskCode = upperCat + nextNumber;
+  const newTaskName = upperCat + " " + nextNumber;
+  state.gradeTasks.push({
+    date: new Date().toISOString().slice(0,10),
+    category: upperCat,
+    taskCode: newTaskCode,
+    taskName: newTaskName,
+    max: max,
+    score: ""
+  });
+  renderTaskGrades();
+}*/
+async function addTaskRow(){
+
+  const category = document.getElementById("newTaskCategory")?.value || "ASSIGNMENT";
+  const max = Number(document.getElementById("newTaskMax")?.value) || 20;
+  const upperCat = category.toUpperCase();
+  const prefix = getCategoryPrefix(upperCat);
+
+  // ===== FIND LAST NUMBER =====
+
+  let lastNumber = 0;
+
+  (state.gradeTasks||[]).forEach(t=>{
+    if((t.category||"").toUpperCase() !== upperCat) return;
+    const match = String(t.taskCode).match(/\d+$/);
+    if(match){
+      const num = Number(match[0]);
+      if(num>lastNumber){
+        lastNumber=num;
+      }
+    }
+  });
+
+  const next = lastNumber+1;
+  const newTaskCode = prefix + next;
+  const newPrefix = prefix + next;
+  state.gradeTasks.push({
+    date: new Date().toISOString().slice(0,10),
+    category: upperCat, // ASSIGNMENT
+    taskCode: newTaskCode, //ASSIGN1
+    taskName: newPrefix, //Assign
+    max: max,
+    score:""
+  });
+  renderTaskGrades();
+}
+
+/*******************************************************
+* function name: getCategoryPrefix
+* parameter: category
+* return: -
+* purpose: -
+*******************************************************/
+function getCategoryPrefix(category){
+
+  const map = {
+    "ASSIGNMENT":"Assign",
+    "QUIZ":"Quiz",
+    "EXAM":"Exam",
+    "MIDTERM EXAM":"Mid Exam",
+    "FINAL EXAM":"Fin Exam",
+    "PROJECT":"Proj",
+    "EXERCISE":"Exer",
+    "RECITATION":"Rec"
+  };
+  return map[category.toUpperCase()] || category.toUpperCase();
 }
 
 /*******************************************************
@@ -2009,18 +2426,13 @@ function recomputeGrades(){
   state.grades.items.forEach(item => {
 
     const score = Number(state.grades.scores[item.code] || 0);
-
-    const pct = item.max > 0
-      ? (score / item.max) * 100
-      : 0;
-
+    const pct = item.max > 0 ? (score / item.max) * 100 : 0;
     const weighted = pct * (item.weight / 100);
     final += weighted;
 
     const cell = document.getElementById("gradePct_" + item.code);
     if (cell) {
       cell.textContent = pct.toFixed(1) + "%";
-
       // ✅ optional: color per row %
       cell.style.color =
         pct >= 75 ? "#1f7a3f" :
@@ -4498,6 +4910,7 @@ function openDetailsByIndex(idx){
 
   const item = state.list.items[idx];
   if (!item) return;
+  console.log("openDetailsByIndex-openDetails");
   openDetails(item, idx);
   saveSession();
 }
@@ -4757,9 +5170,12 @@ async function openDetails(item, idxInList = 0){
 
         await loadSeatRoom(state.seat.room);
         //renderGradeTable();            // build table
-        if (state.currentStudent?.studentId) {
-          await loadTaskGrades(state.currentStudent.studentId);
-        }
+        //if (state.currentStudent?.studentId) {
+        //  if(!gradeEditing){
+        //    await loadTaskGrades(state.currentStudent.studentId);
+        //    console.log("await loadTaskGrades called");
+        //  }
+        //}
 
         saveSession();
 
@@ -4991,12 +5407,12 @@ function openDetailsTab(tab){
     loadTaskGrades(student.studentId);
     document.getElementById("tabContentGrades")?.classList.remove("hidden");
     setTimeout(renderLearnerDevChart, 50);
-    alert("Grading Summary is still under constructions!");
+    //alert("Grading Summary is still under constructions!");
   }
 
-  if (tab === "info") {
-    document.getElementById("tabContentInfo")?.classList.remove("hidden");
-  }
+  //if (tab === "info") {
+  //  document.getElementById("tabContentInfo")?.classList.remove("hidden");
+  //}
 }
 
 /* ===========================
@@ -5832,6 +6248,7 @@ async function openStudentDetailsByEmail(email){
       lastScreenBeforeDetails = state.currentScreen;
     }
     //console.log("items: ", item);
+    console.log("openStudentDetailsByEmail-openDetails");
     await openDetails(item, 0);
     //updateGradeSeat();
     clearRemarksBox();
@@ -7400,7 +7817,7 @@ document.addEventListener("keydown", refreshActivityStamp);
 * return: -
 * purpose: -
 ********************************************************/
-function scheduleAutoSaveGrades(){
+/*function scheduleAutoSaveGrades(){
 
   // cancel previous timer
   if(state.autoSaveTimer){
@@ -7411,4 +7828,4 @@ function scheduleAutoSaveGrades(){
   state.autoSaveTimer=setTimeout(() => {
     saveTaskGrades();
   }, 1000);
-}
+}*/

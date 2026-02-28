@@ -288,116 +288,125 @@
 
 				<!-- =========================
 				GRADES TAB
-			========================= -->
-			<div id="tabContentGrades" class="tabContent hidden">
+				========================= -->
+				<div id="tabContentGrades" class="tabContent hidden">
 
-			<!-- =========================
-			LEARNER DEVELOPMENT (RADAR INPUT)
-			========================= -->
+				<!-- =========================
+				LEARNER DEVELOPMENT (RADAR INPUT)
+				========================= -->
 
-			<div class="card" style="margin-top:14px;">
-			<h3 style="margin:0 0 8px 0;">Learner Development</h3>
+				<div class="card" style="margin-top:14px;">
+					<h3 style="margin:0 0 8px 0;">Learner Development</h3>
 
-				<div class="row gap" style="flex-wrap:wrap;" id="ldAdminControls">
-					<!-- <input id="ldCategory" placeholder="Category (e.g. Physical)"> -->
-					<select id="ldCategory">
-						<option value="">-- Select Category --</option>
-						<option value="Physical">Physical</option>
-						<option value="Cognitive">Cognitive</option>
-						<option value="Social">Language & Communication</option>
-						<option value="Emotional">Psychosocial & Emotional</option>
-						<option value="Communication">Social</option>
-						<option value="Leadership">Moral & Values</option>
-					</select>
-					<input id="ldScore" type="number" min="0" max="5" placeholder="Score 0–5">
-					<button class="btn btn-primary" onclick="addLearnerDev()">Add</button>
-					<button class="btn btn-ghost" onclick="saveLearnerDev()">Save Radar</button>
-				</div>
-
-				<div class="learnerDevChartWrap">
-					<canvas id="learnerDevChart"></canvas>
-				</div>
-
-			</div>
-
-			<div class="card">
-				<h3 style="margin-top:0;">Grading Summary</h3>
-
-				<!-- ✅ GRADES — ADMIN ADD TOOL (TEMP - frontend only) -->
-				<div class="row gap" id="gradeAdminTools" style="margin-bottom:12px;">
-					<input id="newGradeName" placeholder="Item name (Quiz, Exam)">
-					<input id="newGradeMax" type="number" placeholder="Max">
-					<input id="newGradeWeight" type="number" placeholder="Weight %">
-					<button class="btn btn-primary" onclick="addTaskRow()">Add Item</button>
-				</div>
-		
-				<!-- Student context -->
-				<div class="muted" style="margin-bottom:12px;">
-					<!-- Seat: <b style="color: #00f" id="gradeSeatNo">—</b> | -->
-					Student ID: <b style="color: #00f" id="gradeStudentId">—</b>
-				</div>
-
-				<!-- Grades Table -->
-				<div style="overflow-x:auto;">
-					<table class="taskGradeTable">
-						<thead>
-							<tr>
-								<th>Date</th>
-								<th>Category</th>
-								<th>Task</th>
-								<th>Max</th>
-								<th>Score</th>
-								<th>%</th>
-							</tr>
-						</thead>
-					<tbody id="gradeTableBody"></tbody>
-					</table>
-				</div>
-
-				<hr class="sep" />
-
-				<!-- Final Grade -->
-					<div class="row space-between" style="flex-wrap:wrap; gap:10px;">
-						<div>
-							<div class="muted">Final Grade</div>
-							<div style="font-size:22px;font-weight:900;" id="finalGradeValue">—</div>
-						</div>
-
-						<div>
-							<div class="muted">Status</div>
-							<div id="finalGradeStatus" class="gradeStatus">—</div>
-						</div>
+					<div class="row gap" style="flex-wrap:wrap;" id="ldAdminControls">
+						<!-- <input id="ldCategory" placeholder="Category (e.g. Physical)"> -->
+						<select id="ldCategory" class="gradeField gradeDropdown">
+							<option value="">-- Select Category --</option>
+							<option value="Physical">Physical</option>
+							<option value="Cognitive">Cognitive</option>
+							<option value="Social">Language & Communication</option>
+							<option value="Emotional">Psychosocial & Emotional</option>
+							<option value="Communication">Social</option>
+							<option value="Leadership">Moral & Values</option>
+						</select>
+						<input id="ldScore" type="number" min="0" max="5" placeholder="Score 0–5" class="gradeField gradeInputField">
+						<button class="btn btn-primary" onclick="addLearnerDev()">Add</button>
+						<button class="btn btn-ghost" onclick="saveLearnerDev()">Save Radar</button>
 					</div>
 
-					<div class="row gap" style="margin-top:16px;" id="gradeAdminButtons">
-						<button class="btn btn-primary" onclick="saveTaskGrades()">Save Grades</button>
-						<button class="btn btn-ghost" onclick="resetGradesUI()">Reset</button>
+					<div class="learnerDevChartWrap">
+						<canvas id="learnerDevChart"></canvas>
 					</div>
 
 				</div>
-			</div>
+				
+
+				<div class="card">
+					<h3 style="margin-top:0;">Grading Summary</h3>
+
+					<!-- ✅ GRADES — ADMIN ADD TOOL (TEMP - frontend only) -->
+					<div class="row gradeToolbar" id="gradeAdminTools">
+						<select id="newGradeCategory" class="gradeField gradeDropdown">
+							<option value="">-- Select Category --</option>
+							<option value="QUIZ">QUIZ</option>
+							<option value="ASSIGNMENT">ASSIGNMENT</option>
+							<option value="EXAM">EXAM</option>
+							<option value="FINAL EXAM">FINAL EXAM</option>
+							<option value="MIDTERM EXAM">MIDTERM EXAM</option>
+							<option value="PROJECT">PROJECT</option>
+							<option value="EXERCISE">EXERCISE</option>
+						</select>
+
+						<input id="newGradeMax"	type="number" class="gradeField gradeInputField" placeholder="Max" value="0">
+						<button class="btn btn-primary" onclick="addTaskRow()">Add Item</button>
+					</div>
+			
+					<!-- Student context -->
+					<div class="muted" style="margin-bottom:12px;">
+						<!-- Seat: <b style="color: #00f" id="gradeSeatNo">—</b> | -->
+						Student ID: <b style="color: #00f" id="gradeStudentId">—</b>
+					</div>
+
+					<!-- Grades Table -->
+					<div style="overflow-x:auto;">
+						<table class="taskGradeTable">
+							<thead>
+								<tr>
+									<th>Date</th>
+									<th>Category</th>
+									<th>Task</th>
+									<th>Max</th>
+									<th>Score</th>
+									<th>%</th>
+								</tr>
+							</thead>
+						<tbody id="gradeTableBody"></tbody>
+						</table>
+					</div>
+
+					<hr class="sep" />
+
+					<!-- Final Grade -->
+						<div class="row space-between" style="flex-wrap:wrap; gap:10px;">
+							<div>
+								<div class="muted">Final Grade</div>
+								<div style="font-size:22px;font-weight:900;" id="finalGradeValue">—</div>
+							</div>
+
+							<div>
+								<div class="muted">Status</div>
+								<div id="finalGradeStatus" class="gradeStatus">—</div>
+							</div>
+						</div>
+
+						<div class="row gap" style="margin-top:16px;" id="gradeAdminButtons">
+							<button class="btn btn-primary" onclick="saveTaskGrades()">Save Grades</button>
+							<button class="btn btn-ghost" onclick="resetGradesUI()">Reset</button>
+						</div>
+
+					</div>
+				</div>
 
 	<!-- SCREEN: SEAT MAP -->
 	<section id="screenSeatMap" class="card hidden">
 
-	  <div class="row space-between">
-		<div>
-		  <h2>Seat Map</h2>
-		  <div id="seatRoomLabel" class="muted">Room: -</div>
-		</div>
+	  	<div class="row space-between">
+			<div>
+			<h2>Seat Map</h2>
+			<div id="seatRoomLabel" class="muted">Room: -</div>
+			</div>
 
-		<div class="row gap">
-		  <button id="btnSeatBack" class="btn btn-ghost">Back</button>
-
-		  <!-- NEW -->
-			<button id="btnSeatAddRoom" class="btnPrimary">Add Room</button>
-			<!-- // ✅ DELETE ROOM (ADMIN) -->
-			<button id="btnDeleteRoom" class="btn btn-danger hidden">Delete Room</button>
-			<button id="btnAddTable" class="btnPrimary">Add Seat</button>
-			<button id="btnRemoveSeat" class="btnDanger hidden">Remove Seat</button>
-			<button id="btnSeatEditToggle" class="btnPrimary">Edit Mode: OFF</button>
-		</div>
-	  </div>
+			<div class="row gap">
+			<button id="btnSeatBack" class="btn btn-ghost">Back</button>
+			<!-- NEW -->
+				<button id="btnSeatAddRoom" class="btnPrimary">Add Room</button>
+				<!-- // ✅ DELETE ROOM (ADMIN) -->
+				<button id="btnDeleteRoom" class="btn btn-danger hidden">Delete Room</button>
+				<button id="btnAddTable" class="btnPrimary">Add Seat</button>
+				<button id="btnRemoveSeat" class="btnDanger hidden">Remove Seat</button>
+				<button id="btnSeatEditToggle" class="btnPrimary">Edit Mode: OFF</button>
+			</div>
+	  	</div>
 
 	  <!-- ROOM SELECT -->
 	  <div class="toolbar seatToolbar" style="margin-top:14px;">
