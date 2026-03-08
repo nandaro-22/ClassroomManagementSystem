@@ -326,8 +326,10 @@
 
 					<!-- ✅ GRADES — ADMIN ADD TOOL (TEMP - frontend only) -->
 					<div class="row gradeToolbar" id="gradeAdminTools">
-						<select id="newGradeCategory" class="gradeField gradeDropdown">
+						<select id="newTaskCategory" class="gradeField gradeDropdown">
 							<option value="">-- Select Category --</option>
+							<option value="AUGUSTINIAN VALUE">AUGUSTINIAN VALUE</option>
+							<option value="CLASS PARTICIPATION">CLASS PARTICIPATION</option>
 							<option value="QUIZ">QUIZ</option>
 							<option value="ASSIGNMENT">ASSIGNMENT</option>
 							<option value="EXAM">EXAM</option>
@@ -337,7 +339,7 @@
 							<option value="EXERCISE">EXERCISE</option>
 						</select>
 
-						<input id="newGradeMax"	type="number" class="gradeField gradeInputField" placeholder="Max" value="0">
+						<input id="newTaskMax"	type="number" class="gradeField gradeInputField" placeholder="Items">
 						<button class="btn btn-primary" onclick="addTaskRow()">Add Item</button>
 					</div>
 			
@@ -348,8 +350,8 @@
 					</div>
 
 					<!-- Grades Table -->
-					<div style="overflow-x:auto;">
-						<table class="taskGradeTable">
+					<div class="gradeTableWrap">
+						<table class="gradeTable">
 							<thead>
 								<tr>
 									<th>Date</th>
@@ -357,7 +359,7 @@
 									<th>Task</th>
 									<th>Max</th>
 									<th>Score</th>
-									<th>%</th>
+									<th>Weighted %</th>
 								</tr>
 							</thead>
 						<tbody id="gradeTableBody"></tbody>

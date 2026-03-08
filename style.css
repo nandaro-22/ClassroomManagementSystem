@@ -45,10 +45,6 @@ body {
   color: #0f172a;
 }
 
-.hidden {
-  display: none !important;
-}
-
 .container {
   width: 100%;
   max-width: 100%;
@@ -2556,54 +2552,6 @@ button:disabled {
 }
 
 /* =========================
-   GRADES TABLE
-========================= */
-.gradeTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.gradeTable th,
-.gradeTable td {
-  border-bottom: 1px solid #e2e8f0;
-  padding: 10px 8px;
-  text-align: center;
-}
-
-.gradeTable th {
-  font-weight: 800;
-  background: #f8fafc;
-}
-
-.gradeInput {
-  width: 70px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  text-align: center;
-  font-weight: 700;
-}
-
-.gradeReadonly {
-  font-weight: 800;
-  color: #2563eb;
-}
-
-/* mobile */
-@media (max-width: 600px) {
-  .gradeTable th,
-  .gradeTable td {
-    font-size: 12px;
-    padding: 8px 6px;
-  }
-
-  .gradeInput {
-    width: 60px;
-  }
-}
-
-/* =========================
    SEAT FLOATING PREVIEW
 ========================= */
 
@@ -2925,21 +2873,6 @@ button:disabled {
 }
 
 /* ===== SCORE INPUT ===== */
-.gradeInput {
-  width: 90px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid #ccd5e0;
-  text-align: center;
-  font-weight: 600;
-  transition: .15s;
-}
-
-.gradeInput:focus {
-  outline: none;
-  border-color: #1da1f2;
-  box-shadow: 0 0 0 3px rgba(29,161,242,.15);
-}
 
 .seatPreviewMobile .seatPreviewBody{
   display:flex;
@@ -2954,11 +2887,25 @@ button:disabled {
   }
 }
 
-#gradeAdminTools{
-  display:flex;
-  gap:12px;
-  flex-wrap:wrap;
-  align-items:center;
+@media (max-width:768px){
+
+  #gradeAdminTools{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+
+  #gradeAdminTools select{
+    grid-column:1 / -1;
+  }
+
+  #gradeAdminTools input{
+    width:100%;
+  }
+
+  #gradeAdminTools button{
+    width:100%;
+  }
 }
 
 /* =========================
@@ -2979,9 +2926,9 @@ button:disabled {
 }
 
 /* mobile */
-@media (max-width: 600px){
+@media (max-width: 768px){
   .learnerDevChartWrap{
-    height: 340px;
+    height: 320px;
   }
 }
 
@@ -3014,8 +2961,12 @@ button:disabled {
 
 .app-booting #screenConfig { display:none !important; }
 
+/* =========================
+   GRADES TABLE
+========================= */
 .gradeTable{
 width:100%;
+min-width: 650px;
 border-collapse: collapse;
 margin-top: 10px;
 }
@@ -3033,13 +2984,6 @@ color:#64748b;
 padding:8px 6px;
 border-bottom:1px solid #f1f5f9;
 font-size:14px;
-}
-
-.gradeInput{
-width:70px;
-padding:4px 6px;
-border:1px solid #cbd5e1;
-border-radius:6px;
 }
 
 .gradePercent.pass{
@@ -3075,12 +3019,14 @@ border-bottom:1px solid #f1f5f9;
 
 }
 
+/* score input field*/
 .gradeInput{
 
 width:90px;
 padding:6px;
 border-radius:8px;
 border:1px solid #cbd5e1;
+text-align:center;
 
 }
 
@@ -3125,7 +3071,7 @@ border:1px solid #cbd5e1;
 
 .gradeToolbar{
   display:flex;
-  gap:12px;
+  gap:10px;
   align-items:center;
   flex-wrap:wrap;
 }
@@ -3161,7 +3107,26 @@ border:1px solid #cbd5e1;
 /* Button same height */
 .gradeBtn{
   height:42px;
-  padding:0 18px;
+  padding:0 20px;
   border-radius:8px;
   font-weight:600;
+}
+
+/* ================================
+   RESPONSIVE GRADE TABLE FIX
+================================ */
+
+.gradeTableWrap{
+  width:100%;
+  overflow-x:auto;
+}
+
+@media (max-width:768px){
+  .gradeTable{
+    font-size:12px;
+  }
+
+  .gradeInput{
+    width:60px;
+  }
 }

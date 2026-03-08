@@ -476,6 +476,10 @@ const state = {
 
 state.grades = state.grades || {};
 
+state.categoryGrades = {};
+
+state.gradeCategoryState = state.gradeCategoryState || {};
+
 /* ===========================
    UI HELPERS
 =========================== */
@@ -500,7 +504,6 @@ function formatShortDate(d){
 * purpose: -
 *******************************************************/
 function formatGradeDate(dateStr){
-
   if(!dateStr) return "-";
   try{
     const d=new Date(dateStr);
@@ -515,42 +518,12 @@ function formatGradeDate(dateStr){
 }
 
 /*******************************************************
-* function name: getDefaultGradeTemplate
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function getDefaultGradeTemplate() {
-  return [
-    { date:"2026-01-15", category:"ASSIGNMENT", taskCode:"ASS1", taskName:"Blog Entry", max:20, score:"" },
-    { date:"2026-02-13", category:"RECITATION", taskCode:"REC1", taskName:"Movie Review", max:50, score:"" },
-    { date:"2026-02-02", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz 1", max:20, score:"" },
-    { date:"2026-02-02", category:"EXERCISE", taskCode:"EXER1", taskName:"Exercise 1", max:20, score:"" },
-    { date:"2026-02-15", category:"EXAM", taskCode:"MID1", taskName:"Midterm Exam", max:100, score:"" },
-    { date:"2026-02-15", category:"EXAM", taskCode:"FIN1", taskName:"Final Exam", max:100, score:"" },
-    { date:"2026-02-15", category:"PROJECT", taskCode:"PROJ1", taskName:"Project", max:100, score:"" }
-  ];
-}
-
-/*******************************************************
 * function name: updateGradeSeat
 * parameter: -
 * return: -
 * purpose: -
 *******************************************************/
-/*function isTaskMissing(score){
-
-  // normalize
-  if(score === undefined) return true;
-  if(score === null) return true;
-  const raw = String(score).trim();
-  if(raw === "") return true;
-  const num = Number(raw);
-  if(Number.isNaN(num)) return true;
-  return false;
-}*/
 function isTaskMissing(score){
-  //return score === "" || score === null || score === undefined;
   if(score === "" || score === null || score === undefined) return true;
   if(Number.isNaN(Number(score))) return true;
   return false;
@@ -563,18 +536,15 @@ function isTaskMissing(score){
 * purpose: Save all task grades for current student
 *******************************************************/
 function renderTaskGrades(){
-  console.log("renderTaskGrades: called");
   const tbody = document.getElementById("gradeTableBody");
   if(!tbody) return;
 
   tbody.innerHTML="";
 
   // sort automatically
-  //const tasks = [...(state.gradeTasks || [])];
   const tasks = state.gradeTasks || [];
-  console.log("tasks: ",tasks);
-  // ⭐ AUTO SORT BY CATEGORY + DATE
 
+  // ⭐ AUTO SORT BY CATEGORY + DATE
   tasks.sort((a,b)=>{
     const catA = (a.category || "").toUpperCase();
     const catB = (b.category || "").toUpperCase();
@@ -593,70 +563,100 @@ function renderTaskGrades(){
 
   // ===== STUDENT CONTEXT =====
   const student = state.currentStudent;
-  console.log("student: ", student);
+
   if(student){
     document.getElementById("gradeStudentId").textContent = student.studentId || "—";
   }
 
   // ===== GROUP BY CATEGORY =====
-  const grouped={};
+  /*const grouped={};
   tasks.forEach(t=>{
     const cat = (t.category || "OTHERS").toUpperCase();
     if(!grouped[cat]){
       grouped[cat]=[];
     }
   grouped[cat].push(t);
+  });*/
+
+  // ===== GROUP BY PERIOD =====
+  const periodGroups={};
+  tasks.forEach(t=>{
+    const period=(t.period||"MIDTERM PERIOD").toUpperCase();
+      if(!periodGroups[period]) periodGroups[period]=[];
+    periodGroups[period].push(t);
   });
+
 
   // ===== SORT CATEGORY ORDER =====
   const categoryOrder=[
+    "AUGUSTINIAN VALUE",
     "QUIZ",
     "ASSIGNMENT",
-    "EXAM",
-    "PROJECT",
-    "OTHERS",
     "EXERCISE",
-    "RECITATION"
+    "PROJECT",
+    "MIDTERM EXAM",
+    "FINAL EXAM",
+    "RECITATION",
+    "OTHERS"
   ];
 
-  const sortedCategories = Object.keys(grouped).sort((a,b)=>{
+  /*const sortedCategories = Object.keys(grouped).sort((a,b)=>{
     const ia = categoryOrder.indexOf(a);
     const ib = categoryOrder.indexOf(b);
     return (ia<0?999:ia) - (ib<0?999:ib);
-  });
+  });*/  //for deletion
 
   // ===== BUILD TABLE =====
-  sortedCategories.forEach(cat=>{
-    // ⭐ CATEGORY HEADER ROW
-    // ⭐ CATEGORY HEADER (CLICKABLE)
+  //sortedCategories.forEach(cat=>{
+  Object.keys(periodGroups).forEach(period=>{
+    const periodTasks=periodGroups[period];
+    const grouped = {};
+    periodTasks.forEach(t=>{
+      const cat = (t.category || "OTHERS").toUpperCase();
+      if(!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(t);
+    });
+    const periodHeader=document.createElement("tr");
+    periodHeader.innerHTML=`
+      <td colspan="6"
+      style="
+      background:#e2e8f0;
+      font-weight:800;
+      font-size:15px;
+      color:#1e293b;
+      ">
+      ${period}
+      </td>
+    `;
+    tbody.appendChild(periodHeader);
+    // ⭐ CATEGORY HEADER ROW (CLICKABLE)
+    //const safeCat = cat.replace(/[^a-zA-Z0-9]/g,"_"); // FINAL EXAM → FINAL_EXAM
+  Object.keys(grouped).sort((a,b)=>{
+      const ia = categoryOrder.indexOf(a);
+      const ib = categoryOrder.indexOf(b);
+      return (ia<0?999:ia)-(ib<0?999:ib);
+    }).forEach(cat=>{
+    //let catTotal = 0; for deletion
+    //let catCount = 0; for deletion
     const safeCat = cat.replace(/[^a-zA-Z0-9]/g,"_"); // FINAL EXAM → FINAL_EXAM
-    let catTotal = 0;
-    let catCount = 0;
+    let totalScore = 0;
+    let totalMax = 0;
     let missingCount = 0;
 
     // ⭐ DEFAULT COLLAPSE IF NOT EXIST
     if(state.gradeCategoryState[safeCat]===undefined){state.gradeCategoryState[safeCat]=false;}
     // ⭐ COUNT FIRST (IMPORTANT)
-    console.log("missingCount-before: ", missingCount);
     grouped[cat].forEach(t=>{
       const isMissing = isTaskMissing(t.score);
       if(isMissing){
         missingCount++;
-        console.log("missingCount-current: ", missingCount);
       }
     });
-    console.log("missingCount-after: ", missingCount);
-
-    // ⭐ DEFAULT COLLAPSE
-    if(state.gradeCategoryState[safeCat]===undefined){
-      state.gradeCategoryState[safeCat]=false;
-    }
 
     // ⭐ CREATE HEADER AFTER COUNT
     const headerRow=document.createElement("tr");
     headerRow.className="gradeCategoryHeader";
     headerRow.dataset.category = safeCat;
-    console.log("safeCat: ", safeCat);
     headerRow.innerHTML=`
       <td colspan="6"
         style="
@@ -707,7 +707,6 @@ function renderTaskGrades(){
       tr.dataset.taskCode = t.taskCode;
       tr.classList.add("catRow_"+safeCat);
       if(!state.gradeCategoryState[safeCat]){tr.classList.add("hidden");}
-      //const percent = (t.score!=="" && Number(t.max)>0) ? ((Number(t.score)/Number(t.max))*100) : 0;
       const percent = (!isTaskMissing(t.score) && Number(t.max)>0)?((Number(t.score)/Number(t.max))*100):0;
       // ⭐ Missing submission detection
       const isMissing = isTaskMissing(t.score);
@@ -715,9 +714,14 @@ function renderTaskGrades(){
         tr.style.background="#fff1f2";
       }
       // ⭐ accumulate category average
+      // for deletion
+      //if(!isTaskMissing(t.score) && Number(t.max)>0){
+      //  catTotal += percent;
+      //  catCount++;
+      //}
       if(!isTaskMissing(t.score) && Number(t.max)>0){
-        catTotal += percent;
-        catCount++;
+        totalScore += Number(t.score);
+        totalMax += Number(t.max);
       }
 
       tr.innerHTML=`
@@ -751,13 +755,13 @@ function renderTaskGrades(){
       </td>
       `;
       tbody.appendChild(tr);
-      console.log("t.score: ",t.score);
     });
     
-
       // ⭐ CATEGORY AVERAGE ROW
       let avgColor = "#b42318"; // red default
-      const avg =  catCount ? (catTotal/catCount) : 0;
+      //const avg =  catCount ? (catTotal/catCount) : 0; for deletion
+      const avg = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
+      state.categoryGrades[cat] = avg;
       const avgRow = document.createElement("tr");
       if(avg>=75){
         avgColor="#1f7a3f"; //green  
@@ -786,11 +790,36 @@ function renderTaskGrades(){
         </td>
         `;
       tbody.appendChild(avgRow);
+
+      const periodGrade=computePeriodGrade(period);
+
+      const periodAvgRow=document.createElement("tr");
+
+      periodAvgRow.innerHTML=`
+      <td colspan="5"
+      style="
+      text-align:right;
+      font-weight:800;
+      background:#f1f5f9;
+      ">
+      ${period} PERIOD AVERAGE
+      </td>
+
+      <td style="
+      font-weight:900;
+      font-size:16px;
+      color:#1f7a3f;
+      ">
+      ${periodGrade.toFixed(0)}
+      </td>
+      `;
+
+      tbody.appendChild(periodAvgRow);
+    }); // close
   });
   document.querySelectorAll(".gradeInput").forEach(input=>{
     input.oninput=function(){
       updateGradeRealtime(this.dataset.taskcode, this);
-      console.log("render-updateGrade");
       recomputeTaskFinal();
     };
   });
@@ -803,42 +832,6 @@ function renderTaskGrades(){
 * purpose: -
 *******************************************************/
 /*function recomputeCategoryAverage(category){
-
-  const safeCat = category.toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
-  const rows = document.querySelectorAll(`.catRow_${safeCat}`);
-
-  let total=0;
-  let count=0;
-
-  rows.forEach(row=>{
-    const pctCell = row.querySelector(".gradeReadonly");
-    if(!pctCell) return;
-    const val = Number(pctCell.textContent.replace("%",""));
-    if(!isNaN(val)){
-      total+=val;
-      count++;
-    }
-  });
-  const avg = count ? total/count : 0;
-  // find average row
-  document.querySelectorAll("tr").forEach(tr=>{
-    if(tr.textContent.includes(category+" AVERAGE")){
-      const cell = tr.lastElementChild;
-      cell.textContent = avg.toFixed(2)+"%";
-      if(avg>=75){
-        cell.style.color="#1f7a3f";
-      }
-      else if(avg>=50){
-        cell.style.color="#b26a00";
-      }
-      else{
-        cell.style.color="#b42318";
-      }
-    }
-  });
-}*/
-function recomputeCategoryAverage(category){
-
   const safeCat = category.toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
   const tasks = (state.gradeTasks || []).filter(t=>{
     const safe = (t.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
@@ -874,32 +867,38 @@ function recomputeCategoryAverage(category){
       }
     }
   });
-}
+}*/
+function recomputeCategoryAverage(category){
 
-/*******************************************************
-* function name: updateFinalGradeUI
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function updateFinalGradeUI(val){
+  const safeCat = category.toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+  const tasks = (state.gradeTasks || []).filter(t=>{
+    const safe = (t.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+    return safe === safeCat;
+  });
 
-  const gradeEl = document.getElementById("finalGradeValue");
-  const statusEl = document.getElementById("finalGradeStatus");
+  let totalScore = 0;
+  let totalMax = 0;
 
-  if (gradeEl){
-    gradeEl.textContent = val.toFixed(2) + "%";
-  }
-
-  if (statusEl){
-    if (val >= 75){
-      statusEl.textContent = "PASSED";
-      statusEl.className = "tag pass";
-    } else {
-      statusEl.textContent = "FAILED";
-      statusEl.className = "tag fail";
+  tasks.forEach(t=>{
+    const score = Number(t.score);
+    const max = Number(t.max);
+    if(Number.isFinite(score) && max>0){
+      totalScore += score;
+      totalMax += max;
     }
-  }
+  });
+
+  const avg = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
+  //document.querySelectorAll("tr").forEach(tr=>{ for deletion
+  document.querySelectorAll(".gradeCategoryHeader").forEach(tr=>{
+    if(tr.textContent.includes(category+" AVERAGE")){
+      const cell = tr.lastElementChild;
+      cell.textContent = avg.toFixed(2)+"%";
+      if(avg>=75) cell.style.color="#1f7a3f";
+      else if(avg>=50) cell.style.color="#b26a00";
+      else cell.style.color="#b42318";
+    }
+  });
 }
 
 /*******************************************************
@@ -908,15 +907,12 @@ function updateFinalGradeUI(val){
 * return: -
 * purpose: -
 *******************************************************/
-async function loadTaskGrades(studentId) {
-
+async function loadTaskGrades(studentId){
   try {
-    console.log("loadTaskGrades loaded.");
     showLoading("Loading grades, please wait...");
-
     // Stop API call if logged out
     if (!state.idToken) {
-      console.log("Skipped grades load - no session.");
+      //console.log("Skipped grades load - no session.");
       return;
     }
 
@@ -929,35 +925,27 @@ async function loadTaskGrades(studentId) {
       idToken: state.idToken
     });
 
-    console.log("GRADES LOAD:", res);
-
     if (!res || res.status !== "success") {
       hideLoading();
       throw new Error(res?.message || "Load failed");
     }
 
     if (!res.items || res.items.length === 0) {
-      console.log("No sheet data. Using default template.");
+      //console.log("No sheet data. Using default template.");
       state.gradeTasks = getDefaultGradeTemplate();
-      console.log("getDefaultGradeTemplate:", state.gradeTasks);      
     } else {
       state.gradeTasks = res.items;
     }
 
     document.getElementById("gradeStudentId").textContent = student.studentId || "—";
-
-    console.log("gradeEditing:", gradeEditing);   
     if(!gradeEditing){
       renderTaskGrades();
-      //updateGradeSeat();
       recomputeTaskFinal();
     }
     hideLoading();
   } catch (err) {
-
-    console.error("TASK LOAD ERROR:", err);
+    //console.error("TASK LOAD ERROR:", err);
     hideLoading();
-
     state.gradeTasks = getDefaultGradeTemplate();
     renderTaskGrades();
     recomputeTaskFinal();
@@ -971,12 +959,10 @@ async function loadTaskGrades(studentId) {
 * purpose: -color per row, - compute final grade, - update PASSED / FAILED badge
 *******************************************************/
 function recomputeTaskFinal(){
-  console.log("recomputeTaskFinal called");
   let total = 0;
   let count = 0;
 
   (state.gradeTasks || []).forEach(task=>{
-    //const score = task.score === "" ? "" : Number(task.score);
     const score = Number.isFinite(Number(task.score))?Number(task.score):"";
     const max = Number(task.max || 0);
     let pct = 0;
@@ -990,10 +976,8 @@ function recomputeTaskFinal(){
 
     // save percent in memory
     task.percent = pct;
-    console.log("pct: ", pct);
     // ===== UPDATE ROW % CELL =====
     const cell = document.getElementById("taskPct_"+task.taskCode);
-    console.log("cell: ", cell);
     if(cell){
       cell.textContent = pct.toFixed(1)+"%";
       if(pct>=75){
@@ -1008,30 +992,24 @@ function recomputeTaskFinal(){
     }
   });
 
-
   // ===== FINAL GRADE =====
-  const final = count ? (total/count) : 0;
-
+  //const final = count ? (total/count) : 0; for deletion
+  const final = computePeriodGrade("MIDTERM PERIOD");
   // FINAL VALUE
   const finalEl = document.getElementById("finalGradeValue");
-
   if(finalEl){
     finalEl.textContent = final.toFixed(2)+"%";
   }
-
   // ===== BADGE =====
   const badge = document.getElementById("finalGradeStatus");
   if (!badge) return;
-
   // reset class safely
   badge.classList.remove("passed","failed");
-
   // if no grade yet
   if (count === 0) {
     badge.textContent="-";
     return;
   }
-
   if(final>=75){
     badge.textContent="PASSED";
     badge.classList.add("passed");
@@ -1047,158 +1025,7 @@ function recomputeTaskFinal(){
 * return: -
 * purpose: 
 *******************************************************/
-/*function updateGradeRealtime(taskCode,input){
-
-  console.log("updateGradeRealtime called");
-  const raw = input.value.trim();
-
-  let value = "";
-
-  if(raw === ""){
-    value = "";
-  } else if(!isNaN(raw)){
-    value = Number(raw);
-  } else{
-    value = "";
-  }
-
-  // ===== SAFE NUMBER =====
-  //const value = raw === "" ? "" : parseFloat(raw);
-  const task = state.gradeTasks.find(t=>String(t.taskCode)===String(taskCode));
-  if(!task) return;
-
-  // ===== SAVE MEMORY =====
-  task.score = value;
-  console.log("score: ", task.score);
-  // ===== ROW =====
-  const row = input.closest("tr");
-  const isMissing = raw === "" || Number.isNaN(value);
-
-  // remove warning
-  //const warn = row.querySelector(".notSubmitted");
-  //if(!isMissing && warn){
-  //  warn.remove();
-  //}
-  // ===== NOT SUBMITTED FIX =====
-
-  const taskCell =  row.children[2]; // TASK COLUMN
-
-  if(!isMissing){
-    // remove warning fully
-    taskCell.querySelectorAll(".notSubmitted").forEach(e=>e.remove());
-  }else{
-    // add warning if not exist
-    if(!taskCell.querySelector(".notSubmitted")){
-      taskCell.insertAdjacentHTML(
-      "beforeend",
-      `
-      <span class="notSubmitted"
-      style="
-      color:#b42318;
-      font-weight:700;
-      margin-left:8px;
-      ">
-      ⚠️ NOT SUBMITTED
-      </span>
-      `
-      );
-    }
-  }
-
-  // background
-  row.style.background = isMissing ? "#fff1f2" : "";
-  // ===== COMPUTE PERCENT =====
-  const max = Number(task.max) || 0;
-  let pct = 0;
-  if(!isMissing && max>0){
-    pct = (value/max)*100;
-  }
-
-  // ===== UPDATE CELL =====
-  const pctCell = input.closest("tr").querySelector(".gradeReadonly");
-  if(pctCell){
-    pctCell.textContent = pct.toFixed(1)+"%";
-    // realtime color
-    if(pct>=75){
-      pctCell.style.color="#1f7a3f";
-    }
-    else if(pct>=50){
-      pctCell.style.color="#b26a00";
-    }
-    else{
-      pctCell.style.color="#b42318";
-    }
-  }
-
-  // ===== CATEGORY BADGE =====
-  const safeCat = (task.category||"OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
-  console.log("safecat: ", safeCat);
-  updateCategoryMissingBadge(safeCat);
-  // ===== FINAL =====
-  recomputeTaskFinal();
-}*/
-/*function updateGradeRealtime(taskCode,input){
-
-  console.log("updateGradeRealtime called");
-  const raw = input.value.trim();
-  const value = raw === "" ? "" : Number(raw);
-  //let value = "";
-
-  //if(raw !== ""){
-  //  const num = Number(raw);
-  //  if(!Number.isNaN(num)){
-  //  }
-  //}
-
-  // ===== FORCE FIND TASK SAFE =====
-  const task = (state.gradeTasks || []).find(
-    t=>String(t.taskCode).trim().toUpperCase() === String(taskCode).trim().toUpperCase()
-  );
-  console.warn("Task:", task);
-  if(!task){
-    console.warn("Task not found:", taskCode, state.gradeTasks);
-    return;
-  }
-
-  // ===== UPDATE MEMORY =====
-  task.score = value;
-
-  // ===== UPDATE ROW =====
-  const row = input.closest("tr");
-  const isMissing = isTaskMissing(value);
-
-  // background
-  row.style.background = isMissing ? "#fff1f2" : "";
-
-  // ===== NOT SUBMITTED =====
-  const taskCell = row.children[2];
-  taskCell.querySelectorAll(".notSubmitted").forEach(e=>e.remove());
-
-  if(isMissing){
-    taskCell.insertAdjacentHTML(
-      "beforeend",
-      `
-      <span class="notSubmitted"
-      style="
-      color:#b42318;
-      font-weight:700;
-      margin-left:8px;
-      ">
-      ⚠️ NOT SUBMITTED
-      </span>
-      `
-    );
-  }
-
-  // ===== CATEGORY =====
-  const safeCat = (task.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
-  updateCategoryMissingBadge(safeCat);
-  // ===== FINAL =====
-  recomputeTaskFinal();
-}*/
 function updateGradeRealtime(taskCode,input){
-
-  console.log("updateGradeRealtime called");
   const raw = input.value.trim();
   const value = raw === "" ? "" : Number(raw);
 
@@ -1217,22 +1044,15 @@ function updateGradeRealtime(taskCode,input){
   const row = input.closest("tr");
 
   // ===== REALTIME PERCENT CALC =====
-  //const maxCell = row.children[3]; // get max from 4th column (Max column)
   const max = Number(task.max) || 0;
-  //const max = Number(maxCell?.textContent?.trim()) || 0;
-  console.log("max:",max);
-  /*let pct = 0;
-  if(raw !== "" && max > 0){
-    pct = (Number(raw) / max) * 100;
-  }*/
- let pct = 0;
- const scoreNum = Number(input.value);
- if(Number.isFinite(scoreNum) && max>0){
-  pct = (scoreNum/max)*100;
- }
+  //console.log("max:",max);
+  let pct = 0;
+  const scoreNum = Number(input.value);
+  if(Number.isFinite(scoreNum) && max>0){
+    pct = (scoreNum/max)*100;
+  }
 
   // find percent cell
-  //const pctCell = row.querySelector(".gradeReadonly");
   const pctCell = document.getElementById("taskPct_"+task.taskCode);
   if(pctCell){
     pctCell.textContent = pct.toFixed(1) + "%";
@@ -1294,16 +1114,12 @@ function updateGradeRealtime(taskCode,input){
 * purpose: 
 *******************************************************/
 function updateCategoryMissingBadge(category){
-
   const header = document.querySelector(`.gradeCategoryHeader[data-category="${category}"]`);
-
   if(!header) return;
 
   // Count directly from visible rows
   const rows = document.querySelectorAll(`.catRow_${category}`);
-
   let missing = 0;
-
   rows.forEach(row=>{
     const input = row.querySelector(".gradeInput");
     if(!input) return;
@@ -1340,27 +1156,7 @@ function updateCategoryMissingBadge(category){
 * return: -
 * purpose: Save all task grades for current student
 *******************************************************/
-/*async function saveTaskGrades(){
-
-showLoading("Please wait, saving Grades...");
-
-  try{
-    await apiPost({
-      action:"gradesTaskSave",
-      items:state.gradeTasks,
-      idToken:state.idToken
-    });
-    hideLoading();
-    alert("Grade(s) saved!")
-    console.log("Grades autosaved");
-  }catch(e){
-    hideLoading();
-    console.error(e);
-    alert("Saved failed");
-  }
-}*/
 async function saveTaskGrades(){
-
   showLoading("Saving task grades...");
   try{
     const student = state.currentStudent;
@@ -1382,7 +1178,7 @@ async function saveTaskGrades(){
     });
 
     hideLoading();
-    console.log("SAVE RESPONSE:", res);
+    //console.log("SAVE RESPONSE:", res);
     if(!res || res.status!=="success"){
       alert(res?.message || "Save failed");
       return;
@@ -1403,61 +1199,24 @@ async function saveTaskGrades(){
 * return: -
 * purpose: -
 *******************************************************/
-/*async function addTaskRow(){
-
-  state.gradeTasks.push({
-    date: new Date().toISOString().slice(0,10),
-    category: "OTHER",
-    taskCode: "OTHER",//+new Date().toISOString().slice(0,10),
-    taskName: "Other",
-    max: 20,
-    score: ""
-  });
-  renderTaskGrades();
-}*/
-/*async function addTaskRow(){
-
-  const category = document.getElementById("newTaskCategory")?.value || "ASSIGNMENT";
-  const max = Number(document.getElementById("newTaskMax")?.value) || 20;
-  const upperCat = category.toUpperCase();
-
-  // ===== FIND LAST INDEX =====
-  const sameCategory = (state.gradeTasks || []).filter(t =>(t.category || "").toUpperCase() === upperCat);
-  let lastNumber = 0;
-  sameCategory.forEach(t=>{
-    const match = String(t.taskCode).match(/\d+$/);
-    if(match){
-      const num = Number(match[0]);
-      if(num > lastNumber){
-        lastNumber = num;
-      }
-    }
-  });
-
-  const nextNumber = lastNumber + 1;
-  const newTaskCode = upperCat + nextNumber;
-  const newTaskName = upperCat + " " + nextNumber;
-  state.gradeTasks.push({
-    date: new Date().toISOString().slice(0,10),
-    category: upperCat,
-    taskCode: newTaskCode,
-    taskName: newTaskName,
-    max: max,
-    score: ""
-  });
-  renderTaskGrades();
-}*/
 async function addTaskRow(){
-
-  const category = document.getElementById("newTaskCategory")?.value || "ASSIGNMENT";
-  const max = Number(document.getElementById("newTaskMax")?.value) || 20;
+  const category = document.getElementById("newTaskCategory")?.value || "-- Select Category --";
+  const max = Number(document.getElementById("newTaskMax")?.value) || "Items";
   const upperCat = category.toUpperCase();
   const prefix = getCategoryPrefix(upperCat);
 
+  if(upperCat === "-- SELECT CATEGORY --"){
+    alert("Please select category.");
+    return;
+  }
+
+  if(max === "Items"){
+    alert("Please input items.");
+    return;
+  }
+
   // ===== FIND LAST NUMBER =====
-
   let lastNumber = 0;
-
   (state.gradeTasks||[]).forEach(t=>{
     if((t.category||"").toUpperCase() !== upperCat) return;
     const match = String(t.taskCode).match(/\d+$/);
@@ -1469,7 +1228,7 @@ async function addTaskRow(){
     }
   });
 
-  const next = lastNumber+1;
+  const next = lastNumber + 1;
   const newTaskCode = prefix + next;
   const newPrefix = prefix + next;
   state.gradeTasks.push({
@@ -1490,18 +1249,137 @@ async function addTaskRow(){
 * purpose: -
 *******************************************************/
 function getCategoryPrefix(category){
-
   const map = {
+    "AUGUSTINIAN VALUE":"Augustinian Value",
     "ASSIGNMENT":"Assign",
     "QUIZ":"Quiz",
-    "EXAM":"Exam",
     "MIDTERM EXAM":"Mid Exam",
     "FINAL EXAM":"Fin Exam",
     "PROJECT":"Proj",
     "EXERCISE":"Exer",
-    "RECITATION":"Rec"
+    "CLASS PARTICIPATION":"Participation"
   };
   return map[category.toUpperCase()] || category.toUpperCase();
+}
+
+/*******************************************************
+* function name: getDefaultGradeTemplate
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function getDefaultGradeTemplate() {
+  return [
+    { date:"2026-01-15", period:"MIDTERM PERIOD", category:"AUGUSTINIAN VALUE", taskCode:"Augustinian Value1", taskName:"Augustinian Value1", max:10, score:"" },
+    { date:"2026-01-15", period:"MIDTERM PERIOD", category:"ASSIGNMENT", taskCode:"Assign1", taskName:"Blog Entry1", max:20, score:"" },
+    { date:"2026-02-13", period:"MIDTERM PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation1", taskName:"Participation1", max:5, score:"" },
+    { date:"2026-02-02", period:"MIDTERM PERIOD", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz1", max:20, score:"" },
+    { date:"2026-02-02", period:"MIDTERM PERIOD", category:"EXERCISE", taskCode:"EXERCISE", taskName:"Exer1", max:20, score:"" },
+    { date:"2026-02-15", period:"MIDTERM PERIOD", category:"MIDTERM EXAM", taskCode:"MID EXAM1", taskName:"Mid Exam1", max:100, score:"" },
+    { date:"2026-02-15", period:"MIDTERM PERIOD", category:"PROJECT", taskCode:"PROJECT", taskName:"Proj1", max:100, score:"" },
+
+    { date:"2026-01-15", period:"FINAL PERIOD", category:"AUGUSTINIAN VALUE", taskCode:"Augustinian Value2", taskName:"Augustinian Value2", max:10, score:"" },
+        { date:"2026-02-13", period:"FINAL PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation2", taskName:"Participation2", max:5, score:"" },
+    { date:"2026-02-02", period:"FINAL PERIOD", category:"QUIZ", taskCode:"QUIZ2", taskName:"Quiz2", max:20, score:"" },
+    { date:"2026-02-02", period:"FINAL PERIOD", category:"EXERCISE", taskCode:"EXERCISE2", taskName:"Exer2", max:20, score:"" },
+    { date:"2026-02-15", period:"FINAL PERIOD", category:"FINAL EXAM", taskCode:"FIN EXAM1", taskName:"Fin Exam1", max:100, score:"" },
+    { date:"2026-02-15", period:"FINAL PERIOD", category:"PROJECT", taskCode:"PROJECT2", taskName:"Proj2", max:100, score:"" }
+  ];
+}
+
+/*******************************************************
+* function name: loadTransmutationTables
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+async function loadTransmutationTables(){
+  const res = await apiGet({
+  action:"getTransmutationTables",
+  idToken:state.idToken
+  });
+  state.transmutationMajor = res.major;
+  state.transmutationMinor = res.minor;
+}
+
+/*******************************************************
+* function name: computeRawPercent
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function computeRawPercent(tasks){
+  let totalScore = 0;
+  let totalMax = 0;
+  tasks.forEach(t=>{
+    const score = Number(t.score);
+    const max = Number(t.max);
+    if(Number.isFinite(score) && max>0){
+      totalScore += score;
+      totalMax += max;
+    }
+  });
+  if(totalMax === 0) return 0;
+  return (totalScore / totalMax) * 100;
+}
+
+/*******************************************************
+* function name: computeRawPercent
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function computePeriodGrade(period){
+
+  const aug = state.categoryGrades["AUGUSTINIAN VALUE"] || 0;
+  const quiz = state.categoryGrades["QUIZ"] || 0;
+  const participation = state.categoryGrades["CLASS PARTICIPATION"] || 0;
+
+  let exam = 0;
+
+  if(period === "MIDTERM PERIOD"){
+    exam = state.categoryGrades["MIDTERM EXAM"] || 0;
+  }
+
+  if(period === "FINAL PERIOD"){
+    exam = state.categoryGrades["FINAL EXAM"] || 0;
+  }
+
+  return (aug*0.10)+(quiz*0.20)+(participation*0.30)+(exam*0.40);
+}
+
+/*******************************************************
+* function name: transmute
+* parameter: none
+* return: -
+* purpose: -
+*******************************************************/
+function transmute(rawPercent, subjectType="major"){
+  const table = subjectType==="major" ? state.transmutationMajor : state.transmutationMinor;
+  let grade = rawPercent;
+  for(let i=1;i<table.length;i++){
+    const raw = Number(table[i][0]);
+    if(rawPercent >= raw){
+      grade = Number(table[i][1]);
+      break;
+    }
+  }
+  return grade;
+}
+
+/*******************************************************
+* function name: isSessionValid
+* parameter: none
+* return: -
+* purpose: -
+*******************************************************/
+function computeCategoryGrade(tasks,type="major"){
+  const rawPercent = computeRawPercent(tasks);
+  const transmuted = transmute(rawPercent,type);
+  return {
+    raw:rawPercent,
+    grade:transmuted
+  };
 }
 
 /*******************************************************
@@ -1527,10 +1405,8 @@ function isSessionValid() {
 * purpose: Loads seat map data for a room by fetching master student list and latest seat assignments, using cached seat data first for fast UI render, then refreshing from server and updating cache.
 *******************************************************/
 async function loadSeatRoom(room){
-
   const key = "seatmap_" + room;
-
-  // 🔥 1) kunin muna master students (may cellphone numbers)
+  // 🔥 1) Get first master students (with cellphone numbers)
   const masterRes = await apiGet({
     action: "seatmapMaster",
     idToken: state.idToken
@@ -1538,19 +1414,18 @@ async function loadSeatRoom(room){
 
   if (masterRes.status === "success") {
     state.seat.masterStudents = masterRes.students || [];
-    //console.log("MASTER STUDENTS LOADED:", state.seat.masterStudents);
   } else {
     state.seat.masterStudents = [];
   }
 
-  // 2) load cached seats para mabilis ang UI
+  // 2) load cached seats for quick load of UI
   const cached = await cacheGet(key);
   if (cached) {
     state.seat.seats = cached;
     renderSeatGrid();
   }
 
-  // 3) kunin latest seats mula server
+  // 3) Get latest seats from server
   const res = await apiGet({
     action: "seatmap",
     idToken: state.idToken,
@@ -1571,9 +1446,7 @@ async function loadSeatRoom(room){
 * purpose: Retrieves learner development records for a student from the API, maps categories and scores into state, and triggers radar chart rendering.
 *******************************************************/
 async function loadLearnerDev(studentId){
-
   if (!state.idToken) return;
-  
   const res = await apiGet({
     action: "learnerDevLoad",
     idToken: state.idToken,
@@ -1586,7 +1459,6 @@ async function loadLearnerDev(studentId){
   }
 
   const map = {};
-
   (res.items || []).forEach(x => {
     const cat = String(x.category || "").trim();
     if (!cat) return;
@@ -1595,7 +1467,6 @@ async function loadLearnerDev(studentId){
 
   state.learnerDev.categories = Object.keys(map);
   state.learnerDev.scores = map;
-
   renderLearnerDevChart();
 }
 
@@ -1606,17 +1477,15 @@ async function loadLearnerDev(studentId){
 * purpose: Clears all IndexedDB caches and evidence storage, resets major state containers, shows reset notification, and navigates UI back to config screen.
 *******************************************************/
 async function resetApp(){
-
   await cacheClearAll();
   await deleteEvidenceDB();
-
   state.selected = null;
   state.list.items = [];
   state.list.total = 0;
   state.seat = { room:"", editMode:false, seats:[], masterStudents:[], editingSeat:null };
-
   toast("Cache cleared. Logging out.");
-  showScreen(screenConfig);
+  //showScreen(screenConfig);
+  forceLogout();
 }
 
 /*******************************************************
@@ -1626,15 +1495,11 @@ async function resetApp(){
 * purpose: Retrieves a student photo as data URL from local cache if available, otherwise downloads from API, caches it, and returns the encoded image.
 *******************************************************/
 async function getPhotoCached(email){
-
   if (!email) return null;
-
   const key = "photo_" + email.toLowerCase();
-
   // 1) try cache
   const cached = await cacheGet(key);
   if (cached) return cached;
-
   // 2) fetch from API
   const res = await apiGet({
     action: "photo",
@@ -1643,12 +1508,10 @@ async function getPhotoCached(email){
   });
 
   if (res.status !== "success") return null;
-
   const dataUrl = `data:${res.mimeType || "image/jpeg"};base64,${res.base64 || ""}`;
 
   // 3) save cache
   await cacheSet(key, dataUrl);
-
   return dataUrl;
 }
 
@@ -1666,17 +1529,14 @@ pdfModal.addEventListener("click", (e) => {
 * purpose: Opens (and creates if needed) the IndexedDB database for evidence files and ensures the required object store exists.
 *******************************************************/
 function idbOpen(){
-
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_DB_NAME, 1);
-
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(IDB_STORE)) {
         db.createObjectStore(IDB_STORE, { keyPath: "id" });
       }
     };
-
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
@@ -1689,7 +1549,6 @@ function idbOpen(){
 * purpose: Stores an evidence file record (blob + metadata) into the IndexedDB evidence store.
 *******************************************************/
 async function idbPutEvidenceFile(item){
-
   const db = await idbOpen();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, "readwrite");
@@ -1706,7 +1565,6 @@ async function idbPutEvidenceFile(item){
 * purpose: Retrieves a stored evidence file record from IndexedDB by its offline id.
 *******************************************************/
 async function idbGetEvidenceFile(id){
-
   const db = await idbOpen();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, "readonly");
@@ -1723,7 +1581,6 @@ async function idbGetEvidenceFile(id){
 * purpose: Deletes an evidence file record from IndexedDB using its offline id.
 *******************************************************/
 async function idbDeleteEvidenceFile(id){
-
   const db = await idbOpen();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, "readwrite");
@@ -1740,7 +1597,6 @@ async function idbDeleteEvidenceFile(id){
 * purpose: Closes the PDF preview modal and clears the iframe source to release the loaded document.
 *******************************************************/
 function closePdfModal(){
-
   pdfFrame.src = "";
   pdfModal.classList.add("hidden");
 }
@@ -1752,7 +1608,6 @@ function closePdfModal(){
 * purpose: Reads and parses the pending offline sync queue from localStorage.
 ********************************************************/
 function getPendingQueue(){
-
   return JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || "[]");
 }
 
@@ -1763,7 +1618,6 @@ function getPendingQueue(){
 * purpose: Saves the pending offline sync queue array into localStorage.
 ********************************************************/
 function setPendingQueue(arr){
-
   localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(arr));
 }
 
@@ -1777,19 +1631,15 @@ function setPendingQueue(arr){
 * purpose: Opens (and initializes if needed) the IndexedDB key-value cache database used for generic app caching.
 ********************************************************/
 function openCacheDB(){
-
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-
     req.onupgradeneeded = () => {
       const db = req.result;
-
       if (!db.objectStoreNames.contains("kv")) {
         db.createObjectStore("kv"); 
         // key-value store
       }
     };
-
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
@@ -1802,13 +1652,11 @@ function openCacheDB(){
 * purpose: Stores a value in the IndexedDB key-value cache under the given key.
 ********************************************************/
 async function cacheSet(key, value){
-
   const db = await openCacheDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("kv", "readwrite");
     const store = tx.objectStore("kv");
     store.put(value, key);
-
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error);
   });
@@ -1821,13 +1669,11 @@ async function cacheSet(key, value){
 * purpose: Retrieves a cached value from IndexedDB key-value store by key.
 ********************************************************/
 async function cacheGet(key){
-
   const db = await openCacheDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("kv", "readonly");
     const store = tx.objectStore("kv");
     const req = store.get(key);
-
     req.onsuccess = () => resolve(req.result ?? null);
     req.onerror = () => reject(req.error);
   });
@@ -1840,13 +1686,11 @@ async function cacheGet(key){
 * purpose: Removes a specific cached entry from the IndexedDB key-value store.
 ********************************************************/
 async function cacheDelete(key){
-
   const db = await openCacheDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("kv", "readwrite");
     const store = tx.objectStore("kv");
     store.delete(key);
-
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error);
   });
@@ -1859,13 +1703,11 @@ async function cacheDelete(key){
 * purpose: Clears all entries from the IndexedDB key-value cache store.
 ********************************************************/
 async function cacheClearAll(){
-
   const db = await openCacheDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("kv", "readwrite");
     const store = tx.objectStore("kv");
     store.clear();
-
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error);
   });
@@ -1878,7 +1720,6 @@ async function cacheClearAll(){
 * purpose: Switches visible UI screen by hiding all registered screens and showing the target element, updates related UI badges and buttons, tracks current screen state, and saves session snapshot.
 ********************************************************/
 function showScreen(el){
-
   const screens = [
     screenConfig,
     screenMenu,
@@ -3372,18 +3213,13 @@ function seedLearnerDevDefaults(){
 * purpose: Adds or updates a learner development category score from input fields and refreshes the chart.
 ********************************************************/
 function addLearnerDev(){
-
   const cat = document.getElementById("ldCategory").value.trim();
   const score = Number(document.getElementById("ldScore").value || 0);
-
   if (!cat) return;
-
   if (!state.learnerDev.categories.includes(cat)) {
     state.learnerDev.categories.push(cat);
   }
-
   state.learnerDev.scores[cat] = score;
-
   renderLearnerDevChart();
 }
 
@@ -6220,13 +6056,12 @@ async function loadSeatPhotosInGrid(){
 * purpose: Fetches a student record by email and opens the details screen view.
 ********************************************************/
 async function openStudentDetailsByEmail(email){
-
+  showLoading("Loading profile...");
   if (!email) {
+    hideLoading();
     toast("Missing student email.");
     return;
   }
-
-  showLoading("Loading profile...");
 
   try {
     const res = await apiGet({
@@ -6236,21 +6071,16 @@ async function openStudentDetailsByEmail(email){
     });
 
     hideLoading();
-
     if (!res || res.status !== "success" || !res.item) {
       toast(res?.message || "Student not found.");
       return;
     }
 
     const item = res.item;
-
     if (!lastScreenBeforeDetails) {
       lastScreenBeforeDetails = state.currentScreen;
     }
-    //console.log("items: ", item);
-    console.log("openStudentDetailsByEmail-openDetails");
     await openDetails(item, 0);
-    //updateGradeSeat();
     clearRemarksBox();
   } catch (err) {
     toast("Open student error: " + err.toString());
@@ -6264,12 +6094,10 @@ async function openStudentDetailsByEmail(email){
 * purpose: Saves or updates a seat assignment for the current room via seat map API.
 ********************************************************/
 async function saveSeat(){
-
   if (!state.seat.room) {
     toast("Select a room first.");
     return;
   }
-
   const seatNo = (inpSeatNo ? (inpSeatNo.value || "").trim() : "");
   if (!seatNo) {
     toast("Seat No is required.");
@@ -6306,7 +6134,6 @@ async function saveSeat(){
 * purpose: Clears all seat editor input fields.
 ********************************************************/
 function clearSeatEditor(){
-
   if (inpSeatNo) inpSeatNo.value = "";
   if (inpSeatEmail) inpSeatEmail.value = "";
   if (inpSeatId) inpSeatId.value = "";
@@ -7810,22 +7637,3 @@ function refreshActivityStamp(){
 
 document.addEventListener("click", refreshActivityStamp);
 document.addEventListener("keydown", refreshActivityStamp);
-
-/*******************************************************
-* function name: scheduleAutoSaveGrades
-* parameter: -
-* return: -
-* purpose: -
-********************************************************/
-/*function scheduleAutoSaveGrades(){
-
-  // cancel previous timer
-  if(state.autoSaveTimer){
-    clearTimeout(state.autoSaveTimer);
-  }
-
-  // wait 1 second
-  state.autoSaveTimer=setTimeout(() => {
-    saveTaskGrades();
-  }, 1000);
-}*/
