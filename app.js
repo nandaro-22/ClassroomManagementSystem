@@ -396,6 +396,18 @@ const PENDING_SYNC_KEY = "pendingSyncQueue_v4";
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 
 /* ===========================
+  WEIGHT CONFIGURATION OBJECT
+=========================== */
+const gradeWeights = {
+  "AUGUSTINIAN VALUE":0.10,
+  "QUIZ":0.20,
+  "ASSIGNMENT":0.20,
+  "EXERCISE":0.10,
+  "MIDTERM EXAM":0.40,
+  "FINAL EXAM":0.40
+};
+
+/* ===========================
    OFFLINE SYNC STORAGE KEYS
 =========================== */
 let netWatcherStarted = false;
@@ -538,56 +550,13 @@ function isTaskMissing(score){
 function renderTaskGrades(){
   const tbody = document.getElementById("gradeTableBody");
   if(!tbody) return;
-
   tbody.innerHTML="";
-
-  // sort automatically
   const tasks = state.gradeTasks || [];
-
-  // ⭐ AUTO SORT BY CATEGORY + DATE
-  tasks.sort((a,b)=>{
-    const catA = (a.category || "").toUpperCase();
-    const catB = (b.category || "").toUpperCase();
-    if(catA < catB) return -1;
-    if(catA > catB) return 1;
-    // same category → sort by date
-    const dateA = new Date(a.date || 0);
-    const dateB = new Date(b.date || 0);
-    return dateA - dateB;
-  });
-
   if(!tasks.length){
     tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:#64748b;">No grade items</td></tr>`;
     return;
   }
-
-  // ===== STUDENT CONTEXT =====
-  const student = state.currentStudent;
-
-  if(student){
-    document.getElementById("gradeStudentId").textContent = student.studentId || "—";
-  }
-
-  // ===== GROUP BY CATEGORY =====
-  /*const grouped={};
-  tasks.forEach(t=>{
-    const cat = (t.category || "OTHERS").toUpperCase();
-    if(!grouped[cat]){
-      grouped[cat]=[];
-    }
-  grouped[cat].push(t);
-  });*/
-
-  // ===== GROUP BY PERIOD =====
-  const periodGroups={};
-  tasks.forEach(t=>{
-    const period=(t.period||"MIDTERM PERIOD").toUpperCase();
-      if(!periodGroups[period]) periodGroups[period]=[];
-    periodGroups[period].push(t);
-  });
-
-
-  // ===== SORT CATEGORY ORDER =====
+  // ===== CATEGORY ORDER (EXCEL STYLE)
   const categoryOrder=[
     "AUGUSTINIAN VALUE",
     "QUIZ",
@@ -596,232 +565,168 @@ function renderTaskGrades(){
     "PROJECT",
     "MIDTERM EXAM",
     "FINAL EXAM",
-    "RECITATION",
+    "CLASS PARTICIPATION",
     "OTHERS"
   ];
-
-  /*const sortedCategories = Object.keys(grouped).sort((a,b)=>{
-    const ia = categoryOrder.indexOf(a);
-    const ib = categoryOrder.indexOf(b);
-    return (ia<0?999:ia) - (ib<0?999:ib);
-  });*/  //for deletion
-
-  // ===== BUILD TABLE =====
-  //sortedCategories.forEach(cat=>{
+  // ===== GROUP BY PERIOD
+  const periodGroups={};
+  tasks.forEach(t=>{
+    const period=(t.period||"MIDTERM PERIOD").toUpperCase();
+    if(!periodGroups[period]) periodGroups[period]=[];
+    periodGroups[period].push(t);
+  });
+  // ===== LOOP PERIODS
   Object.keys(periodGroups).forEach(period=>{
-    const periodTasks=periodGroups[period];
-    const grouped = {};
-    periodTasks.forEach(t=>{
-      const cat = (t.category || "OTHERS").toUpperCase();
-      if(!grouped[cat]) grouped[cat] = [];
-      grouped[cat].push(t);
-    });
+    const periodTasks = periodGroups[period];
+    // PERIOD HEADER
+    const safePeriod = period.replace(/[^a-zA-Z0-9]/g,"_");
     const periodHeader=document.createElement("tr");
-    periodHeader.innerHTML=`
-      <td colspan="6"
-      style="
-      background:#e2e8f0;
-      font-weight:800;
-      font-size:15px;
-      color:#1e293b;
-      ">
-      ${period}
-      </td>
-    `;
+    periodHeader.className="periodHeader";
+    periodHeader.dataset.period=safePeriod;
+    periodHeader.innerHTML=`<td colspan="6" style="background:#fde047; font-weight:900; font-size:16px; cursor:pointer;"><span id="periodArrow_${safePeriod}">▼</span>${period}</td>`;
     tbody.appendChild(periodHeader);
-    // ⭐ CATEGORY HEADER ROW (CLICKABLE)
-    //const safeCat = cat.replace(/[^a-zA-Z0-9]/g,"_"); // FINAL EXAM → FINAL_EXAM
-  Object.keys(grouped).sort((a,b)=>{
-      const ia = categoryOrder.indexOf(a);
-      const ib = categoryOrder.indexOf(b);
-      return (ia<0?999:ia)-(ib<0?999:ib);
-    }).forEach(cat=>{
-    //let catTotal = 0; for deletion
-    //let catCount = 0; for deletion
-    const safeCat = cat.replace(/[^a-zA-Z0-9]/g,"_"); // FINAL EXAM → FINAL_EXAM
-    let totalScore = 0;
-    let totalMax = 0;
-    let missingCount = 0;
-
-    // ⭐ DEFAULT COLLAPSE IF NOT EXIST
-    if(state.gradeCategoryState[safeCat]===undefined){state.gradeCategoryState[safeCat]=false;}
-    // ⭐ COUNT FIRST (IMPORTANT)
-    grouped[cat].forEach(t=>{
-      const isMissing = isTaskMissing(t.score);
-      if(isMissing){
-        missingCount++;
-      }
-    });
-
-    // ⭐ CREATE HEADER AFTER COUNT
-    const headerRow=document.createElement("tr");
-    headerRow.className="gradeCategoryHeader";
-    headerRow.dataset.category = safeCat;
-    headerRow.innerHTML=`
-      <td colspan="6"
-        style="
-        background:#f1f5f9;
-        font-weight:700;
-        color:#334155;
-        cursor:pointer;
-      ">
-      <span id="catArrow_${safeCat}">${state.gradeCategoryState[safeCat]?"▼":"▶"}</span>
-      ${escapeHtml(cat)}
-      ${
-      missingCount>0 ?
-      `<span 
-        class="missingBadge"
-        style="
-          margin-left:10px;
-          background:#fee2e2;
-          color:#b42318;
-          padding:3px 8px;
-          border-radius:999px;
-          font-size:12px;
-          font-weight:700;
-      ">${missingCount} Missing
-      </span>`
-      :""
-      }
-      </td>
-    `;
-
-    tbody.appendChild(headerRow);
-
-    // ⭐ CLICK COLLAPSE
-    headerRow.onclick=()=>{
-      const rows = document.querySelectorAll(".catRow_"+safeCat);
-      const arrow = document.getElementById("catArrow_"+safeCat);
-      const hidden = rows[0]?.classList.contains("hidden");
+    // PERIOD HEADER COLLAPSE
+    periodHeader.onclick=()=>{
+      const rows=document.querySelectorAll(".periodRow_"+safePeriod);
+      const arrow=document.getElementById("periodArrow_"+safePeriod);
+      const hidden=rows[0]?.classList.contains("hidden");
       rows.forEach(r=>{
         r.classList.toggle("hidden");
       });
-      state.gradeCategoryState[safeCat]=hidden;
       arrow.textContent = hidden ? "▼":"▶";
     };
-
-    // ⭐ TASK ROWS
-    grouped[cat].forEach(t=>{
-      const tr=document.createElement("tr");
-      tr.dataset.category = safeCat;
-      tr.dataset.taskCode = t.taskCode;
-      tr.classList.add("catRow_"+safeCat);
-      if(!state.gradeCategoryState[safeCat]){tr.classList.add("hidden");}
-      const percent = (!isTaskMissing(t.score) && Number(t.max)>0)?((Number(t.score)/Number(t.max))*100):0;
-      // ⭐ Missing submission detection
-      const isMissing = isTaskMissing(t.score);
-      if(isMissing){
-        tr.style.background="#fff1f2";
-      }
-      // ⭐ accumulate category average
-      // for deletion
-      //if(!isTaskMissing(t.score) && Number(t.max)>0){
-      //  catTotal += percent;
-      //  catCount++;
-      //}
-      if(!isTaskMissing(t.score) && Number(t.max)>0){
-        totalScore += Number(t.score);
-        totalMax += Number(t.max);
-      }
-
-      tr.innerHTML=`
-      <td>${formatGradeDate(t.date)}</td>
-      <td>${escapeHtml(t.category||"-")}</td>
-      <td>
-        ${escapeHtml(t.taskName||"-")}
-        ${isMissing ?
-        `<span class="notSubmitted"
-          style="
-          color:#b42318;
-          font-weight:700;
-          margin-left:8px;
-        ">
-        ⚠️ NOT SUBMITTED
-        </span>` : ""}
-      </td>
-      <td>${t.max||0}</td>
-      <td>
-        <input
-          class="gradeInput"
-          type="number"
-          min="0"
-          max="${t.max||0}"
-          value="${t.score !== undefined ? t.score : ""}"
-          data-taskcode="${t.taskCode}"
-        />
-      </td>
-      <td class="gradeReadonly" id="taskPct_${t.taskCode}">
-        ${percent.toFixed(1)}%
-      </td>
-      `;
-      tbody.appendChild(tr);
+    // ===== GROUP BY CATEGORY
+    const grouped={};
+    periodTasks.forEach(t=>{
+      const cat=(t.category||"OTHERS").toUpperCase();
+      if(!grouped[cat]) grouped[cat]=[];
+      grouped[cat].push(t);
     });
-    
-      // ⭐ CATEGORY AVERAGE ROW
-      let avgColor = "#b42318"; // red default
-      //const avg =  catCount ? (catTotal/catCount) : 0; for deletion
-      const avg = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
-      state.categoryGrades[cat] = avg;
-      const avgRow = document.createElement("tr");
-      if(avg>=75){
-        avgColor="#1f7a3f"; //green  
+    // ===== SORT CATEGORY ORDER
+    const sortedCategories = Object.keys(grouped).sort((a,b)=>{
+      const ia = categoryOrder.indexOf(a);
+      const ib = categoryOrder.indexOf(b);
+      return (ia<0?999:ia)-(ib<0?999:ib);
+    });
+    // ===== LOOP CATEGORY
+    sortedCategories.forEach(cat=>{
+      const safeCat = cat.replace(/[^a-zA-Z0-9]/g,"_");
+      const catKey = safePeriod+"_"+safeCat;
+      let totalScore=0;
+      let totalMax=0;
+      let missingCount=0;
+      if(state.gradeCategoryState[catKey]===undefined){
+        state.gradeCategoryState[catKey]=true;
       }
-      else if(avg>=50){
-        avgColor="#b26a00"; //orange
-      }
-      avgRow.innerHTML=`
-        <td colspan="5"
-          style="
-          text-align:right;
-          font-weight:700;
-          color:#475569;
-          background:#f8fafc;
-        ">
-        ${escapeHtml(cat)} AVERAGE
-        </td>
-        <td
-          style="
-          font-weight:900;
-          background:#f8fafc;
-          color:${avgColor};
-          font-size:16px;
-        ">
-        ${avg.toFixed(2)}%
-        </td>
+      // ===== COUNT MISSING
+      grouped[cat].forEach(t=>{
+        if(isTaskMissing(t.score)){
+          missingCount++;
+        }
+      });
+      // ===== CATEGORY HEADER
+      const headerRow=document.createElement("tr");
+      headerRow.className="gradeCategoryHeader";
+      headerRow.dataset.category=safeCat;
+      headerRow.classList.add("periodRow_"+safePeriod);
+      headerRow.innerHTML=`<td colspan="6" style=" background:#f1f5f9; font-weight:700; color:#334155; cursor:pointer;">
+        <span id="catArrow_${safePeriod}_${safeCat}">${state.gradeCategoryState[safeCat]?"▼":"▶"}</span>
+        ${escapeHtml(cat)}${missingCount>0 ? `<span class="missingBadge" style=" margin-left:10px; background:#fee2e2; color:#b42318; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700;">${missingCount} Missing</span>` : ""}</td>`;
+      tbody.appendChild(headerRow);
+      // ===== COLLAPSE
+      headerRow.onclick=()=>{
+        const rows=document.querySelectorAll(".catRow_"+safePeriod+"_"+safeCat);
+        const arrow=document.getElementById("catArrow_"+safePeriod+"_"+safeCat);
+        const hidden = rows[0]?.classList.contains("hidden");
+        rows.forEach(r=>{
+          r.classList.toggle("hidden");
+        });
+        state.gradeCategoryState[catKey]=!hidden;
+        arrow.textContent = hidden ? "▶":"▼";
+      };
+      // ===== TASK ROWS
+      grouped[cat].forEach(t=>{
+        const tr=document.createElement("tr");
+        tr.classList.add("catRow_"+safePeriod+"_"+safeCat);
+        tr.classList.add("periodRow_"+safePeriod);
+        
+        if(state.gradeCategoryState[catKey]===undefined){
+          state.gradeCategoryState[catKey]=false;
+        } 
+        if(state.gradeCategoryState[catKey]===false){
+          tr.classList.add("hidden");
+        }
+        tr.dataset.taskCode=t.taskCode;
+        const percent =
+        (!isTaskMissing(t.score) && Number(t.max)>0)
+        ? (Number(t.score)/Number(t.max))*100
+        : 0;
+        if(!isTaskMissing(t.score) && Number(t.max)>0){
+          totalScore+=Number(t.score);
+          totalMax+=Number(t.max);
+        }
+        const isMissing = isTaskMissing(t.score);
+        if(isMissing){
+          tr.style.background="#fff1f2";
+        }
+        tr.innerHTML=`
+          <td>${formatGradeDate(t.date)}</td>
+          <td>${escapeHtml(t.category||"-")}</td>
+          <td>
+            ${escapeHtml(t.taskName||"-")}
+            ${isMissing ? `<span class="notSubmitted" style="color:#b42318; font-weight:700; margin-left:8px;">⚠️ NOT SUBMITTED</span>` : "" }
+          </td>
+          <td>${t.max||0}</td>
+          <td><input class="gradeInput" type="number" min="0" max="${t.max||0}" value="${t.score !== undefined ? t.score : ""}" data-taskcode="${t.taskCode}" /></td>
+          <td class="gradeReadonly" id="taskPct_${t.taskCode}">${percent.toFixed(1)}%</td>
         `;
+        tbody.appendChild(tr);
+      });
+      // ===== CATEGORY AVERAGE
+      const avg = totalMax>0 ? (totalScore/totalMax)*100 : 0;
+      state.categoryGrades[cat]=avg;
+      let avgColor="#b42318";
+      if(avg>=75) avgColor="#1f7a3f";
+      else if(avg>=50) avgColor="#b26a00";
+      const avgRow=document.createElement("tr");
+      avgRow.classList.add("catAvgRow_"+safePeriod+"_"+safeCat);
+      avgRow.classList.add("periodRow_"+safePeriod);
+      avgRow.innerHTML=`<td colspan="5" style="text-align:right; font-weight:700; color:#475569; background:#f8fafc;">${escapeHtml(cat)} AVERAGE</td>
+        <td class="catAvgRow" style="font-weight:900; background:#f8fafc; color:${avgColor}; font-size:16px;">${avg.toFixed(1)}</td>`;
       tbody.appendChild(avgRow);
-
-      const periodGrade=computePeriodGrade(period);
-
-      const periodAvgRow=document.createElement("tr");
-
-      periodAvgRow.innerHTML=`
-      <td colspan="5"
-      style="
-      text-align:right;
-      font-weight:800;
-      background:#f1f5f9;
-      ">
-      ${period} PERIOD AVERAGE
-      </td>
-
-      <td style="
-      font-weight:900;
-      font-size:16px;
-      color:#1f7a3f;
-      ">
-      ${periodGrade.toFixed(0)}
-      </td>
-      `;
-
-      tbody.appendChild(periodAvgRow);
-    }); // close
+    });
+    // ===== PERIOD AVERAGE (ONCE ONLY)
+    const periodGrade = computePeriodGrade(period);
+    const periodAvgRow=document.createElement("tr");
+    periodAvgRow.classList.add("periodAvg_"+safePeriod);
+    periodAvgRow.classList.add("periodRow_"+safePeriod);
+    periodAvgRow.innerHTML=`<td colspan="5" style="text-align:right; font-weight:900; background:#e2e8f0; font-size:15px;">${period} AVERAGE</td>
+      <td style="font-weight:900; font-size:18px; color:#1f7a3f;">${periodGrade.toFixed(1)}</td>`;
+    tbody.appendChild(periodAvgRow);
   });
+  // ===== INPUT EVENTS
   document.querySelectorAll(".gradeInput").forEach(input=>{
     input.oninput=function(){
-      updateGradeRealtime(this.dataset.taskcode, this);
+      updateGradeRealtime(this.dataset.taskcode,this);
       recomputeTaskFinal();
     };
+  });
+}
+
+/*******************************************************
+* function name: recomputePeriodAverages
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function recomputePeriodAverages(){
+  ["MIDTERM PERIOD","FINAL PERIOD"].forEach(period=>{
+    const safePeriod = period.replace(/[^a-zA-Z0-9]/g,"_");
+    const grade = computePeriodGrade(period);
+    const row = document.querySelector(".periodAvg_"+safePeriod);
+    if(!row) return;
+    const cell = row.querySelector("td:last-child");
+    cell.textContent = grade.toFixed(1);
   });
 }
 
@@ -869,10 +774,11 @@ function renderTaskGrades(){
   });
 }*/
 function recomputeCategoryAverage(category){
-
   const safeCat = category.toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
   const tasks = (state.gradeTasks || []).filter(t=>{
-    const safe = (t.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
+    const safe = (t.category || "OTHERS")
+      .toUpperCase()
+      .replace(/[^a-zA-Z0-9]/g,"_");
     return safe === safeCat;
   });
 
@@ -882,23 +788,24 @@ function recomputeCategoryAverage(category){
   tasks.forEach(t=>{
     const score = Number(t.score);
     const max = Number(t.max);
-    if(Number.isFinite(score) && max>0){
+    if(Number.isFinite(score) && max > 0){
       totalScore += score;
       totalMax += max;
     }
   });
 
   const avg = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
-  //document.querySelectorAll("tr").forEach(tr=>{ for deletion
-  document.querySelectorAll(".gradeCategoryHeader").forEach(tr=>{
-    if(tr.textContent.includes(category+" AVERAGE")){
-      const cell = tr.lastElementChild;
-      cell.textContent = avg.toFixed(2)+"%";
-      if(avg>=75) cell.style.color="#1f7a3f";
-      else if(avg>=50) cell.style.color="#b26a00";
-      else cell.style.color="#b42318";
-    }
+  state.categoryGrades[category.toUpperCase()] = avg;
+  const rows = document.querySelectorAll('[class*="catAvgRow_"][class*="_'+safeCat+'"]');
+  rows.forEach(row=>{
+    const cell = row.querySelector(".catAvgRow");
+    if(!cell) return;
+    cell.textContent = avg.toFixed(1);
+    if(avg>=75) cell.style.color="#1f7a3f";
+    else if(avg>=50) cell.style.color="#b26a00";
+    else cell.style.color="#b42318";
   });
+
 }
 
 /*******************************************************
@@ -994,11 +901,15 @@ function recomputeTaskFinal(){
 
   // ===== FINAL GRADE =====
   //const final = count ? (total/count) : 0; for deletion
-  const final = computePeriodGrade("MIDTERM PERIOD");
+  const midterm = computePeriodGrade("MIDTERM PERIOD") || 0;
+  const finalPeriod = computePeriodGrade("FINAL PERIOD") || 0;
+  //const final = computePeriodGrade("MIDTERM PERIOD");
+  const final = (midterm * 0.5) + (finalPeriod * 0.5);
   // FINAL VALUE
   const finalEl = document.getElementById("finalGradeValue");
   if(finalEl){
-    finalEl.textContent = final.toFixed(2)+"%";
+    //finalEl.textContent = final.toFixed(2)+"%";
+    finalEl.textContent = final.toFixed(2);
   }
   // ===== BADGE =====
   const badge = document.getElementById("finalGradeStatus");
@@ -1103,7 +1014,33 @@ function updateGradeRealtime(taskCode,input){
   },0);
 
   // ===== FINAL =====
-  recomputeCategoryAverage(task.category);
+  /*recomputeCategoryAverage(task.category);
+  recomputePeriodAverages();
+  const midterm = computePeriodGrade("MIDTERM PERIOD");
+  const final = computePeriodGrade("FINAL PERIOD");
+  document.getElementById("midtermGradeValue").textContent = midterm.toFixed(2);
+  document.getElementById("finalPeriodGradeValue").textContent = final.toFixed(2);
+  recomputeTaskFinal();*/
+  recomputeAllGrades();
+}
+
+/*******************************************************
+* function name: recomputeAllGrades
+* parameter: 
+* return: -
+* purpose: 
+*******************************************************/
+function recomputeAllGrades(){
+  // recompute all category averages
+  const categories = [...new Set(
+    (state.gradeTasks || []).map(t => (t.category || "").toUpperCase())
+  )];
+  categories.forEach(cat=>{
+    recomputeCategoryAverage(cat);
+  });
+  // recompute period averages
+  recomputePeriodAverages();
+  // recompute final grade
   recomputeTaskFinal();
 }
 
@@ -1200,10 +1137,16 @@ async function saveTaskGrades(){
 * purpose: -
 *******************************************************/
 async function addTaskRow(){
+  const period = document.getElementById("newTaskPeriod")?.value || "-- Select Category --";
   const category = document.getElementById("newTaskCategory")?.value || "-- Select Category --";
   const max = Number(document.getElementById("newTaskMax")?.value) || "Items";
   const upperCat = category.toUpperCase();
   const prefix = getCategoryPrefix(upperCat);
+
+  if(period === "-- Select Category --"){
+    alert("Please select period.");
+    return;
+  }
 
   if(upperCat === "-- SELECT CATEGORY --"){
     alert("Please select category.");
@@ -1215,8 +1158,8 @@ async function addTaskRow(){
     return;
   }
 
-  // ===== FIND LAST NUMBER =====
   let lastNumber = 0;
+
   (state.gradeTasks||[]).forEach(t=>{
     if((t.category||"").toUpperCase() !== upperCat) return;
     const match = String(t.taskCode).match(/\d+$/);
@@ -1227,15 +1170,14 @@ async function addTaskRow(){
       }
     }
   });
-
   const next = lastNumber + 1;
   const newTaskCode = prefix + next;
-  const newPrefix = prefix + next;
   state.gradeTasks.push({
+    period: period,
     date: new Date().toISOString().slice(0,10),
-    category: upperCat, // ASSIGNMENT
-    taskCode: newTaskCode, //ASSIGN1
-    taskName: newPrefix, //Assign
+    category: upperCat,
+    taskCode: newTaskCode,
+    taskName: prefix + next,
     max: max,
     score:""
   });
@@ -1271,19 +1213,19 @@ function getCategoryPrefix(category){
 function getDefaultGradeTemplate() {
   return [
     { date:"2026-01-15", period:"MIDTERM PERIOD", category:"AUGUSTINIAN VALUE", taskCode:"Augustinian Value1", taskName:"Augustinian Value1", max:10, score:"" },
-    { date:"2026-01-15", period:"MIDTERM PERIOD", category:"ASSIGNMENT", taskCode:"Assign1", taskName:"Blog Entry1", max:20, score:"" },
-    { date:"2026-02-13", period:"MIDTERM PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation1", taskName:"Participation1", max:5, score:"" },
-    { date:"2026-02-02", period:"MIDTERM PERIOD", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz1", max:20, score:"" },
-    { date:"2026-02-02", period:"MIDTERM PERIOD", category:"EXERCISE", taskCode:"EXERCISE", taskName:"Exer1", max:20, score:"" },
-    { date:"2026-02-15", period:"MIDTERM PERIOD", category:"MIDTERM EXAM", taskCode:"MID EXAM1", taskName:"Mid Exam1", max:100, score:"" },
-    { date:"2026-02-15", period:"MIDTERM PERIOD", category:"PROJECT", taskCode:"PROJECT", taskName:"Proj1", max:100, score:"" },
+    //{ date:"2026-01-15", period:"MIDTERM PERIOD", category:"ASSIGNMENT", taskCode:"Assign1", taskName:"Blog Entry1", max:20, score:"" },
+    //{ date:"2026-02-13", period:"MIDTERM PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation1", taskName:"Participation1", max:5, score:"" },
+    //{ date:"2026-02-02", period:"MIDTERM PERIOD", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz1", max:20, score:"" },
+    //{ date:"2026-02-02", period:"MIDTERM PERIOD", category:"EXERCISE", taskCode:"EXERCISE", taskName:"Exer1", max:20, score:"" },
+    //{ date:"2026-02-15", period:"MIDTERM PERIOD", category:"MIDTERM EXAM", taskCode:"MID EXAM1", taskName:"Mid Exam1", max:100, score:"" },
+    //{ date:"2026-02-15", period:"MIDTERM PERIOD", category:"PROJECT", taskCode:"PROJECT", taskName:"Proj1", max:100, score:"" },
 
     { date:"2026-01-15", period:"FINAL PERIOD", category:"AUGUSTINIAN VALUE", taskCode:"Augustinian Value2", taskName:"Augustinian Value2", max:10, score:"" },
-        { date:"2026-02-13", period:"FINAL PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation2", taskName:"Participation2", max:5, score:"" },
-    { date:"2026-02-02", period:"FINAL PERIOD", category:"QUIZ", taskCode:"QUIZ2", taskName:"Quiz2", max:20, score:"" },
-    { date:"2026-02-02", period:"FINAL PERIOD", category:"EXERCISE", taskCode:"EXERCISE2", taskName:"Exer2", max:20, score:"" },
-    { date:"2026-02-15", period:"FINAL PERIOD", category:"FINAL EXAM", taskCode:"FIN EXAM1", taskName:"Fin Exam1", max:100, score:"" },
-    { date:"2026-02-15", period:"FINAL PERIOD", category:"PROJECT", taskCode:"PROJECT2", taskName:"Proj2", max:100, score:"" }
+    //{ date:"2026-02-13", period:"FINAL PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation2", taskName:"Participation2", max:5, score:"" },
+    //{ date:"2026-02-02", period:"FINAL PERIOD", category:"QUIZ", taskCode:"QUIZ2", taskName:"Quiz2", max:20, score:"" },
+    //{ date:"2026-02-02", period:"FINAL PERIOD", category:"EXERCISE", taskCode:"EXERCISE2", taskName:"Exer2", max:20, score:"" },
+    //{ date:"2026-02-15", period:"FINAL PERIOD", category:"FINAL EXAM", taskCode:"FIN EXAM1", taskName:"Fin Exam1", max:100, score:"" },
+    //{ date:"2026-02-15", period:"FINAL PERIOD", category:"PROJECT", taskCode:"PROJECT2", taskName:"Proj2", max:100, score:"" }
   ];
 }
 
@@ -1331,21 +1273,22 @@ function computeRawPercent(tasks){
 *******************************************************/
 function computePeriodGrade(period){
 
-  const aug = state.categoryGrades["AUGUSTINIAN VALUE"] || 0;
-  const quiz = state.categoryGrades["QUIZ"] || 0;
-  const participation = state.categoryGrades["CLASS PARTICIPATION"] || 0;
+  let total = 0;
 
-  let exam = 0;
+  Object.keys(gradeWeights).forEach(category => {
 
-  if(period === "MIDTERM PERIOD"){
-    exam = state.categoryGrades["MIDTERM EXAM"] || 0;
-  }
+    // Skip exam that does not belong to this period
+    //if(period === "MIDTERM PERIOD" && category === "FINAL EXAM") return;
+    //if(period === "FINAL PERIOD" && category === "MIDTERM EXAM") return;
 
-  if(period === "FINAL PERIOD"){
-    exam = state.categoryGrades["FINAL EXAM"] || 0;
-  }
+    const weight = gradeWeights[category];
+    const grade = state.categoryGrades[category] || 0;
 
-  return (aug*0.10)+(quiz*0.20)+(participation*0.30)+(exam*0.40);
+    total += grade * weight;
+
+  });
+
+  return total;
 }
 
 /*******************************************************
