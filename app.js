@@ -225,7 +225,13 @@ const dLastUpdate = document.getElementById("dLastUpdate");
 const btnBackToList = document.getElementById("btnBackToList");
 const btnSave = document.getElementById("btnSave");
 const btnHistory = document.getElementById("btnHistory");
-const btnGrades = document.getElementById("tabGrades");
+const btnLDev = document.getElementById("btnLDev");
+const btnGrades = document.getElementById("btnGrades");
+const btnaddTaskRow = document.getElementById("btnaddTaskRow");
+const btnsaveTaskGrades = document.getElementById("btnsaveTaskGrades");
+const btnresetGradesUI = document.getElementById("btnresetGradesUI");
+const btnaddLearnerDev = document.getElementById("btnaddLearnerDev");
+const btnsaveLearnerDev = document.getElementById("btnsaveLearnerDev");
 const historyWrap = document.getElementById("historyWrap");
 const recordNavList = document.getElementById("recordNavList");
 
@@ -354,7 +360,7 @@ const syncBadge = document.getElementById("syncBadge");
    RUNTIME MAPS / MEMORY
 =========================== */
 const photoCache = new Map();
-const pendingProgress = new Map(); 
+const pendingProgress = new Map();
 
 /* ===========================
    DOM — TOPBAR / GLOBAL ACTION BUTTONS
@@ -399,12 +405,18 @@ const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
   WEIGHT CONFIGURATION OBJECT
 =========================== */
 const gradeWeights = {
-  "AUGUSTINIAN VALUE":0.10,
-  "QUIZ":0.20,
-  "ASSIGNMENT":0.20,
-  "EXERCISE":0.10,
-  "MIDTERM EXAM":0.40,
-  "FINAL EXAM":0.40
+  "MIDTERM PERIOD": {
+    "AUGUSTINIAN VALUE": 0.10,
+    "QUIZ": 0.20,
+    "CLASS PARTICIPATION": 0.30,
+    "MIDTERM EXAM": 0.40
+  },
+  "FINAL PERIOD": {
+    "AUGUSTINIAN VALUE": 0.10,
+    "QUIZ": 0.20,
+    "CLASS PARTICIPATION": 0.30,
+    "FINAL EXAM": 0.40
+  }
 };
 
 /* ===========================
@@ -432,7 +444,7 @@ const state = {
   clientId: "",
   idToken: "",
   me: null,
-  
+
   currentScreen: "config",
 
   nav: {
@@ -465,8 +477,8 @@ const state = {
     room: "",
     editMode: false,
     seats: [],
-	  masterStudents: [],   // ✅ new
-	  editingSeat: null
+    masterStudents: [],   // ✅ new
+    editingSeat: null
   },
 
   grades: {
@@ -488,9 +500,14 @@ const state = {
 
 state.grades = state.grades || {};
 
-state.categoryGrades = {};
+state.categoryGrades = {
+  "MIDTERM PERIOD": {},
+  "FINAL PERIOD": {}
+};
 
 state.gradeCategoryState = state.gradeCategoryState || {};
+
+state.subjectType = "minor"; // default
 
 /* ===========================
    UI HELPERS
@@ -502,7 +519,7 @@ state.gradeCategoryState = state.gradeCategoryState || {};
 * return: -
 * purpose: -
 *******************************************************/
-function formatShortDate(d){
+function formatShortDate(d) {
   if (!d) return "-";
   const date = new Date(d);
   if (isNaN(date)) return d;
@@ -515,16 +532,16 @@ function formatShortDate(d){
 * return: -
 * purpose: -
 *******************************************************/
-function formatGradeDate(dateStr){
-  if(!dateStr) return "-";
-  try{
-    const d=new Date(dateStr);
-    return d.toLocaleDateString("en-PH",{
-    year:"numeric",
-    month:"short",
-    day:"numeric"
-  });
-  }catch(e){
+function formatGradeDate(dateStr) {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    });
+  } catch (e) {
     return dateStr;
   }
 }
@@ -535,9 +552,9 @@ function formatGradeDate(dateStr){
 * return: -
 * purpose: -
 *******************************************************/
-function isTaskMissing(score){
-  if(score === "" || score === null || score === undefined) return true;
-  if(Number.isNaN(Number(score))) return true;
+function isTaskMissing(score) {
+  if (score === "" || score === null || score === undefined) return true;
+  if (Number.isNaN(Number(score))) return true;
   return false;
 }
 
@@ -547,17 +564,17 @@ function isTaskMissing(score){
 * return: -
 * purpose: Save all task grades for current student
 *******************************************************/
-function renderTaskGrades(){
+function renderTaskGrades() {
   const tbody = document.getElementById("gradeTableBody");
-  if(!tbody) return;
-  tbody.innerHTML="";
+  if (!tbody) return;
+  tbody.innerHTML = "";
   const tasks = state.gradeTasks || [];
-  if(!tasks.length){
-    tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:#64748b;">No grade items</td></tr>`;
+  if (!tasks.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#64748b;">No grade items</td></tr>`;
     return;
   }
   // ===== CATEGORY ORDER (EXCEL STYLE)
-  const categoryOrder=[
+  const categoryOrder = [
     "AUGUSTINIAN VALUE",
     "QUIZ",
     "ASSIGNMENT",
@@ -569,146 +586,163 @@ function renderTaskGrades(){
     "OTHERS"
   ];
   // ===== GROUP BY PERIOD
-  const periodGroups={};
-  tasks.forEach(t=>{
-    const period=(t.period||"MIDTERM PERIOD").toUpperCase();
-    if(!periodGroups[period]) periodGroups[period]=[];
+  const periodGroups = {};
+  tasks.forEach(t => {
+    const period = (t.period || "MIDTERM PERIOD").toUpperCase();
+    if (!periodGroups[period]) periodGroups[period] = [];
     periodGroups[period].push(t);
   });
   // ===== LOOP PERIODS
-  Object.keys(periodGroups).forEach(period=>{
+  Object.keys(periodGroups).forEach(period => {
     const periodTasks = periodGroups[period];
     // PERIOD HEADER
-    const safePeriod = period.replace(/[^a-zA-Z0-9]/g,"_");
-    const periodHeader=document.createElement("tr");
-    periodHeader.className="periodHeader";
-    periodHeader.dataset.period=safePeriod;
-    periodHeader.innerHTML=`<td colspan="6" style="background:#fde047; font-weight:900; font-size:16px; cursor:pointer;"><span id="periodArrow_${safePeriod}">▼</span>${period}</td>`;
+    const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
+    const periodHeader = document.createElement("tr");
+    periodHeader.className = "periodHeader";
+    periodHeader.dataset.period = safePeriod;
+    periodHeader.innerHTML = `<td colspan="6" style="background:#fde047; font-weight:900; font-size:16px; cursor:pointer;"><span id="periodArrow_${safePeriod}">▼</span>${period}</td>`;
     tbody.appendChild(periodHeader);
     // PERIOD HEADER COLLAPSE
-    periodHeader.onclick=()=>{
-      const rows=document.querySelectorAll(".periodRow_"+safePeriod);
-      const arrow=document.getElementById("periodArrow_"+safePeriod);
-      const hidden=rows[0]?.classList.contains("hidden");
-      rows.forEach(r=>{
+    periodHeader.onclick = () => {
+      const rows = document.querySelectorAll(".periodRow_" + safePeriod);
+      const arrow = document.getElementById("periodArrow_" + safePeriod);
+      const hidden = rows[0]?.classList.contains("hidden");
+      rows.forEach(r => {
         r.classList.toggle("hidden");
       });
-      arrow.textContent = hidden ? "▼":"▶";
+      arrow.textContent = hidden ? "▼" : "▶";
     };
     // ===== GROUP BY CATEGORY
-    const grouped={};
-    periodTasks.forEach(t=>{
-      const cat=(t.category||"OTHERS").toUpperCase();
-      if(!grouped[cat]) grouped[cat]=[];
+    const grouped = {};
+    periodTasks.forEach(t => {
+      const cat = (t.category || "OTHERS").toUpperCase();
+      if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(t);
     });
     // ===== SORT CATEGORY ORDER
-    const sortedCategories = Object.keys(grouped).sort((a,b)=>{
+    const sortedCategories = Object.keys(grouped).sort((a, b) => {
       const ia = categoryOrder.indexOf(a);
       const ib = categoryOrder.indexOf(b);
-      return (ia<0?999:ia)-(ib<0?999:ib);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
     });
     // ===== LOOP CATEGORY
-    sortedCategories.forEach(cat=>{
-      const safeCat = cat.replace(/[^a-zA-Z0-9]/g,"_");
-      const catKey = safePeriod+"_"+safeCat;
-      let totalScore=0;
-      let totalMax=0;
-      let missingCount=0;
-      if(state.gradeCategoryState[catKey]===undefined){
-        state.gradeCategoryState[catKey]=true;
+    sortedCategories.forEach(cat => {
+      const safeCat = cat.replace(/[^a-zA-Z0-9]/g, "_");
+      const catKey = safePeriod + "_" + safeCat;
+      let totalScore = 0;
+      let totalMax = 0;
+      let missingCount = 0;
+      if (state.gradeCategoryState[catKey] === undefined) {
+        state.gradeCategoryState[catKey] = true;
       }
       // ===== COUNT MISSING
-      grouped[cat].forEach(t=>{
-        if(isTaskMissing(t.score)){
+      grouped[cat].forEach(t => {
+        if (isTaskMissing(t.score)) {
           missingCount++;
         }
       });
       // ===== CATEGORY HEADER
-      const headerRow=document.createElement("tr");
-      headerRow.className="gradeCategoryHeader";
-      headerRow.dataset.category=safeCat;
-      headerRow.classList.add("periodRow_"+safePeriod);
-      headerRow.innerHTML=`<td colspan="6" style=" background:#f1f5f9; font-weight:700; color:#334155; cursor:pointer;">
-        <span id="catArrow_${safePeriod}_${safeCat}">${state.gradeCategoryState[safeCat]?"▼":"▶"}</span>
-        ${escapeHtml(cat)}${missingCount>0 ? `<span class="missingBadge" style=" margin-left:10px; background:#fee2e2; color:#b42318; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700;">${missingCount} Missing</span>` : ""}</td>`;
+      const headerRow = document.createElement("tr");
+      headerRow.className = "gradeCategoryHeader";
+      headerRow.dataset.category = safeCat;
+      headerRow.classList.add("periodRow_" + safePeriod);
+      headerRow.innerHTML = `<td colspan="6" style=" background:#f1f5f9; font-weight:700; color:#334155; cursor:pointer;">
+        <span id="catArrow_${safePeriod}_${safeCat}">${state.gradeCategoryState[catKey] ? "▼" : "▶"}</span>
+        ${escapeHtml(cat)}${missingCount > 0 ? `<span class="missingBadge" style=" margin-left:10px; background:#fee2e2; color:#b42318; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700;">${missingCount} Missing</span>` : ""}</td>`;
       tbody.appendChild(headerRow);
       // ===== COLLAPSE
-      headerRow.onclick=()=>{
-        const rows=document.querySelectorAll(".catRow_"+safePeriod+"_"+safeCat);
-        const arrow=document.getElementById("catArrow_"+safePeriod+"_"+safeCat);
+      headerRow.onclick = () => {
+        const rows = document.querySelectorAll(".catRow_" + safePeriod + "_" + safeCat);
+        const arrow = document.getElementById("catArrow_" + safePeriod + "_" + safeCat);
         const hidden = rows[0]?.classList.contains("hidden");
-        rows.forEach(r=>{
+        rows.forEach(r => {
           r.classList.toggle("hidden");
         });
-        state.gradeCategoryState[catKey]=!hidden;
-        arrow.textContent = hidden ? "▶":"▼";
+        state.gradeCategoryState[catKey] = !hidden;
+        arrow.textContent = hidden ? "▶" : "▼";
       };
       // ===== TASK ROWS
-      grouped[cat].forEach(t=>{
-        const tr=document.createElement("tr");
-        tr.classList.add("catRow_"+safePeriod+"_"+safeCat);
-        tr.classList.add("periodRow_"+safePeriod);
-        
-        if(state.gradeCategoryState[catKey]===undefined){
-          state.gradeCategoryState[catKey]=false;
-        } 
-        if(state.gradeCategoryState[catKey]===false){
+      grouped[cat].forEach(t => {
+        const tr = document.createElement("tr");
+        tr.classList.add("catRow_" + safePeriod + "_" + safeCat);
+        tr.classList.add("periodRow_" + safePeriod);
+
+        if (state.gradeCategoryState[catKey] === undefined) {
+          state.gradeCategoryState[catKey] = false;
+        }
+        if (state.gradeCategoryState[catKey] === false) {
           tr.classList.add("hidden");
         }
-        tr.dataset.taskCode=t.taskCode;
-        const percent =
-        (!isTaskMissing(t.score) && Number(t.max)>0)
-        ? (Number(t.score)/Number(t.max))*100
-        : 0;
-        if(!isTaskMissing(t.score) && Number(t.max)>0){
-          totalScore+=Number(t.score);
-          totalMax+=Number(t.max);
+        tr.dataset.taskCode = t.taskCode;
+        const percent = (!isTaskMissing(t.score) && Number(t.max) > 0) ? (Number(t.score) / Number(t.max)) * 100 : 0;
+        if (!isTaskMissing(t.score) && Number(t.max) > 0) {
+          totalScore += Number(t.score);
+          totalMax += Number(t.max);
         }
         const isMissing = isTaskMissing(t.score);
-        if(isMissing){
-          tr.style.background="#fff1f2";
+        if (isMissing) {
+          tr.style.background = "#fff1f2";
         }
-        tr.innerHTML=`
+        tr.innerHTML = `
           <td>${formatGradeDate(t.date)}</td>
-          <td>${escapeHtml(t.category||"-")}</td>
+          <td>${escapeHtml(t.category || "-")}</td>
           <td>
-            ${escapeHtml(t.taskName||"-")}
-            ${isMissing ? `<span class="notSubmitted" style="color:#b42318; font-weight:700; margin-left:8px;">⚠️ NOT SUBMITTED</span>` : "" }
+            ${escapeHtml(t.taskName || "-")}
+            ${isMissing ? `<span class="notSubmitted" style="color:#b42318; font-weight:700; margin-left:8px;">⚠️ NOT SUBMITTED</span>` : ""}
           </td>
-          <td>${t.max||0}</td>
-          <td><input class="gradeInput" type="number" min="0" max="${t.max||0}" value="${t.score !== undefined ? t.score : ""}" data-taskcode="${t.taskCode}" /></td>
+          <td>${t.max || 0}</td>
+          <td><input class="gradeInput" type="number" min="0" max="${t.max || 0}" value="${t.score !== undefined ? t.score : ""}" data-taskcode="${t.taskCode}" /></td>
           <td class="gradeReadonly" id="taskPct_${t.taskCode}">${percent.toFixed(1)}%</td>
         `;
         tbody.appendChild(tr);
       });
       // ===== CATEGORY AVERAGE
-      const avg = totalMax>0 ? (totalScore/totalMax)*100 : 0;
-      state.categoryGrades[cat]=avg;
-      let avgColor="#b42318";
-      if(avg>=75) avgColor="#1f7a3f";
-      else if(avg>=50) avgColor="#b26a00";
-      const avgRow=document.createElement("tr");
-      avgRow.classList.add("catAvgRow_"+safePeriod+"_"+safeCat);
-      avgRow.classList.add("periodRow_"+safePeriod);
-      avgRow.innerHTML=`<td colspan="5" style="text-align:right; font-weight:700; color:#475569; background:#f8fafc;">${escapeHtml(cat)} AVERAGE</td>
-        <td class="catAvgRow" style="font-weight:900; background:#f8fafc; color:${avgColor}; font-size:16px;">${avg.toFixed(1)}</td>`;
+      //const avg = totalMax>0 ? (totalScore/totalMax)*100 : 0;
+      //state.categoryGrades[cat]=avg;
+      //const raw = totalMax>0 ? (totalScore/totalMax)*100 : 0;
+      //const transmuted = transmute(raw,"major");
+      //state.categoryGrades[cat]=transmuted;
+      //const transmuted = state.categoryGrades?.[period]?.[cat] ?? 0;
+      const transmuted = state.categoryGrades?.[period]?.[cat] !== undefined ? state.categoryGrades[period][cat] : 0;
+      let avgColor = "#b42318";
+      if (transmuted >= 75) avgColor = "#1f7a3f";
+      else if (transmuted >= 50) avgColor = "#b26a00";
+      const avgRow = document.createElement("tr");
+      avgRow.classList.add("catAvgRow_" + safePeriod + "_" + safeCat);
+      avgRow.classList.add("periodRow_" + safePeriod);
+      avgRow.innerHTML = `<td colspan="5" style="text-align:right; font-weight:700; color:#475569; background:#f8fafc;">${escapeHtml(cat)} AVERAGE</td>
+        <td class="catAvgRow" style="font-weight:900; background:#f8fafc; color:${avgColor}; font-size:16px;">${transmuted.toFixed(0)}</td>`; //shows transmutted
+      //option
+      //<td class="catAvgRow" style="font-weight:900; background:#f8fafc; color:${avgColor}; font-size:16px;">${avg.toFixed(1)}</td>`;
+      //<td class="catAvgRow" style="font-weight:900; background:#f8fafc; color:${avgColor}; font-size:16px;">${transmuted.toFixed(0)}</td>`;
       tbody.appendChild(avgRow);
     });
     // ===== PERIOD AVERAGE (ONCE ONLY)
     const periodGrade = computePeriodGrade(period);
-    const periodAvgRow=document.createElement("tr");
-    periodAvgRow.classList.add("periodAvg_"+safePeriod);
-    periodAvgRow.classList.add("periodRow_"+safePeriod);
-    periodAvgRow.innerHTML=`<td colspan="5" style="text-align:right; font-weight:900; background:#e2e8f0; font-size:15px;">${period} AVERAGE</td>
+    const periodAvgRow = document.createElement("tr");
+    periodAvgRow.classList.add("periodAvg_" + safePeriod);
+    periodAvgRow.classList.add("periodRow_" + safePeriod);
+    periodAvgRow.innerHTML = `<td colspan="5" style="text-align:right; font-weight:900; background:#e2e8f0; font-size:15px;">${period} AVERAGE</td>
       <td style="font-weight:900; font-size:18px; color:#1f7a3f;">${periodGrade.toFixed(1)}</td>`;
     tbody.appendChild(periodAvgRow);
   });
   // ===== INPUT EVENTS
-  document.querySelectorAll(".gradeInput").forEach(input=>{
-    input.oninput=function(){
-      updateGradeRealtime(this.dataset.taskcode,this);
+  document.querySelectorAll(".gradeInput").forEach(input => {
+    input.oninput = function () {
+      updateGradeRealtime(this.dataset.taskcode, this);
       recomputeTaskFinal();
+    };
+  });
+
+  //setTimeout(() => {
+  recomputeAllGrades();
+  //}, 0);
+
+  document.querySelectorAll('input[name="subjectType"]').forEach(radio => {
+    radio.onchange = function () {
+      state.subjectType = this.value;
+      //console.log("SUBJECT TYPE:", state.subjectType);
+      recomputeAllGrades();
     };
   });
 }
@@ -719,14 +753,19 @@ function renderTaskGrades(){
 * return: -
 * purpose: -
 *******************************************************/
-function recomputePeriodAverages(){
-  ["MIDTERM PERIOD","FINAL PERIOD"].forEach(period=>{
-    const safePeriod = period.replace(/[^a-zA-Z0-9]/g,"_");
+function recomputePeriodAverages() {
+  ["MIDTERM PERIOD", "FINAL PERIOD"].forEach(period => {
+    const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
     const grade = computePeriodGrade(period);
-    const row = document.querySelector(".periodAvg_"+safePeriod);
-    if(!row) return;
+
+    const row = document.querySelector(".periodAvg_" + safePeriod);
+    if (!row) return;
+
     const cell = row.querySelector("td:last-child");
-    cell.textContent = grade.toFixed(1);
+
+    if (cell) {
+      cell.textContent = grade.toFixed(1);
+    }
   });
 }
 
@@ -736,76 +775,41 @@ function recomputePeriodAverages(){
 * return: -
 * purpose: -
 *******************************************************/
-/*function recomputeCategoryAverage(category){
-  const safeCat = category.toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
-  const tasks = (state.gradeTasks || []).filter(t=>{
-    const safe = (t.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
-    return safe === safeCat;
-  });
-
-  let total = 0;
-  let count = 0;
-
-  tasks.forEach(t=>{
-    const score = Number.isFinite(Number(t.score)) ? Number(t.score) : null;
-    const max = Number(t.max)||0;
-    if(score !== null && max>0){
-      total += (score/max)*100;
-      count++;
-    }
-  });
-
-  const avg = count ? total/count : 0;
-  // update UI
-  document.querySelectorAll("tr").forEach(tr=>{
-    if(tr.textContent.includes(category+" AVERAGE")){
-      const cell = tr.lastElementChild;
-      cell.textContent = avg.toFixed(2)+"%";
-      if(avg>=75){
-        cell.style.color="#1f7a3f";
-      }
-      else if(avg>=50){
-        cell.style.color="#b26a00";
-      }
-      else{
-        cell.style.color="#b42318";
-      }
-    }
-  });
-}*/
-function recomputeCategoryAverage(category){
-  const safeCat = category.toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
-  const tasks = (state.gradeTasks || []).filter(t=>{
-    const safe = (t.category || "OTHERS")
-      .toUpperCase()
-      .replace(/[^a-zA-Z0-9]/g,"_");
-    return safe === safeCat;
-  });
-
+/*function computeCategoryGrade(tasks, type = "minor") {
   let totalScore = 0;
   let totalMax = 0;
 
-  tasks.forEach(t=>{
-    const score = Number(t.score);
-    const max = Number(t.max);
-    if(Number.isFinite(score) && max > 0){
+  tasks.forEach(t => {
+    const score = parseFloat(t.score);
+    const max = parseFloat(t.max);
+
+    if (!isNaN(score) && !isNaN(max) && max > 0) {
       totalScore += score;
       totalMax += max;
     }
   });
 
-  const avg = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
-  state.categoryGrades[category.toUpperCase()] = avg;
-  const rows = document.querySelectorAll('[class*="catAvgRow_"][class*="_'+safeCat+'"]');
-  rows.forEach(row=>{
-    const cell = row.querySelector(".catAvgRow");
-    if(!cell) return;
-    cell.textContent = avg.toFixed(1);
-    if(avg>=75) cell.style.color="#1f7a3f";
-    else if(avg>=50) cell.style.color="#b26a00";
-    else cell.style.color="#b42318";
+  const raw = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
+  const grade = transmute(raw, type);
+
+  console.log("📊 CATEGORY:", tasks[0]?.category, {
+    totalScore,
+    totalMax,
+    raw,
+    grade
   });
 
+  return { raw, grade };
+}*/
+
+/*******************************************************
+* function name: getCategoryType
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function getCategoryType(category) {
+  return state.subjectType; // dynamic
 }
 
 /*******************************************************
@@ -814,17 +818,22 @@ function recomputeCategoryAverage(category){
 * return: -
 * purpose: -
 *******************************************************/
-async function loadTaskGrades(studentId){
+async function loadTaskGrades(studentId) {
   try {
     showLoading("Loading grades, please wait...");
     // Stop API call if logged out
     if (!state.idToken) {
-      //console.log("Skipped grades load - no session.");
+      console.log("Skipped grades load - no session.");
       return;
     }
 
     const student = state.currentStudent;
     if (!student) return;
+
+    // Load Transmutation table
+    if (!state.transmutationMajor) {
+      await loadTransmutationTables();
+    }
 
     const res = await apiGet({
       action: "gradesTaskLoad",
@@ -837,21 +846,25 @@ async function loadTaskGrades(studentId){
       throw new Error(res?.message || "Load failed");
     }
 
-    if (!res.items || res.items.length === 0) {
-      //console.log("No sheet data. Using default template.");
+    console.log("GRADE API RESPONSE:", res);
+
+    const tasks = res.items || res.tasks || [];
+    //if (!res.items || res.items.length === 0) {
+    if (!tasks.length) {
+      console.log("No sheet data. Using default template.");
       state.gradeTasks = getDefaultGradeTemplate();
     } else {
       state.gradeTasks = res.items;
     }
 
     document.getElementById("gradeStudentId").textContent = student.studentId || "—";
-    if(!gradeEditing){
+    if (!gradeEditing) {
       renderTaskGrades();
       recomputeTaskFinal();
     }
     hideLoading();
   } catch (err) {
-    //console.error("TASK LOAD ERROR:", err);
+    console.error("TASK LOAD ERROR:", err);
     hideLoading();
     state.gradeTasks = getDefaultGradeTemplate();
     renderTaskGrades();
@@ -865,18 +878,18 @@ async function loadTaskGrades(studentId){
 * return: -
 * purpose: -color per row, - compute final grade, - update PASSED / FAILED badge
 *******************************************************/
-function recomputeTaskFinal(){
+function recomputeTaskFinal() {
   let total = 0;
   let count = 0;
 
-  (state.gradeTasks || []).forEach(task=>{
-    const score = Number.isFinite(Number(task.score))?Number(task.score):"";
+  (state.gradeTasks || []).forEach(task => {
+    const score = Number.isFinite(Number(task.score)) ? Number(task.score) : "";
     const max = Number(task.max || 0);
     let pct = 0;
 
     // compute %
-    if(score !== "" && max > 0){
-      pct = (score/max)*100;
+    if (score !== "" && max > 0) {
+      pct = (score / max) * 100;
       total += pct;
       count++;
     }
@@ -884,17 +897,17 @@ function recomputeTaskFinal(){
     // save percent in memory
     task.percent = pct;
     // ===== UPDATE ROW % CELL =====
-    const cell = document.getElementById("taskPct_"+task.taskCode);
-    if(cell){
-      cell.textContent = pct.toFixed(1)+"%";
-      if(pct>=75){
-        cell.style.color="#1f7a3f"; // green
+    const cell = document.getElementById("taskPct_" + task.taskCode);
+    if (cell) {
+      cell.textContent = pct.toFixed(1) + "%";
+      if (pct >= 75) {
+        cell.style.color = "#1f7a3f"; // green
       }
-      else if(pct>=50){
-        cell.style.color="#b26a00"; // orange
+      else if (pct >= 50) {
+        cell.style.color = "#b26a00"; // orange
       }
-      else{
-        cell.style.color="#b42318"; // red
+      else {
+        cell.style.color = "#b42318"; // red
       }
     }
   });
@@ -907,7 +920,7 @@ function recomputeTaskFinal(){
   const final = (midterm * 0.5) + (finalPeriod * 0.5);
   // FINAL VALUE
   const finalEl = document.getElementById("finalGradeValue");
-  if(finalEl){
+  if (finalEl) {
     //finalEl.textContent = final.toFixed(2)+"%";
     finalEl.textContent = final.toFixed(2);
   }
@@ -915,19 +928,25 @@ function recomputeTaskFinal(){
   const badge = document.getElementById("finalGradeStatus");
   if (!badge) return;
   // reset class safely
-  badge.classList.remove("passed","failed");
+  badge.classList.remove("passed", "failed");
   // if no grade yet
   if (count === 0) {
-    badge.textContent="-";
+    badge.textContent = "-";
     return;
   }
-  if(final>=75){
-    badge.textContent="PASSED";
+  if (final >= 75) {
+    badge.textContent = "PASSED";
     badge.classList.add("passed");
-  } else{
-    badge.textContent="FAILED";
+  } else {
+    badge.textContent = "FAILED";
     badge.classList.add("failed");
   }
+
+  /*console.log("FINAL DEBUG: ", {
+    midterm,
+    finalPeriod,
+    final
+  });*/
 }
 
 /*******************************************************
@@ -936,14 +955,14 @@ function recomputeTaskFinal(){
 * return: -
 * purpose: 
 *******************************************************/
-function updateGradeRealtime(taskCode,input){
+function updateGradeRealtime(taskCode, input) {
   const raw = input.value.trim();
   const value = raw === "" ? "" : Number(raw);
 
   // ===== FIND TASK SAFE =====
-  const task = (state.gradeTasks || []).find(t=>String(t.taskCode).trim().toUpperCase() === String(taskCode).trim().toUpperCase());
+  const task = (state.gradeTasks || []).find(t => String(t.taskCode).trim().toUpperCase() === String(taskCode).trim().toUpperCase());
 
-  if(!task){
+  if (!task) {
     console.warn("Task not found:", taskCode);
     return;
   }
@@ -959,24 +978,18 @@ function updateGradeRealtime(taskCode,input){
   //console.log("max:",max);
   let pct = 0;
   const scoreNum = Number(input.value);
-  if(Number.isFinite(scoreNum) && max>0){
-    pct = (scoreNum/max)*100;
+  if (Number.isFinite(scoreNum) && max > 0) {
+    pct = (scoreNum / max) * 100;
   }
 
   // find percent cell
-  const pctCell = document.getElementById("taskPct_"+task.taskCode);
-  if(pctCell){
+  const pctCell = document.getElementById("taskPct_" + task.taskCode);
+  if (pctCell) {
     pctCell.textContent = pct.toFixed(1) + "%";
     // realtime color
-    if(pct >= 75){
-      pctCell.style.color = "#1f7a3f";   // green
-    }
-    else if(pct >= 50){
-      pctCell.style.color = "#b26a00";   // orange
-    }
-    else{
-      pctCell.style.color = "#b42318";   // red
-    }
+    if (pct >= 75) pctCell.style.color = "#1f7a3f";   // green
+    else if (pct >= 50) pctCell.style.color = "#b26a00";   // orange
+    else pctCell.style.color = "#b42318";   // red
   }
 
   // ===== ROW =====
@@ -987,40 +1000,18 @@ function updateGradeRealtime(taskCode,input){
 
   // ===== NOT SUBMITTED =====
   const taskCell = row.children[2];
-  taskCell.querySelectorAll(".notSubmitted").forEach(e=>e.remove());
+  taskCell.querySelectorAll(".notSubmitted").forEach(e => e.remove());
 
-  if(isMissing){
+  if (isMissing) {
     taskCell.insertAdjacentHTML(
       "beforeend",
-      `
-      <span class="notSubmitted"
-      style="
-      color:#b42318;
-      font-weight:700;
-      margin-left:8px;
-      ">
-      ⚠️ NOT SUBMITTED
-      </span>
-      `
+      `<span class="notSubmitted" style="color:#b42318; font-weight:700; margin-left:8px;">⚠️ NOT SUBMITTED</span>`
     );
   }
 
-  // ⭐⭐⭐ IMPORTANT ⭐⭐⭐
-  // Wait DOM update before badge compute
-
-  setTimeout(()=>{
-    const safeCat = (task.category || "OTHERS").toUpperCase().replace(/[^a-zA-Z0-9]/g,"_");
-    updateCategoryMissingBadge(safeCat);
-  },0);
+  updateCategoryMissingBadge(task.category);
 
   // ===== FINAL =====
-  /*recomputeCategoryAverage(task.category);
-  recomputePeriodAverages();
-  const midterm = computePeriodGrade("MIDTERM PERIOD");
-  const final = computePeriodGrade("FINAL PERIOD");
-  document.getElementById("midtermGradeValue").textContent = midterm.toFixed(2);
-  document.getElementById("finalPeriodGradeValue").textContent = final.toFixed(2);
-  recomputeTaskFinal();*/
   recomputeAllGrades();
 }
 
@@ -1030,17 +1021,66 @@ function updateGradeRealtime(taskCode,input){
 * return: -
 * purpose: 
 *******************************************************/
-function recomputeAllGrades(){
-  // recompute all category averages
-  const categories = [...new Set(
-    (state.gradeTasks || []).map(t => (t.category || "").toUpperCase())
-  )];
-  categories.forEach(cat=>{
-    recomputeCategoryAverage(cat);
+function recomputeAllGrades() {
+
+  //console.log("🚀 RECOMPUTE START");
+
+  state.categoryGrades = {
+    "MIDTERM PERIOD": {},
+    "FINAL PERIOD": {}
+  };
+
+  const tasks = state.gradeTasks || [];
+
+  // ✅ GROUP FIRST (NO FILTER BUGS)
+  const grouped = {};
+
+  tasks.forEach(t => {
+    const period = normalize(t.period || "MIDTERM PERIOD");
+    const category = normalize(t.category);
+
+    if (!grouped[period]) grouped[period] = {};
+    if (!grouped[period][category]) grouped[period][category] = [];
+
+    grouped[period][category].push(t);
   });
-  // recompute period averages
+
+  //console.log("📦 GROUPED:", grouped);
+
+  // ✅ COMPUTE PER CATEGORY
+  Object.keys(grouped).forEach(period => {
+    Object.keys(grouped[period]).forEach(category => {
+
+      const tasksForCategory = grouped[period][category];
+
+      if (!tasksForCategory.length) return;
+
+      const type = getCategoryType(category);
+
+      const result = computeCategoryGrade(tasksForCategory, type);
+
+      // ✅ STORE USING NORMALIZED KEY
+      state.categoryGrades[period][category] = result.grade;
+
+      // ✅ UPDATE UI
+      const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
+      const safeCat = category.replace(/[^a-zA-Z0-9]/g, "_");
+
+      const cell = document.querySelector(
+        `.catAvgRow_${safePeriod}_${safeCat}.catAvgRow`
+      );
+
+      if (cell) {
+        cell.textContent = result.grade.toFixed(0);
+      }
+
+    });
+  });
+
+  //console.log("✅ CATEGORY GRADES:", state.categoryGrades);
+
+  // ✅ PERIOD + FINAL
   recomputePeriodAverages();
-  // recompute final grade
   recomputeTaskFinal();
 }
 
@@ -1050,41 +1090,61 @@ function recomputeAllGrades(){
 * return: -
 * purpose: 
 *******************************************************/
-function updateCategoryMissingBadge(category){
-  const header = document.querySelector(`.gradeCategoryHeader[data-category="${category}"]`);
-  if(!header) return;
+function updateCategoryMissingBadge(category) {
+  const categoryUpper = category.toUpperCase();
 
-  // Count directly from visible rows
-  const rows = document.querySelectorAll(`.catRow_${category}`);
-  let missing = 0;
-  rows.forEach(row=>{
-    const input = row.querySelector(".gradeInput");
-    if(!input) return;
-    const raw = input.value.trim();
-    if(raw === ""){
-      missing++;
+  const periods = ["MIDTERM PERIOD", "FINAL PERIOD"];
+
+  periods.forEach(period => {
+
+    const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
+    const safeCat = categoryUpper.replace(/[^a-zA-Z0-9]/g, "_");
+
+    // ✅ FIX: correct selector (WITH PERIOD)
+    const rows = document.querySelectorAll(`.catRow_${safePeriod}_${safeCat}`);
+
+    if (!rows.length) return;
+
+    let missing = 0;
+
+    rows.forEach(row => {
+      const input = row.querySelector(".gradeInput");
+      if (!input) return;
+
+      const raw = input.value.trim();
+
+      if (raw === "") {
+        missing++;
+      }
+    });
+
+    // ✅ FIX: correct header (WITH PERIOD)
+    const header = document.querySelector(
+      `.gradeCategoryHeader.periodRow_${safePeriod}[data-category="${safeCat}"]`
+    );
+
+    if (!header) return;
+
+    const td = header.querySelector("td");
+
+    // remove old badge
+    td.querySelectorAll(".missingBadge").forEach(e => e.remove());
+
+    // add new badge
+    if (missing > 0) {
+      const badge = document.createElement("span");
+      badge.className = "missingBadge";
+      badge.style.marginLeft = "10px";
+      badge.style.background = "#fee2e2";
+      badge.style.color = "#b42318";
+      badge.style.padding = "3px 8px";
+      badge.style.borderRadius = "999px";
+      badge.style.fontSize = "12px";
+      badge.style.fontWeight = "700";
+      badge.textContent = missing + " Missing";
+      td.appendChild(badge);
     }
   });
-
-  const td = header.querySelector("td");
-
-  // Remove old badge
-  td.querySelectorAll(".missingBadge").forEach(e=>e.remove());
-
-  // Add new badge
-  if(missing > 0){
-    const badge = document.createElement("span");
-    badge.className = "missingBadge";
-    badge.style.marginLeft = "10px";
-    badge.style.background = "#fee2e2";
-    badge.style.color = "#b42318";
-    badge.style.padding = "3px 8px";
-    badge.style.borderRadius = "999px";
-    badge.style.fontSize = "12px";
-    badge.style.fontWeight = "700";
-    badge.textContent = missing + " Missing";
-    td.appendChild(badge);
-  }
 }
 
 /*******************************************************
@@ -1093,11 +1153,11 @@ function updateCategoryMissingBadge(category){
 * return: -
 * purpose: Save all task grades for current student
 *******************************************************/
-async function saveTaskGrades(){
+async function saveTaskGrades() {
   showLoading("Saving task grades...");
-  try{
+  try {
     const student = state.currentStudent;
-    if(!student){
+    if (!student) {
       hideLoading();
       alert("No student selected");
       return;
@@ -1105,28 +1165,28 @@ async function saveTaskGrades(){
 
     // ===== CORRECT API POST =====
     const res = await apiPost(
-    {
-      action:"gradesTaskSave",
-      idToken:state.idToken
-    },
-    {
-    studentId: student.studentId,
-    items: state.gradeTasks
-    });
+      {
+        action: "gradesTaskSave",
+        idToken: state.idToken
+      },
+      {
+        studentId: student.studentId,
+        items: state.gradeTasks
+      });
 
     hideLoading();
     //console.log("SAVE RESPONSE:", res);
-    if(!res || res.status!=="success"){
+    if (!res || res.status !== "success") {
       alert(res?.message || "Save failed");
       return;
     }
     alert("Grades Saved Successfully ✅");
     // ⭐ reload from sheet (important)
     await loadTaskGrades(student.studentId);
-  }catch(e){
-      hideLoading();
-      console.error(e);
-      alert("Save Failed ❌");
+  } catch (e) {
+    hideLoading();
+    console.error(e);
+    alert("Save Failed ❌");
   }
 }
 
@@ -1136,37 +1196,37 @@ async function saveTaskGrades(){
 * return: -
 * purpose: -
 *******************************************************/
-async function addTaskRow(){
+async function addTaskRow() {
   const period = document.getElementById("newTaskPeriod")?.value || "-- Select Category --";
   const category = document.getElementById("newTaskCategory")?.value || "-- Select Category --";
   const max = Number(document.getElementById("newTaskMax")?.value) || "Items";
   const upperCat = category.toUpperCase();
   const prefix = getCategoryPrefix(upperCat);
 
-  if(period === "-- Select Category --"){
+  if (period === "-- Select Category --") {
     alert("Please select period.");
     return;
   }
 
-  if(upperCat === "-- SELECT CATEGORY --"){
+  if (upperCat === "-- SELECT CATEGORY --") {
     alert("Please select category.");
     return;
   }
 
-  if(max === "Items"){
+  if (max === "Items") {
     alert("Please input items.");
     return;
   }
 
   let lastNumber = 0;
 
-  (state.gradeTasks||[]).forEach(t=>{
-    if((t.category||"").toUpperCase() !== upperCat) return;
+  (state.gradeTasks || []).forEach(t => {
+    if ((t.category || "").toUpperCase() !== upperCat) return;
     const match = String(t.taskCode).match(/\d+$/);
-    if(match){
+    if (match) {
       const num = Number(match[0]);
-      if(num>lastNumber){
-        lastNumber=num;
+      if (num > lastNumber) {
+        lastNumber = num;
       }
     }
   });
@@ -1174,12 +1234,12 @@ async function addTaskRow(){
   const newTaskCode = prefix + next;
   state.gradeTasks.push({
     period: period,
-    date: new Date().toISOString().slice(0,10),
+    date: new Date().toISOString().slice(0, 10),
     category: upperCat,
     taskCode: newTaskCode,
     taskName: prefix + next,
     max: max,
-    score:""
+    score: ""
   });
   renderTaskGrades();
 }
@@ -1190,16 +1250,16 @@ async function addTaskRow(){
 * return: -
 * purpose: -
 *******************************************************/
-function getCategoryPrefix(category){
+function getCategoryPrefix(category) {
   const map = {
-    "AUGUSTINIAN VALUE":"Augustinian Value",
-    "ASSIGNMENT":"Assign",
-    "QUIZ":"Quiz",
-    "MIDTERM EXAM":"Mid Exam",
-    "FINAL EXAM":"Fin Exam",
-    "PROJECT":"Proj",
-    "EXERCISE":"Exer",
-    "CLASS PARTICIPATION":"Participation"
+    "AUGUSTINIAN VALUE": "Augustinian Value",
+    "ASSIGNMENT": "Assign",
+    "QUIZ": "Quiz",
+    "MIDTERM EXAM": "Mid Exam",
+    "FINAL EXAM": "Fin Exam",
+    "PROJECT": "Proj",
+    "EXERCISE": "Exer",
+    "CLASS PARTICIPATION": "Participation"
   };
   return map[category.toUpperCase()] || category.toUpperCase();
 }
@@ -1212,20 +1272,20 @@ function getCategoryPrefix(category){
 *******************************************************/
 function getDefaultGradeTemplate() {
   return [
-    { date:"2026-01-15", period:"MIDTERM PERIOD", category:"AUGUSTINIAN VALUE", taskCode:"Augustinian Value1", taskName:"Augustinian Value1", max:10, score:"" },
-    //{ date:"2026-01-15", period:"MIDTERM PERIOD", category:"ASSIGNMENT", taskCode:"Assign1", taskName:"Blog Entry1", max:20, score:"" },
-    //{ date:"2026-02-13", period:"MIDTERM PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation1", taskName:"Participation1", max:5, score:"" },
-    //{ date:"2026-02-02", period:"MIDTERM PERIOD", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz1", max:20, score:"" },
-    //{ date:"2026-02-02", period:"MIDTERM PERIOD", category:"EXERCISE", taskCode:"EXERCISE", taskName:"Exer1", max:20, score:"" },
-    //{ date:"2026-02-15", period:"MIDTERM PERIOD", category:"MIDTERM EXAM", taskCode:"MID EXAM1", taskName:"Mid Exam1", max:100, score:"" },
-    //{ date:"2026-02-15", period:"MIDTERM PERIOD", category:"PROJECT", taskCode:"PROJECT", taskName:"Proj1", max:100, score:"" },
+    { date: "2026-01-15", period: "MIDTERM PERIOD", category: "AUGUSTINIAN VALUE", taskCode: "Augustinian Value1", taskName: "Augustinian Value1", max: 10, score: "" },
+    /*{ date:"2026-01-15", period:"MIDTERM PERIOD", category:"ASSIGNMENT", taskCode:"Assign1", taskName:"Blog Entry1", max:20, score:"" },
+    { date:"2026-02-13", period:"MIDTERM PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation1", taskName:"Participation1", max:5, score:"" },
+    { date:"2026-02-02", period:"MIDTERM PERIOD", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz1", max:20, score:"" },
+    { date:"2026-02-02", period:"MIDTERM PERIOD", category:"EXERCISE", taskCode:"EXERCISE", taskName:"Exer1", max:20, score:"" },
+    { date:"2026-02-15", period:"MIDTERM PERIOD", category:"MIDTERM EXAM", taskCode:"MID EXAM1", taskName:"Mid Exam1", max:100, score:"" },
+    { date:"2026-02-15", period:"MIDTERM PERIOD", category:"PROJECT", taskCode:"PROJECT", taskName:"Proj1", max:100, score:"" },*/
 
-    { date:"2026-01-15", period:"FINAL PERIOD", category:"AUGUSTINIAN VALUE", taskCode:"Augustinian Value2", taskName:"Augustinian Value2", max:10, score:"" },
-    //{ date:"2026-02-13", period:"FINAL PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation2", taskName:"Participation2", max:5, score:"" },
-    //{ date:"2026-02-02", period:"FINAL PERIOD", category:"QUIZ", taskCode:"QUIZ2", taskName:"Quiz2", max:20, score:"" },
-    //{ date:"2026-02-02", period:"FINAL PERIOD", category:"EXERCISE", taskCode:"EXERCISE2", taskName:"Exer2", max:20, score:"" },
-    //{ date:"2026-02-15", period:"FINAL PERIOD", category:"FINAL EXAM", taskCode:"FIN EXAM1", taskName:"Fin Exam1", max:100, score:"" },
-    //{ date:"2026-02-15", period:"FINAL PERIOD", category:"PROJECT", taskCode:"PROJECT2", taskName:"Proj2", max:100, score:"" }
+    /*{ date: "2026-01-15", period: "FINAL PERIOD", category: "AUGUSTINIAN VALUE", taskCode: "Augustinian Value2", taskName: "Augustinian Value2", max: 10, score: "" },
+    { date:"2026-02-13", period:"FINAL PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation2", taskName:"Participation2", max:5, score:"" },
+    { date:"2026-02-02", period:"FINAL PERIOD", category:"QUIZ", taskCode:"QUIZ2", taskName:"Quiz2", max:20, score:"" },
+    { date:"2026-02-02", period:"FINAL PERIOD", category:"EXERCISE", taskCode:"EXERCISE2", taskName:"Exer2", max:20, score:"" },
+    { date:"2026-02-15", period:"FINAL PERIOD", category:"FINAL EXAM", taskCode:"FIN EXAM1", taskName:"Fin Exam1", max:100, score:"" },
+    { date:"2026-02-15", period:"FINAL PERIOD", category:"PROJECT", taskCode:"PROJECT2", taskName:"Proj2", max:100, score:"" }*/
   ];
 }
 
@@ -1235,13 +1295,18 @@ function getDefaultGradeTemplate() {
 * return: -
 * purpose: -
 *******************************************************/
-async function loadTransmutationTables(){
-  const res = await apiGet({
-  action:"getTransmutationTables",
-  idToken:state.idToken
+async function loadTransmutationTables() {
+  const res = await apiPost({
+    action: "getTransmutationTables",
+    idToken: state.idToken
   });
+  //console.log("TRANSMUTATION RESPONSE: ", res);
   state.transmutationMajor = res.major;
   state.transmutationMinor = res.minor;
+
+  //console.log("🚨 RAW API MINOR:", res.minor.slice(0, 10));
+  //console.log("🚨 RAW API MAJOR:", res.major.slice(0, 10));
+  //console.log("TRANS TABLE SAMPLE: ", state.transmutationMinor.slice(0, 10));
 }
 
 /*******************************************************
@@ -1250,18 +1315,18 @@ async function loadTransmutationTables(){
 * return: -
 * purpose: -
 *******************************************************/
-function computeRawPercent(tasks){
+function computeRawPercent(tasks) {
   let totalScore = 0;
   let totalMax = 0;
-  tasks.forEach(t=>{
+  tasks.forEach(t => {
     const score = Number(t.score);
     const max = Number(t.max);
-    if(Number.isFinite(score) && max>0){
+    if (Number.isFinite(score) && max > 0) {
       totalScore += score;
       totalMax += max;
     }
   });
-  if(totalMax === 0) return 0;
+  if (totalMax === 0) return 0;
   return (totalScore / totalMax) * 100;
 }
 
@@ -1271,21 +1336,17 @@ function computeRawPercent(tasks){
 * return: -
 * purpose: -
 *******************************************************/
-function computePeriodGrade(period){
+function computePeriodGrade(period) {
+  const weights = gradeWeights[period];
+  const categories = state.categoryGrades[period] || {};
 
   let total = 0;
 
-  Object.keys(gradeWeights).forEach(category => {
-
-    // Skip exam that does not belong to this period
-    //if(period === "MIDTERM PERIOD" && category === "FINAL EXAM") return;
-    //if(period === "FINAL PERIOD" && category === "MIDTERM EXAM") return;
-
-    const weight = gradeWeights[category];
-    const grade = state.categoryGrades[category] || 0;
-
-    total += grade * weight;
-
+  Object.keys(weights).forEach(cat => {
+    const grade = categories[normalize(cat)];
+    if (grade !== undefined) {
+      total += grade * weights[cat];
+    }
   });
 
   return total;
@@ -1297,32 +1358,125 @@ function computePeriodGrade(period){
 * return: -
 * purpose: -
 *******************************************************/
-function transmute(rawPercent, subjectType="major"){
-  const table = subjectType==="major" ? state.transmutationMajor : state.transmutationMinor;
-  let grade = rawPercent;
-  for(let i=1;i<table.length;i++){
-    const raw = Number(table[i][0]);
-    if(rawPercent >= raw){
-      grade = Number(table[i][1]);
-      break;
+function transmute(rawScore, subjectType = "minor") {
+  const table = subjectType === "major"
+    ? state.transmutationMajor
+    : state.transmutationMinor;
+
+  //console.log("📥 RAW TABLE:", table?.slice(0, 10));
+  //console.log("📥 RAW INPUT:", rawScore);
+
+  if (!Array.isArray(table)) {
+    //console.warn("❌ Table is not array");
+    return rawScore;
+  }
+
+  // 🔥 CLEAN TABLE PROPERLY
+  const clean = [];
+
+  table.forEach((row, i) => {
+    if (!row || row.length < 2) return;
+
+    const rawStr = String(row[0]).trim();
+    const gradeStr = String(row[1]).trim();
+
+    if (rawStr === "" || gradeStr === "") {
+      //console.warn("🚨 SKIPPING EMPTY ROW:", i, row);
+      return;
+    }
+
+    const raw = Number(rawStr);
+    const grade = Number(gradeStr);
+
+    if (!Number.isFinite(raw) || !Number.isFinite(grade)) {
+      //console.warn("🚨 INVALID ROW:", i, row);
+      return;
+    }
+
+    clean.push({ raw, grade });
+  });
+
+  //console.log("✅ CLEAN TABLE:", clean.slice(0, 10));
+
+  if (!clean.length) {
+    //console.error("❌ CLEAN TABLE EMPTY → API ISSUE");
+    return rawScore;
+  }
+
+  // 🔥 SORT DESCENDING
+  clean.sort((a, b) => b.raw - a.raw);
+
+  // 🔥 MATCH
+  for (const row of clean) {
+    if (rawScore >= row.raw) {
+      //console.log("🎯 MATCH:", row);
+      return row.grade;
     }
   }
-  return grade;
+
+  return clean[clean.length - 1].grade;
 }
 
 /*******************************************************
-* function name: isSessionValid
+* function name: computeCategoryGrade
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+function computeCategoryGrade(tasks, type = "minor") {
+  let totalScore = 0;
+  let totalMax = 0;
+
+  tasks.forEach(t => {
+    const score = parseFloat(t.score);
+    const max = parseFloat(t.max);
+
+    /*console.log("📊 TASK CHECK:", {
+      rawScore: t.score,
+      rawMax: t.max,
+      score,
+      max
+    });*/
+
+    if (!isNaN(score) && !isNaN(max) && max > 0) {
+      totalScore += score;
+      totalMax += max;
+    }
+  });
+
+  //console.log("🧮 TOTALS:", { totalScore, totalMax });
+
+  const raw = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
+
+  const transmuted = transmute(raw, type);
+
+  /*console.log("✅ FINAL RAW CHECK:", {
+    category: tasks[0]?.category,
+    totalScore,
+    totalMax,
+    raw,
+    transmuted
+  });*/
+
+  //console.log("TOTAL SCORE:", totalScore)
+  //console.log("TABLE SAMPLE:", state.transmutationMinor.slice(0, 10))
+
+  return {
+    raw,
+    grade: transmuted
+  };
+}
+
+/*******************************************************
+* function name: normalize
 * parameter: none
 * return: -
 * purpose: -
 *******************************************************/
-function computeCategoryGrade(tasks,type="major"){
-  const rawPercent = computeRawPercent(tasks);
-  const transmuted = transmute(rawPercent,type);
-  return {
-    raw:rawPercent,
-    grade:transmuted
-  };
+function normalize(str) {
+  return String(str || "").toUpperCase()
+    .replace(/\s+/g, " ")   // remove extra spaces
+    .trim();
 }
 
 /*******************************************************
@@ -1340,14 +1494,13 @@ function isSessionValid() {
   return (Date.now() - loginTime) < SESSION_MAX_AGE_MS;
 }
 
-/* New */
 /*******************************************************
 * function name: loadSeatRoom
 * parameter: room (string)
 * return: -
 * purpose: Loads seat map data for a room by fetching master student list and latest seat assignments, using cached seat data first for fast UI render, then refreshing from server and updating cache.
 *******************************************************/
-async function loadSeatRoom(room){
+async function loadSeatRoom(room) {
   const key = "seatmap_" + room;
   // 🔥 1) Get first master students (with cellphone numbers)
   const masterRes = await apiGet({
@@ -1388,7 +1541,7 @@ async function loadSeatRoom(room){
 * return: -
 * purpose: Retrieves learner development records for a student from the API, maps categories and scores into state, and triggers radar chart rendering.
 *******************************************************/
-async function loadLearnerDev(studentId){
+async function loadLearnerDev(studentId) {
   if (!state.idToken) return;
   const res = await apiGet({
     action: "learnerDevLoad",
@@ -1419,13 +1572,13 @@ async function loadLearnerDev(studentId){
 * return: -
 * purpose: Clears all IndexedDB caches and evidence storage, resets major state containers, shows reset notification, and navigates UI back to config screen.
 *******************************************************/
-async function resetApp(){
+async function resetApp() {
   await cacheClearAll();
   await deleteEvidenceDB();
   state.selected = null;
   state.list.items = [];
   state.list.total = 0;
-  state.seat = { room:"", editMode:false, seats:[], masterStudents:[], editingSeat:null };
+  state.seat = { room: "", editMode: false, seats: [], masterStudents: [], editingSeat: null };
   toast("Cache cleared. Logging out.");
   //showScreen(screenConfig);
   forceLogout();
@@ -1437,7 +1590,7 @@ async function resetApp(){
 * return: dataUrl <string|null>
 * purpose: Retrieves a student photo as data URL from local cache if available, otherwise downloads from API, caches it, and returns the encoded image.
 *******************************************************/
-async function getPhotoCached(email){
+async function getPhotoCached(email) {
   if (!email) return null;
   const key = "photo_" + email.toLowerCase();
   // 1) try cache
@@ -1471,7 +1624,7 @@ pdfModal.addEventListener("click", (e) => {
 * return: -
 * purpose: Opens (and creates if needed) the IndexedDB database for evidence files and ensures the required object store exists.
 *******************************************************/
-function idbOpen(){
+function idbOpen() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_DB_NAME, 1);
     req.onupgradeneeded = () => {
@@ -1491,7 +1644,7 @@ function idbOpen(){
 * return: -
 * purpose: Stores an evidence file record (blob + metadata) into the IndexedDB evidence store.
 *******************************************************/
-async function idbPutEvidenceFile(item){
+async function idbPutEvidenceFile(item) {
   const db = await idbOpen();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, "readwrite");
@@ -1507,7 +1660,7 @@ async function idbPutEvidenceFile(item){
 * return: -
 * purpose: Retrieves a stored evidence file record from IndexedDB by its offline id.
 *******************************************************/
-async function idbGetEvidenceFile(id){
+async function idbGetEvidenceFile(id) {
   const db = await idbOpen();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, "readonly");
@@ -1523,7 +1676,7 @@ async function idbGetEvidenceFile(id){
 * return: -
 * purpose: Deletes an evidence file record from IndexedDB using its offline id.
 *******************************************************/
-async function idbDeleteEvidenceFile(id){
+async function idbDeleteEvidenceFile(id) {
   const db = await idbOpen();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, "readwrite");
@@ -1539,7 +1692,7 @@ async function idbDeleteEvidenceFile(id){
 * return: -
 * purpose: Closes the PDF preview modal and clears the iframe source to release the loaded document.
 *******************************************************/
-function closePdfModal(){
+function closePdfModal() {
   pdfFrame.src = "";
   pdfModal.classList.add("hidden");
 }
@@ -1550,7 +1703,7 @@ function closePdfModal(){
 * return: -
 * purpose: Reads and parses the pending offline sync queue from localStorage.
 ********************************************************/
-function getPendingQueue(){
+function getPendingQueue() {
   return JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || "[]");
 }
 
@@ -1560,7 +1713,7 @@ function getPendingQueue(){
 * return: -
 * purpose: Saves the pending offline sync queue array into localStorage.
 ********************************************************/
-function setPendingQueue(arr){
+function setPendingQueue(arr) {
   localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(arr));
 }
 
@@ -1573,13 +1726,13 @@ function setPendingQueue(arr){
 * return: -
 * purpose: Opens (and initializes if needed) the IndexedDB key-value cache database used for generic app caching.
 ********************************************************/
-function openCacheDB(){
+function openCacheDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains("kv")) {
-        db.createObjectStore("kv"); 
+        db.createObjectStore("kv");
         // key-value store
       }
     };
@@ -1594,7 +1747,7 @@ function openCacheDB(){
 * return: -
 * purpose: Stores a value in the IndexedDB key-value cache under the given key.
 ********************************************************/
-async function cacheSet(key, value){
+async function cacheSet(key, value) {
   const db = await openCacheDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("kv", "readwrite");
@@ -1611,7 +1764,7 @@ async function cacheSet(key, value){
 * return: -
 * purpose: Retrieves a cached value from IndexedDB key-value store by key.
 ********************************************************/
-async function cacheGet(key){
+async function cacheGet(key) {
   const db = await openCacheDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("kv", "readonly");
@@ -1628,7 +1781,7 @@ async function cacheGet(key){
 * return: -
 * purpose: Removes a specific cached entry from the IndexedDB key-value store.
 ********************************************************/
-async function cacheDelete(key){
+async function cacheDelete(key) {
   const db = await openCacheDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("kv", "readwrite");
@@ -1645,7 +1798,7 @@ async function cacheDelete(key){
 * return: -
 * purpose: Clears all entries from the IndexedDB key-value cache store.
 ********************************************************/
-async function cacheClearAll(){
+async function cacheClearAll() {
   const db = await openCacheDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("kv", "readwrite");
@@ -1662,7 +1815,7 @@ async function cacheClearAll(){
 * return: -
 * purpose: Switches visible UI screen by hiding all registered screens and showing the target element, updates related UI badges and buttons, tracks current screen state, and saves session snapshot.
 ********************************************************/
-function showScreen(el){
+function showScreen(el) {
   const screens = [
     screenConfig,
     screenMenu,
@@ -1674,6 +1827,7 @@ function showScreen(el){
 
   // hide grades
   document.getElementById('tabContentGrades')?.classList.add('hidden');
+  document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
 
   screens.forEach(s => s && s.classList.add("hidden"));
   if (el) el.classList.remove("hidden");
@@ -1691,12 +1845,12 @@ function showScreen(el){
   }
 
   // ✅ NEW: Track current screen for refresh restore
-	if (el === screenMenu) state.currentScreen = "menu";
-	else if (el === screenFilters) state.currentScreen = "filters";
-	else if (el === screenList) state.currentScreen = "list";
-	else if (el === screenDetails) state.currentScreen = "details";
-	else if (el === screenSeatMap) state.currentScreen = "seatmap";
-	//else if (el === screenConfig) state.currentScreen = "config";
+  if (el === screenMenu) state.currentScreen = "menu";
+  else if (el === screenFilters) state.currentScreen = "filters";
+  else if (el === screenList) state.currentScreen = "list";
+  else if (el === screenDetails) state.currentScreen = "details";
+  else if (el === screenSeatMap) state.currentScreen = "seatmap";
+  //else if (el === screenConfig) state.currentScreen = "config";
   //else state.currentScreen = "config";
   else state.currentScreen = "menu";
 
@@ -1718,8 +1872,8 @@ if (btnCloseSeatPreview && seatPreviewFloat) {
 
 document.addEventListener("click", e => {
   if (!e.target.closest(".seat") &&
-      !e.target.closest("#seatPreviewFloat") &&
-      !e.target.closest(".seatPreviewMobile")) {
+    !e.target.closest("#seatPreviewFloat") &&
+    !e.target.closest(".seatPreviewMobile")) {
     closeSeatPreview();
   }
 });
@@ -1730,7 +1884,7 @@ document.addEventListener("click", e => {
 * return: -
 * purpose: Detects whether the current viewport width is within mobile breakpoint threshold.
 ********************************************************/
-function isMobile(){
+function isMobile() {
   return window.innerWidth <= 768;
 }
 
@@ -1740,7 +1894,7 @@ function isMobile(){
 * return: -
 * purpose: Resets the evidence file input element so the same file can be selected again or to clear pending selection.
 ********************************************************/
-function clearEvidenceFileInput(){
+function clearEvidenceFileInput() {
 
   //const inp = document.getElementById("inpEvidence");
   //if (inp) inp.value = "";
@@ -1753,7 +1907,7 @@ function clearEvidenceFileInput(){
 * return: -
 * purpose: Stores an evidence file and its metadata into IndexedDB and adds a corresponding job into the offline sync queue for later upload when connectivity is restored.
 ********************************************************/
-async function queueEvidenceUploadOffline(file, student){
+async function queueEvidenceUploadOffline(file, student) {
 
   const offlineId = crypto.randomUUID();
 
@@ -1794,7 +1948,7 @@ async function queueEvidenceUploadOffline(file, student){
 * return: boolean
 * purpose: Determines whether a file should be treated as a PDF based on filename extension or MIME type.
 ********************************************************/
-function isPdfFile(name = "", mime = ""){
+function isPdfFile(name = "", mime = "") {
 
   const n = String(name).toLowerCase();
   const m = String(mime).toLowerCase();
@@ -1807,7 +1961,7 @@ function isPdfFile(name = "", mime = ""){
 * return: boolean
 * purpose: Determines whether a file is an image based on MIME type prefix or common image file extensions.
 ********************************************************/
-function isImageFile(name = "", mime = ""){
+function isImageFile(name = "", mime = "") {
 
   const n = String(name).toLowerCase();
   const m = String(mime).toLowerCase();
@@ -1820,7 +1974,7 @@ function isImageFile(name = "", mime = ""){
 * return: -
 * purpose: Handles evidence upload flow by validating input, routing to offline queue when offline, or uploading immediately via API when online, then refreshing the evidence list UI.
 ********************************************************/
-async function handleUploadEvidence(file){
+async function handleUploadEvidence(file) {
 
   try {
     if (!file) {
@@ -1828,11 +1982,11 @@ async function handleUploadEvidence(file){
       return;
     }
 
-	const student = {
-	  email: state.selected.email,
-	  timestamp: state.selected.timestamp,
-	  studentId: state.selected.studentId
-	};
+    const student = {
+      email: state.selected.email,
+      timestamp: state.selected.timestamp,
+      studentId: state.selected.studentId
+    };
 
     // ✅ OFFLINE → store to IndexedDB
     if (!navigator.onLine) {
@@ -1840,9 +1994,9 @@ async function handleUploadEvidence(file){
       return;
     }
 
-	if (!student.studentId || !student.email) {
-	  throw new Error("Missing studentId/email in evidence upload payload");
-	}
+    if (!student.studentId || !student.email) {
+      throw new Error("Missing studentId/email in evidence upload payload");
+    }
 
     // ✅ ONLINE → upload now
     const base64 = await blobToBase64(file);
@@ -1862,7 +2016,7 @@ async function handleUploadEvidence(file){
 
     alert("Evidence uploaded successfully!");
     clearEvidenceFileInput();
-	  await loadEvidenceList(); // ✅ add
+    await loadEvidenceList(); // ✅ add
 
   } catch (err) {
     alert("Upload error: " + err);
@@ -1875,7 +2029,7 @@ async function handleUploadEvidence(file){
 * return: -
 * purpose: Deletes the entire IndexedDB database used for offline evidence storage and resolves with success status.
 ********************************************************/
-function deleteEvidenceDB(){
+function deleteEvidenceDB() {
 
   return new Promise((resolve) => {
     const req = indexedDB.deleteDatabase(IDB_DB_NAME);
@@ -1891,7 +2045,7 @@ function deleteEvidenceDB(){
 * return: -
 * purpose: Processes and synchronizes all pending offline queue jobs (updates, seat map saves, and chunked evidence uploads) to the server, tracking progress and keeping failed jobs in the queue.
 ********************************************************/
-async function syncPendingQueue(opts = {}){
+async function syncPendingQueue(opts = {}) {
 
   if (!navigator.onLine) return;
 
@@ -1967,7 +2121,7 @@ async function syncPendingQueue(opts = {}){
           const chunkBlob = blob.slice(start, end);
 
           let chunkBase64 = await blobToBase64(chunkBlob);
-			    //chunkBase64 = chunkBase64.split(",")[1] || chunkBase64; // remove data:* prefix
+          //chunkBase64 = chunkBase64.split(",")[1] || chunkBase64; // remove data:* prefix
 
           const percent = Math.floor((c / totalChunks) * 70) + 20;
           pendingProgress.set(key, {
@@ -2066,13 +2220,54 @@ async function syncPendingQueue(opts = {}){
 * return: -
 * purpose: Renders or refreshes the learner development radar chart using current category and score data from state.
 ********************************************************/
-function renderLearnerDevChart(){
+function renderLearnerDevChart() {
 
-  const labels = state.learnerDev.categories;
+  const labels = state.learnerDev.categories || [];
   const data = labels.map(c => state.learnerDev.scores[c] || 0);
 
   const ctx = document.getElementById("learnerDevChart");
   if (!ctx) return;
+
+  // 🔥 CHECK IF NO DATA
+  const hasData = data.some(v => v > 0);
+
+  // 🔥 GET OR CREATE MESSAGE ELEMENT
+  let msg = document.getElementById("learnerDevNoData");
+
+  if (!hasData) {
+
+    // destroy chart if exists
+    if (learnerChart) {
+      learnerChart.destroy();
+      learnerChart = null;
+    }
+
+    // hide canvas
+    ctx.style.display = "none";
+
+    // create message if not exist
+    if (!msg) {
+      msg = document.createElement("div");
+      msg.id = "learnerDevNoData";
+      msg.style.textAlign = "center";
+      msg.style.padding = "20px";
+      msg.style.color = "#ee2525";
+      msg.style.fontWeight = "600";
+      msg.textContent = "No data found!";
+
+      ctx.parentElement.appendChild(msg);
+    }
+
+    return;
+  }
+
+  // ✅ IF DATA EXISTS → SHOW CHART
+
+  // remove message if exists
+  if (msg) msg.remove();
+
+  // show canvas
+  ctx.style.display = "block";
 
   if (learnerChart) learnerChart.destroy();
 
@@ -2093,18 +2288,14 @@ function renderLearnerDevChart(){
         legend: {
           labels: {
             font: {
-              size: 16,     // ✅ dataset label font
+              size: 16,
               weight: "bold"
             }
           }
         },
         tooltip: {
-          bodyFont: {
-            size: 14
-          },
-          titleFont: {
-            size: 14
-          }
+          bodyFont: { size: 14 },
+          titleFont: { size: 14 }
         }
       },
 
@@ -2112,14 +2303,14 @@ function renderLearnerDevChart(){
         r: {
           pointLabels: {
             font: {
-              size: 14,     // ✅ category labels around radar
+              size: 14,
               weight: "600"
             }
           },
           ticks: {
             stepSize: 1,
             font: {
-              size: 12      // ✅ numeric scale labels
+              size: 12
             }
           },
           min: 0,
@@ -2136,7 +2327,7 @@ function renderLearnerDevChart(){
 * return: -
 * purpose: Converts a Blob/File object into a base64 string without the data URL prefix using FileReader.
 ********************************************************/
-function blobToBase64(blob){
+function blobToBase64(blob) {
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2159,7 +2350,7 @@ function blobToBase64(blob){
 * return: Blob[]
 * purpose: Splits a Blob into multiple smaller Blob chunks of the specified size for safer incremental upload.
 ********************************************************/
-function splitBlobIntoChunks(blob, chunkSize = 300 * 1024){
+function splitBlobIntoChunks(blob, chunkSize = 300 * 1024) {
 
   const chunks = [];
   let offset = 0;
@@ -2176,7 +2367,7 @@ function splitBlobIntoChunks(blob, chunkSize = 300 * 1024){
 * parameter: blob (Blob)
 * return: -
 * purpose: Converts a Blob to base64 and ensures any data URL prefix is removed, returning only the raw base64 payload.********************************************************/
-async function blobToBase64NoPrefix(blob){
+async function blobToBase64NoPrefix(blob) {
 
   const b64 = await blobToBase64(blob);
   // remove: data:xxx;base64,
@@ -2189,7 +2380,7 @@ async function blobToBase64NoPrefix(blob){
 * return: -
 * purpose: Splits a long base64 string into fixed-size string chunks for chunked upload APIs.
 ********************************************************/
-function base64ToChunks(base64, chunkSize = 200000){
+function base64ToChunks(base64, chunkSize = 200000) {
 
   const chunks = [];
   for (let i = 0; i < base64.length; i += chunkSize) {
@@ -2204,7 +2395,7 @@ function base64ToChunks(base64, chunkSize = 200000){
 * return: -
 * purpose: Recalculates per-item percentages and final weighted grade from current score inputs, updates UI cells, and refreshes pass/fail status badge.
 ********************************************************/
-function recomputeGrades(){
+function recomputeGrades() {
   let final = 0;
 
   state.grades.items.forEach(item => {
@@ -2220,8 +2411,8 @@ function recomputeGrades(){
       // ✅ optional: color per row %
       cell.style.color =
         pct >= 75 ? "#1f7a3f" :
-        pct >= 50 ? "#b26a00" :
-        "#b42318";
+          pct >= 50 ? "#b26a00" :
+            "#b42318";
     }
   });
 
@@ -2241,18 +2432,18 @@ function recomputeGrades(){
 * return: -
 * purpose: Updates the final grade status badge text and style (passed/failed) based on computed percentage value.
 ********************************************************/
-function updateGradeStatus(val){
+function updateGradeStatus(val) {
   const el = document.getElementById("finalGradeStatus");
   if (!el) return;
 
   let txt = "—";
   let cls = "gradeStatus";
 
-  if (val >= 75){
+  if (val >= 75) {
     txt = "PASSED";
     cls += " pass";
   }
-  else if (val > 0){
+  else if (val > 0) {
     txt = "FAILED";
     cls += " fail";
   }
@@ -2267,19 +2458,19 @@ function updateGradeStatus(val){
 * return: -
 * purpose: Clears all grade scores in state, resets final grade and status display, and re-renders the grade table.
 ********************************************************/
-function resetGradesUI(){
+function resetGradesUI() {
   state.grades.scores = {};
 
   const finalEl = document.getElementById("finalGradeValue");
   if (finalEl) finalEl.textContent = "0.00%";
 
   const statusEl = document.getElementById("finalGradeStatus");
-  if (statusEl){
+  if (statusEl) {
     statusEl.textContent = "—";
     statusEl.className = "gradeStatus";
   }
 
-  renderGradeTable();
+  //renderGradeTable();
 }
 
 /*******************************************************
@@ -2288,11 +2479,11 @@ function resetGradesUI(){
 * return: -
 * purpose: Validates grade weights, builds grade payload from current scores, sends it to the backend for saving, and shows user feedback.
 ********************************************************/
-async function saveGrades(){
+async function saveGrades() {
 
   showLoading("Please wait, saving grades...");
   const student = state.currentStudent;
-  if (!student){
+  if (!student) {
     hideLoading();
     alert("No student loaded");
     return;
@@ -2308,7 +2499,7 @@ async function saveGrades(){
 
   console.log("GRADES PAYLOAD: ", itemsPayload);
 
-  if (!validateWeights()){
+  if (!validateWeights()) {
     hideLoading();
     return;
   }
@@ -2337,8 +2528,8 @@ async function saveGrades(){
 * return: -
 * purpose: Loads saved grade scores for a student from the API, merges them into state, and refreshes the grade table and computed totals.
 ********************************************************/
-async function loadGradesForStudent(studentId){
-  if(!studentId) return;
+async function loadGradesForStudent(studentId) {
+  if (!studentId) return;
 
   const res = await apiGet({
     action: "gradesLoad",
@@ -2347,7 +2538,7 @@ async function loadGradesForStudent(studentId){
   });
 
   if (res.status !== "success") {
-    console.warn("gradesLoad failed",res);
+    console.warn("gradesLoad failed", res);
     return;
   }
 
@@ -2370,7 +2561,7 @@ async function loadGradesForStudent(studentId){
 * return: <object>
 * purpose: Uploads a large base64 evidence file using init–chunk–finalize API flow, reporting progress through callback.
 ********************************************************/
-async function uploadEvidenceChunked(payload, progressCb){
+async function uploadEvidenceChunked(payload, progressCb) {
 
   // payload = { email,timestamp,studentId,fileName,mimeType,base64 }
 
@@ -2424,7 +2615,7 @@ async function uploadEvidenceChunked(payload, progressCb){
 * return: string
 * purpose: Escapes special HTML characters in a string to prevent HTML injection when rendering dynamic text in the UI.
 ********************************************************/
-function escapeHtml(str){
+function escapeHtml(str) {
 
   return String(str || "")
     .replaceAll("&", "&amp;")
@@ -2440,7 +2631,7 @@ function escapeHtml(str){
 * return: void
 * purpose: Displays a simple user notification using alert with basic error protection.
 ********************************************************/
-function toast(msg){
+function toast(msg) {
 
   try {
     alert(String(msg));
@@ -2455,10 +2646,10 @@ function toast(msg){
 * return: void
 * purpose: Opens the seat edit modal, populates form fields with selected seat data, and stores the editing reference in state.
 ********************************************************/
-function openSeatEditModal(seat){
+function openSeatEditModal(seat) {
 
   if (!seatEditModal) return;
-  
+
   setSeatEditLocked(false); // ✅ unlock on open
 
   // Show room label
@@ -2482,7 +2673,7 @@ function openSeatEditModal(seat){
 * return: void
 * purpose: Locks or unlocks the seat edit modal by enabling or disabling related buttons and input fields.
 ********************************************************/
-function setSeatEditLocked(isLocked){
+function setSeatEditLocked(isLocked) {
 
   seatEditLock = isLocked;
 
@@ -2506,7 +2697,7 @@ function setSeatEditLocked(isLocked){
 * return: void
 * purpose: Closes the seat edit modal and clears editing state, unless locked and not forced.
 ********************************************************/
-function closeSeatEditModal(force = false){
+function closeSeatEditModal(force = false) {
 
   if (!seatEditModal) return;
 
@@ -2524,7 +2715,7 @@ function closeSeatEditModal(force = false){
 * return: void
 * purpose: Populates a select dropdown element with a blank option plus provided item values.
 ********************************************************/
-function fillSelect(selectEl, items){
+function fillSelect(selectEl, items) {
 
   if (!selectEl) return;
 
@@ -2549,23 +2740,23 @@ function fillSelect(selectEl, items){
 * return: void
 * purpose: Updates seat map edit mode UI controls and button visibility based on admin role and edit mode state.
 ********************************************************/
-function updateSeatEditUI(){
+function updateSeatEditUI() {
 
   const isAdmin = state.me && state.me.role === "admin";
   const on = !!state.seat.editMode;
 
-	// 1) Edit Mode button label + color
-	if (btnSeatEditToggle && isAdmin) {
-	  if (on) {
-		btnSeatEditToggle.textContent = "Edit Mode: ON";
-		btnSeatEditToggle.classList.remove("btnDanger");
-		btnSeatEditToggle.classList.add("btnPrimary");
-	  } else {
-		btnSeatEditToggle.textContent = "Edit Mode: OFF";
-		btnSeatEditToggle.classList.remove("btnPrimary");
-		btnSeatEditToggle.classList.add("btnDanger");
-	  }
-	}
+  // 1) Edit Mode button label + color
+  if (btnSeatEditToggle && isAdmin) {
+    if (on) {
+      btnSeatEditToggle.textContent = "Edit Mode: ON";
+      btnSeatEditToggle.classList.remove("btnDanger");
+      btnSeatEditToggle.classList.add("btnPrimary");
+    } else {
+      btnSeatEditToggle.textContent = "Edit Mode: OFF";
+      btnSeatEditToggle.classList.remove("btnPrimary");
+      btnSeatEditToggle.classList.add("btnDanger");
+    }
+  }
 
   // 2) Fix 25-B: Add Room disabled/hidden when Edit Mode ON
   if (btnSeatAddRoom) {
@@ -2581,12 +2772,12 @@ function updateSeatEditUI(){
     closeSeatEditModal();
   }
 
-	if (btnRemoveSeat) {
-	  const isAdmin = state.me && state.me.role === "admin";
-	  if (isAdmin && state.seat.editMode === true) btnRemoveSeat.classList.remove("hidden");
-	  else btnRemoveSeat.classList.add("hidden");
-	}
-  
+  if (btnRemoveSeat) {
+    const isAdmin = state.me && state.me.role === "admin";
+    if (isAdmin && state.seat.editMode === true) btnRemoveSeat.classList.remove("hidden");
+    else btnRemoveSeat.classList.add("hidden");
+  }
+
   updateDeleteRoomButtonVisibility();
 }
 
@@ -2596,11 +2787,11 @@ function updateSeatEditUI(){
 * return: boolean
 * purpose: Validates that total grade item weights sum to exactly 100 percent before allowing save.
 ********************************************************/
-function validateWeights(){
+function validateWeights() {
   const sum =
-    state.grades.items.reduce((s,i)=>s+i.weight,0);
+    state.grades.items.reduce((s, i) => s + i.weight, 0);
 
-  if(sum !== 100){
+  if (sum !== 100) {
     alert("Total weight must be 100%");
     return false;
   }
@@ -2613,7 +2804,7 @@ function validateWeights(){
 * return: void
 * purpose: Adds a new grade item from input fields into the grade model and refreshes the grade table.
 ********************************************************/
-function addGradeItem(){
+function addGradeItem() {
 
   const name = document.getElementById("newGradeName").value.trim();
   const max = Number(document.getElementById("newGradeMax").value);
@@ -2638,7 +2829,7 @@ function addGradeItem(){
   document.getElementById("newGradeMax").value = "";
   document.getElementById("newGradeWeight").value = "";
 
-  renderGradeTable();
+  //renderGradeTable();
 }
 
 /*******************************************************
@@ -2712,7 +2903,7 @@ function addGradeItem(){
 * return: void
 * purpose: Updates a single grade score in state when input changes and triggers recomputation.
 ********************************************************/
-function onGradeScoreChange(code, val){
+function onGradeScoreChange(code, val) {
   const num = Number(val);
   if (isNaN(num)) {
     delete state.grades.scores[code];
@@ -2729,7 +2920,7 @@ function onGradeScoreChange(code, val){
 * return: void
 * purpose: Shows a modal element by removing its hidden class.
 ********************************************************/
-function openModal(modalEl){
+function openModal(modalEl) {
   if (!modalEl) return;
   modalEl.classList.remove("hidden");
 }
@@ -2740,7 +2931,7 @@ function openModal(modalEl){
 * return: void
 * purpose: Hides a modal element by adding its hidden class.
 ********************************************************/
-function closeModal(modalEl){
+function closeModal(modalEl) {
   if (!modalEl) return;
   modalEl.classList.add("hidden");
 }
@@ -2751,7 +2942,7 @@ function closeModal(modalEl){
 * return: void
 * purpose: Attaches a backdrop click handler to a modal so clicking outside content closes it.
 ********************************************************/
-function attachModalBackdropClose(modalEl){
+function attachModalBackdropClose(modalEl) {
   if (!modalEl) return;
   modalEl.onclick = (e) => {
     if (e.target === modalEl) closeModal(modalEl);
@@ -2764,7 +2955,7 @@ function attachModalBackdropClose(modalEl){
 * return: void
 * purpose: Clears setup, session, and pending sync data from localStorage after confirmation and reloads the app.
 ********************************************************/
-function resetAppData(){
+function resetAppData() {
 
   const ok = confirm(
     "RESET APP?\n\nThis will clear:\n- Session\n- Pending Sync Queue\n- Cached setup\n\nYou will need to login again."
@@ -2790,7 +2981,7 @@ function resetAppData(){
 * return: void
 * purpose: Updates debug info UI fields with current API URL, pending counts, and seat map stats.
 ********************************************************/
-function refreshDebugInfo(){
+function refreshDebugInfo() {
   if (dbgApiUrl) dbgApiUrl.textContent = state.apiUrl || "-";
   if (dbgPending) dbgPending.textContent = String(getPendingCount());
   if (dbgRoom) dbgRoom.textContent = state.seat.room || "-";
@@ -2803,7 +2994,7 @@ function refreshDebugInfo(){
 * return: string
 * purpose: Normalizes a string for comparisons by trimming and converting to lowercase.
 ********************************************************/
-function norm(s){
+function norm(s) {
 
   return String(s || "").trim().toLowerCase();
 }
@@ -2814,7 +3005,7 @@ function norm(s){
 * return: object|null
 * purpose: Finds a student in master student list by normalized studentId.
 ********************************************************/
-function findStudentById(id){
+function findStudentById(id) {
 
   const target = norm(id);
   if (!target) return null;
@@ -2830,7 +3021,7 @@ function findStudentById(id){
 * return: object|null
 * purpose: Finds a student in master student list by normalized email address.
 ********************************************************/
-function findStudentByEmail(email){
+function findStudentByEmail(email) {
 
   const target = norm(email);
   if (!target) return null;
@@ -2846,7 +3037,7 @@ function findStudentByEmail(email){
 * return: object|null
 * purpose: Finds a student by name using exact match first, then partial match fallback.
 ********************************************************/
-function findStudentByName(name){
+function findStudentByName(name) {
 
   const target = norm(name);
   if (!target) return null;
@@ -2869,7 +3060,7 @@ function findStudentByName(name){
 * return: void
 * purpose: Shows or hides the delete room button based on admin role and edit mode status.
 ********************************************************/
-function updateDeleteRoomButtonVisibility(){
+function updateDeleteRoomButtonVisibility() {
 
   const btn = document.getElementById("btnDeleteRoom");
   if (!btn) return;
@@ -2890,7 +3081,7 @@ function updateDeleteRoomButtonVisibility(){
 * return: string
 * purpose: Builds a request URL by combining base API URL with provided query parameters.
 ********************************************************/
-function buildUrl(params = {}){
+function buildUrl(params = {}) {
 
   const base = (state.apiUrl || "").trim();
   if (!base) throw new Error("API URL is not set. Please Setup first.");
@@ -2909,7 +3100,7 @@ function buildUrl(params = {}){
 * return: array
 * purpose: Loads pending remark/update jobs from localStorage with safe JSON parsing.
 ********************************************************/
-function loadPendingUpdates(){
+function loadPendingUpdates() {
 
   try {
     return JSON.parse(localStorage.getItem(LS_PENDING_UPDATES) || "[]");
@@ -2924,7 +3115,7 @@ function loadPendingUpdates(){
 * return: void
 * purpose: Saves pending remark/update jobs array into localStorage.
 ********************************************************/
-function savePendingUpdates(items){
+function savePendingUpdates(items) {
 
   localStorage.setItem(LS_PENDING_UPDATES, JSON.stringify(items || []));
 }
@@ -2935,7 +3126,7 @@ function savePendingUpdates(items){
 * return: number
 * purpose: Returns total count of all pending offline jobs including updates and uploads.
 ********************************************************/
-function getPendingCount(){
+function getPendingCount() {
 
   const a = loadPendingUpdates().length;
   const b = getPendingQueue().length;
@@ -2948,7 +3139,7 @@ function getPendingCount(){
 * return: void
 * purpose: Updates the pending sync badge text and visibility based on pending job counts.
 ********************************************************/
-function updateSyncBadge(){
+function updateSyncBadge() {
 
   if (!syncBadge) return;
 
@@ -2974,7 +3165,7 @@ function updateSyncBadge(){
 * return: void
 * purpose: Updates the online/offline status badge text and style.
 ********************************************************/
-function setNetBadge(status){
+function setNetBadge(status) {
 
   if (!netBadge) return;
 
@@ -2996,7 +3187,7 @@ function setNetBadge(status){
 * return: string
 * purpose: Generates a stable display key for a pending queue item based on its type and identifiers.
 ********************************************************/
-function getQueueItemKey(item, idx){
+function getQueueItemKey(item, idx) {
 
   // stable key
   if (item.type === "uploadEvidence") return "evidence:" + (item.offlineId || idx);
@@ -3011,7 +3202,7 @@ function getQueueItemKey(item, idx){
 * return: void
 * purpose: Renders the pending sync panel list with progress bars, metadata, and retry/delete controls.
 ********************************************************/
-function renderPendingUI(){
+function renderPendingUI() {
 
   if (!pendingPanel || !pendingList || !pendingCountText) return;
 
@@ -3055,19 +3246,19 @@ function renderPendingUI(){
       item.type === "uploadEvidence"
         ? `Evidence Upload: ${item.fileName || "file"}`
         : item.type === "updateRecord"
-        ? `Save Remarks / Done`
-        : item.type === "seatmapSave"
-        ? `Seat Map Save`
-        : `Pending Job`;
+          ? `Save Remarks / Done`
+          : item.type === "seatmapSave"
+            ? `Seat Map Save`
+            : `Pending Job`;
 
     const meta =
       item.type === "uploadEvidence"
         ? `${item.email || "-"} • ${item.studentId || "-"}`
         : item.type === "updateRecord"
-        ? `${item.payload?.email || "-"} • ${item.payload?.studentId || "-"}`
-        : item.type === "seatmapSave"
-        ? `${item.payload?.room || "-"} • Seat ${item.payload?.seatNo || "-"}`
-        : "";
+          ? `${item.payload?.email || "-"} • ${item.payload?.studentId || "-"}`
+          : item.type === "seatmapSave"
+            ? `${item.payload?.room || "-"} • Seat ${item.payload?.seatNo || "-"}`
+            : "";
 
     const div = document.createElement("div");
     div.className = "pendingItem";
@@ -3129,7 +3320,7 @@ function renderPendingUI(){
 * return: void
 * purpose: Initializes learner development categories and zero scores when not yet defined.
 ********************************************************/
-function seedLearnerDevDefaults(){
+function seedLearnerDevDefaults() {
 
   if (state.learnerDev.categories.length) return;
 
@@ -3155,7 +3346,7 @@ function seedLearnerDevDefaults(){
 * return: void
 * purpose: Adds or updates a learner development category score from input fields and refreshes the chart.
 ********************************************************/
-function addLearnerDev(){
+function addLearnerDev() {
   const cat = document.getElementById("ldCategory").value.trim();
   const score = Number(document.getElementById("ldScore").value || 0);
   if (!cat) return;
@@ -3172,7 +3363,7 @@ function addLearnerDev(){
 * return: Promise<void>
 * purpose: Saves learner development category scores for the current student to the backend API.
 ********************************************************/
-async function saveLearnerDev(){
+async function saveLearnerDev() {
   try {
     showLoading("Please wait, saving...");
     const student = state.currentStudent;
@@ -3189,7 +3380,7 @@ async function saveLearnerDev(){
 
     hideLoading();
     alert("Saved");
-  } catch  (err) {
+  } catch (err) {
     hideLoading();
     toast("Save error: " + err.toString());
   }
@@ -3201,7 +3392,7 @@ async function saveLearnerDev(){
 * return: void
 * purpose: Clears the remarks textarea input field in the details view.
 ********************************************************/
-function clearRemarksBox(){
+function clearRemarksBox() {
 
   const el = document.getElementById("dRemarks");
   if (el) el.value = "";
@@ -3213,7 +3404,7 @@ function clearRemarksBox(){
 * return: void
 * purpose: Removes a specific pending queue item and its offline file (if any) after user confirmation.
 ********************************************************/
-function deleteSinglePending(key){
+function deleteSinglePending(key) {
 
   const q = getPendingQueue();
 
@@ -3227,7 +3418,7 @@ function deleteSinglePending(key){
 
   // If evidence, also delete file from IndexedDB
   if (item.type === "uploadEvidence" && item.offlineId) {
-    idbDeleteEvidenceFile(item.offlineId).catch(() => {});
+    idbDeleteEvidenceFile(item.offlineId).catch(() => { });
   }
 
   q.splice(idx, 1);
@@ -3243,7 +3434,7 @@ function deleteSinglePending(key){
 * return: Promise<void>
 * purpose: Retries syncing a single pending queue item when online.
 ********************************************************/
-async function retrySinglePending(key){
+async function retrySinglePending(key) {
 
   if (!navigator.onLine) {
     alert("You are offline. Cannot retry now.");
@@ -3264,7 +3455,7 @@ async function retrySinglePending(key){
 * return: void
 * purpose: Immediately refreshes network status badge based on current navigator online state.
 ********************************************************/
-function refreshNetBadgeNow(){
+function refreshNetBadgeNow() {
 
   setNetBadge(navigator.onLine ? "online" : "offline");
 }
@@ -3275,7 +3466,7 @@ function refreshNetBadgeNow(){
 * return: void
 * purpose: Starts one-time network status watchers and triggers automatic sync when connection is restored.
 ********************************************************/
-function startNetWatcherOnce(){
+function startNetWatcherOnce() {
 
   if (netWatcherStarted) return;
   netWatcherStarted = true;
@@ -3303,7 +3494,7 @@ function startNetWatcherOnce(){
 * return: void
 * purpose: Makes the network status badge visible.
 ********************************************************/
-function showNetBadge(){
+function showNetBadge() {
 
   if (!netBadge) return;
   netBadge.classList.remove("hidden");
@@ -3315,7 +3506,7 @@ function showNetBadge(){
 * return: void
 * purpose: Hides the network status badge element.
 ********************************************************/
-function hideNetBadge(){
+function hideNetBadge() {
 
   if (!netBadge) return;
   netBadge.classList.add("hidden");
@@ -3330,7 +3521,7 @@ function hideNetBadge(){
 * return: void
 * purpose: Stores API configuration values into localStorage.
 ********************************************************/
-function saveSetup(apiUrl, clientId){
+function saveSetup(apiUrl, clientId) {
 
   localStorage.setItem("sf_apiUrl", apiUrl);
   localStorage.setItem("sf_clientId", clientId);
@@ -3342,7 +3533,7 @@ function saveSetup(apiUrl, clientId){
 * return: object
 * purpose: Loads fixed API configuration into state and localStorage and returns it.
 ********************************************************/
-function loadSetup(){
+function loadSetup() {
 
   state.apiUrl = FIXED_API_URL;
   state.clientId = FIXED_CLIENT_ID;
@@ -3363,7 +3554,7 @@ function loadSetup(){
 * return: void
 * purpose: Removes stored API configuration values from localStorage.
 ********************************************************/
-function clearSetup(){
+function clearSetup() {
 
   localStorage.removeItem("sf_apiUrl");
   localStorage.removeItem("sf_clientId");
@@ -3378,7 +3569,7 @@ function clearSetup(){
 * return: void
 * purpose: Saves current app session state snapshot into localStorage for restore after refresh.
 ********************************************************/
-function saveSession(){
+function saveSession() {
   try {
     const data = {
       apiUrl: state.apiUrl || "",
@@ -3396,7 +3587,7 @@ function saveSession(){
       currentScreen: state.currentScreen || "menu"
     };
     localStorage.setItem(LS_SESSION, JSON.stringify(data));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 /*******************************************************
@@ -3405,7 +3596,7 @@ function saveSession(){
 * return: object
 * purpose: Loads previously saved session snapshot from localStorage.
 ********************************************************/
-function loadSession(){
+function loadSession() {
 
   try {
     return JSON.parse(localStorage.getItem(LS_SESSION) || "{}");
@@ -3420,7 +3611,7 @@ function loadSession(){
 * return: void
 * purpose: Removes saved session snapshot from localStorage.
 ********************************************************/
-function clearSession(){
+function clearSession() {
 
   localStorage.removeItem(LS_SESSION);
 }
@@ -3434,7 +3625,7 @@ function clearSession(){
 * return: string
 * purpose: Extracts a Google Drive file ID from multiple possible share URL formats.
 ********************************************************/
-function extractDriveFileId(url){
+function extractDriveFileId(url) {
 
   if (!url) return "";
 
@@ -3474,7 +3665,7 @@ let modalZoom = {
 * return: void
 * purpose: Applies current zoom and pan transform values to the modal image element.
 ********************************************************/
-function applyModalTransform(){
+function applyModalTransform() {
 
   const img = document.getElementById("modalPhoto");
   if (!img) return;
@@ -3487,7 +3678,7 @@ function applyModalTransform(){
 * return: void
 * purpose: Resets modal image zoom and pan values to defaults and reapplies transform.
 ********************************************************/
-function resetModalZoom(){
+function resetModalZoom() {
 
   modalZoom.scale = 1;
   modalZoom.x = 0;
@@ -3501,7 +3692,7 @@ function resetModalZoom(){
 * return: void
 * purpose: Opens an evidence file by routing PDFs to PDF modal and images to image modal viewer.
 ********************************************************/
-function openEvidenceFile(url){
+function openEvidenceFile(url) {
 
   if (!url) {
     toast("No file available.");
@@ -3525,7 +3716,7 @@ function openEvidenceFile(url){
 * return: boolean
 * purpose: Checks whether a URL likely points to a PDF file.
 ********************************************************/
-function isPdfUrl(url = ""){
+function isPdfUrl(url = "") {
 
   return String(url).toLowerCase().includes(".pdf");
 }
@@ -3536,7 +3727,7 @@ function isPdfUrl(url = ""){
 * return: boolean
 * purpose: Checks whether a URL likely points to a supported image file.
 ********************************************************/
-function isImageUrl(url = ""){
+function isImageUrl(url = "") {
 
   return String(url).toLowerCase().match(/\.(png|jpg|jpeg|gif|webp)(\?|$)/);
 }
@@ -3547,7 +3738,7 @@ function isImageUrl(url = ""){
 * return: void
 * purpose: Opens image preview modal using either base64 data URL or converted Google Drive direct link.
 ********************************************************/
-function openImageModalFromUrl(url){
+function openImageModalFromUrl(url) {
 
   if (!url) {
     toast("No file available.");
@@ -3579,7 +3770,7 @@ function openImageModalFromUrl(url){
 * return: void
 * purpose: Opens the PDF preview modal and loads the given URL into the iframe viewer.
 ********************************************************/
-function openPdfModal(previewUrl){
+function openPdfModal(previewUrl) {
 
   if (!pdfModal || !pdfFrame) return;
   pdfFrame.src = previewUrl;
@@ -3606,7 +3797,7 @@ if (btnFullscreenPhoto) {
 * return: <object>
 * purpose: Sends a GET request to the API with query parameters, parses response, and forces logout on auth/permission errors.
 ********************************************************/
-async function apiGet(params = {}){
+async function apiGet(params = {}) {
 
   try {
     const url = buildUrl(params);
@@ -3616,7 +3807,7 @@ async function apiGet(params = {}){
     let data = null;
 
     try { data = JSON.parse(text); }
-    catch { data = { status:"error", message:text }; }
+    catch { data = { status: "error", message: text }; }
 
     const msg = String(data?.message || "").toLowerCase();
 
@@ -3633,13 +3824,13 @@ async function apiGet(params = {}){
     // logout ONLY if server explicitly says invalid token / access denied
     if (isDenied) {
       forceLogout(data?.message || "Access denied");
-      return { status:"error", message:"Access denied" };
+      return { status: "error", message: "Access denied" };
     }
 
     // DO NOT logout on plain HTTP error
     if (isHttpDenied) {
       console.warn("HTTP denied but not forcing logout");
-      return { status:"error", message:"http_error" };
+      return { status: "error", message: "http_error" };
     }
 
     return data;
@@ -3647,7 +3838,7 @@ async function apiGet(params = {}){
   } catch (err) {
     //return { status:"error", message: err.toString() };
     console.warn("apiGet network error:", err);
-    return { status:"network_error", message: err.toString() };
+    return { status: "network_error", message: err.toString() };
   }
 }
 
@@ -3657,7 +3848,7 @@ async function apiGet(params = {}){
 * return: void
 * purpose: Opens the desktop floating seat preview panel, loads student record and cached photo, and binds full-profile navigation.
 ********************************************************/
-function openSeatPreview(seat, event){
+function openSeatPreview(seat, event) {
 
   state.seat.currentSeat = seat;
 
@@ -3684,7 +3875,7 @@ function openSeatPreview(seat, event){
   document.getElementById("pvRemarks").value = ""; // clear remarks
 
   const emailLower = String(seat.studentEmail || "").trim().toLowerCase();
-  const idLower    = String(seat.studentId || "").trim().toLowerCase();
+  const idLower = String(seat.studentId || "").trim().toLowerCase();
 
   document.getElementById("pvPhone").textContent = "Loading...";
 
@@ -3712,7 +3903,7 @@ function openSeatPreview(seat, event){
       console.warn("Phone load failed:", e);
       document.getElementById("pvPhone").textContent = "—";
     }
-  })();  
+  })();
 
   // show preview first
   pv.classList.remove("hidden");
@@ -3726,9 +3917,9 @@ function openSeatPreview(seat, event){
   if (!stu) return;
 
   const raw =
-  stu.picture2x2_direct ||
-  stu.picture2x2 ||
-  "";
+    stu.picture2x2_direct ||
+    stu.picture2x2 ||
+    "";
 
   if (!raw) return;
 
@@ -3765,7 +3956,7 @@ function openSeatPreview(seat, event){
     }
   })();
 
-    // ✅ bind full profile button
+  // ✅ bind full profile button
   const btn = document.getElementById("btnOpenFullProfileDesktop");
   if (btn) {
     btn.onclick = () => {
@@ -3791,7 +3982,7 @@ const SEAT_PLACEHOLDER =
 * return: <object>
 * purpose: Sends a POST request to the API with action and idToken, handles auth failures, timeout, and JSON parsing.
 ********************************************************/
-async function apiPost(actionOrParams, payload = {}){
+async function apiPost(actionOrParams, payload = {}) {
 
   let action = "";
   let idToken = "";
@@ -3878,7 +4069,7 @@ async function apiPost(actionOrParams, payload = {}){
 * return: <object>
 * purpose: Sends a POST request using no-cors form encoding for endpoints that must avoid CORS preflight, assuming success response.
 ********************************************************/
-async function apiPostNoCors(action, payload = {}){
+async function apiPostNoCors(action, payload = {}) {
 
   if (!action) throw new Error("Missing action");
   if (!state.apiUrl) throw new Error("Missing API URL");
@@ -3911,7 +4102,7 @@ async function apiPostNoCors(action, payload = {}){
 * return: <string>
 * purpose: Reads a Blob and returns its base64 content without the data URL prefix.
 ********************************************************/
-function readBlobAsBase64(blob){
+function readBlobAsBase64(blob) {
 
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -3931,7 +4122,7 @@ function readBlobAsBase64(blob){
 * return: string
 * purpose: Generates a unique upload identifier string for chunked upload sessions.
 ********************************************************/
-function makeUploadId(){
+function makeUploadId() {
 
   return "up_" + Date.now() + "_" + Math.random().toString(16).slice(2);
 }
@@ -3942,7 +4133,7 @@ function makeUploadId(){
 * return: <object>
 * purpose: Uploads an evidence file blob to the server using init–chunk–finalize flow with progress callback support.
 ********************************************************/
-async function uploadEvidenceInChunks({ email, timestamp, studentId, fileName, mimeType, fileBlob, onProgress }){
+async function uploadEvidenceInChunks({ email, timestamp, studentId, fileName, mimeType, fileBlob, onProgress }) {
 
   // 350KB base64-safe chunk (small para iwas limit)
   const CHUNK_SIZE = 250 * 1024; // 250KB raw binary
@@ -4011,14 +4202,14 @@ async function uploadEvidenceInChunks({ email, timestamp, studentId, fileName, m
 * return: void
 * purpose: Waits until Google Identity Services library is available before executing the provided function.
 ********************************************************/
-function waitForGoogleThenRun(fn){
+function waitForGoogleThenRun(fn) {
 
   try {
     if (window.google && google.accounts && google.accounts.id) {
       fn();
       return;
     }
-  } catch (e) {}
+  } catch (e) { }
   setTimeout(() => waitForGoogleThenRun(fn), 150);
 }
 
@@ -4028,7 +4219,7 @@ function waitForGoogleThenRun(fn){
 * return: void
 * purpose: Renders the Google Sign-In button and initializes Google Identity Services login flow.
 ********************************************************/
-function renderGoogleLoginButton(){
+function renderGoogleLoginButton() {
 
   if (!state.clientId || !gsiButtonWrap) return;
 
@@ -4053,7 +4244,7 @@ function renderGoogleLoginButton(){
 * return: <void>
 * purpose: Handles Google login credential response, validates user via API, initializes user state, and loads initial app data.
 ********************************************************/
-async function onGoogleCredential(resp){
+async function onGoogleCredential(resp) {
 
   try {
     state.idToken = resp.credential;
@@ -4177,7 +4368,7 @@ async function onGoogleCredential(resp){
       userBadge.textContent = `${displayName} (${me.role})`;
       userBadge.classList.remove("hidden");
     }
-	
+
     // show buttons
     if (btnHelp) btnHelp.classList.remove("hidden");
     if (btnAbout) btnAbout.classList.remove("hidden");
@@ -4212,7 +4403,7 @@ async function onGoogleCredential(resp){
     showNetBadge();
     saveSession();
     hideLoading();
-    
+
   } catch (err) {
     hideLoading();
     forceLogout("Login error: " + err.toString());
@@ -4225,13 +4416,13 @@ async function onGoogleCredential(resp){
 * return: void
 * purpose: Clears login/session state, hides protected UI, returns app to config screen, and shows logout message.
 ********************************************************/
-function forceLogout(message){
+function forceLogout(message) {
 
   try {
     clearSession();
-	// keep offline pending items, do NOT delete
-	// localStorage.removeItem(LS_PENDING_UPDATES);
-	// setPendingQueue([]);
+    // keep offline pending items, do NOT delete
+    // localStorage.removeItem(LS_PENDING_UPDATES);
+    // setPendingQueue([]);
 
     localStorage.removeItem("sf_id_token");
     localStorage.removeItem("sf_login_time");
@@ -4245,8 +4436,8 @@ function forceLogout(message){
     state.currentStudent = null;
     state.gradeTasks = [];
     state.learnerDev = {
-      categories:[],
-      scores:{}
+      categories: [],
+      scores: {}
     };
 
     if (userBadge) userBadge.classList.add("hidden");
@@ -4280,7 +4471,7 @@ function forceLogout(message){
 * return: void
 * purpose: Denies access by triggering forced logout with message.
 ********************************************************/
-function denyAccess(message){
+function denyAccess(message) {
 
   forceLogout(message || "Access denied.");
 }
@@ -4291,7 +4482,7 @@ function denyAccess(message){
 * return: string|null
 * purpose: Converts a Google Drive share URL into a direct image view URL when possible.
 ********************************************************/
-function driveToImageUrl(url){
+function driveToImageUrl(url) {
 
   if (!url) return null;
 
@@ -4319,7 +4510,7 @@ function driveToImageUrl(url){
 * return: <void>
 * purpose: Loads initial dropdown filter values from the API and populates filter select elements.
 ********************************************************/
-async function loadInitialFilters(){
+async function loadInitialFilters() {
 
   const res = await apiGet({
     action: "filters",
@@ -4339,7 +4530,7 @@ async function loadInitialFilters(){
   if (fSchoolYear) fSchoolYear.value = state.filters.schoolYear || "";
   if (fTerm) fTerm.value = state.filters.term || "";
   if (fCourseSubject) fCourseSubject.value = state.filters.courseSubject || "";
-  if (fProgram ) fProgram .value = state.filters.program || "";
+  if (fProgram) fProgram.value = state.filters.program || "";
 }
 
 /*******************************************************
@@ -4348,7 +4539,7 @@ async function loadInitialFilters(){
 * return: <void>
 * purpose: Loads dependent filter options based on current selections and updates dropdowns while preserving valid selections.
 ********************************************************/
-async function loadCascadeOptions(){
+async function loadCascadeOptions() {
 
   const currentSY = fSchoolYear ? (fSchoolYear.value || "") : "";
   const currentTerm = fTerm ? (fTerm.value || "") : "";
@@ -4411,15 +4602,15 @@ async function loadCascadeOptions(){
 * return: <void>
 * purpose: Loads filtered record list with cache-first strategy, renders results, and updates cache and session.
 ********************************************************/
-async function loadList(resetPage = false){
+async function loadList(resetPage = false) {
 
   if (resetPage) state.list.page = 1;
 
   // ✅ cache key depends on filters/search/page
-const cacheKey =
-  `list_sy${state.filters.schoolYear}_t${state.filters.term}_c${state.filters.courseSubject}_p${state.filters.program}` +
-  `_p${state.list.page}_s${state.list.pageSize}` +
-  `_q${state.ui.search}_nr${state.ui.noRemarks}_oa${state.ui.onlyAssigned}_nd${state.ui.notDone}`;
+  const cacheKey =
+    `list_sy${state.filters.schoolYear}_t${state.filters.term}_c${state.filters.courseSubject}_p${state.filters.program}` +
+    `_p${state.list.page}_s${state.list.pageSize}` +
+    `_q${state.ui.search}_nr${state.ui.noRemarks}_oa${state.ui.onlyAssigned}_nd${state.ui.notDone}`;
 
 
   // 1) SHOW CACHED FIRST (FAST)
@@ -4473,7 +4664,7 @@ const cacheKey =
 * return: void
 * purpose: Renders the main record list UI with photo thumbnails, tags, and click handlers for details view.
 ********************************************************/
-function renderList(){
+function renderList() {
 
   if (!listWrap) return;
 
@@ -4491,17 +4682,17 @@ function renderList(){
     return;
   }
 
-	state.list.items.forEach((item, idx) => {
-	  const div = document.createElement("div");
-	  div.className = "list-item";
+  state.list.items.forEach((item, idx) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
 
-	  const nameCaps = String(item.fullName || "").toUpperCase();
-	  const tagRemarks = (item.remarks || "").trim() ? "WITH REMARKS" : "NO REMARKS";
+    const nameCaps = String(item.fullName || "").toUpperCase();
+    const tagRemarks = (item.remarks || "").trim() ? "WITH REMARKS" : "NO REMARKS";
 
-	  // ✅ NEW: Right side date/time label
-	  const rightDate = item.timestamp || item.dateSubmitted || item.submittedAt || "";
+    // ✅ NEW: Right side date/time label
+    const rightDate = item.timestamp || item.dateSubmitted || item.submittedAt || "";
 
-		div.innerHTML = `
+    div.innerHTML = `
 		  <div class="listRow">
 			
 			<!-- LEFT PHOTO -->
@@ -4530,18 +4721,18 @@ function renderList(){
 		  </div>
 		`;
 
-		div.onclick = () => {
-		  showScreen(screenDetails); // instant switch
-		  openDetailsByIndex(idx);   // loads data after
-		};
-	  listWrap.appendChild(div);
+    div.onclick = () => {
+      showScreen(screenDetails); // instant switch
+      openDetailsByIndex(idx);   // loads data after
+    };
+    listWrap.appendChild(div);
 
-		const img = div.querySelector(".listPhoto");
-		if (img) {
-		  loadListPhoto(img, item);
-		}
+    const img = div.querySelector(".listPhoto");
+    if (img) {
+      loadListPhoto(img, item);
+    }
 
-	});
+  });
 
 }
 
@@ -4554,7 +4745,7 @@ function renderList(){
 * return: string
 * purpose: Builds a unique record key string from email, timestamp, and studentId.
 ********************************************************/
-function buildRecordKey(item){
+function buildRecordKey(item) {
 
   return `${item.email}|${item.timestamp}|${item.studentId}`;
 }
@@ -4565,7 +4756,7 @@ function buildRecordKey(item){
 * return: <void>
 * purpose: Loads a student photo into an image element using Drive fileId with IndexedDB caching fallback.
 ********************************************************/
-async function loadStudentPhotoInto(imgEl, item){
+async function loadStudentPhotoInto(imgEl, item) {
 
   try {
     if (!imgEl) return;
@@ -4577,12 +4768,12 @@ async function loadStudentPhotoInto(imgEl, item){
     if (!fileId) throw new Error("No fileId extracted from 2X2 Picture");
 
     // ✅ CACHE: if already loaded, instant show
-	const cached = await cacheGet("photo_" + fileId);
-	if (cached) {
-	  imgEl.src = cached;
-	  photoCache.set(fileId, cached);
-	  return;
-	}
+    const cached = await cacheGet("photo_" + fileId);
+    if (cached) {
+      imgEl.src = cached;
+      photoCache.set(fileId, cached);
+      return;
+    }
 
     const res = await apiGet({
       action: "photo",
@@ -4599,7 +4790,7 @@ async function loadStudentPhotoInto(imgEl, item){
 
     // ✅ store cache
     //photoCache.set(fileId, dataUrl);
-	await cacheSet("photo_" + fileId, dataUrl);
+    await cacheSet("photo_" + fileId, dataUrl);
 
   } catch (err) {
     console.warn("Photo load failed:", err);
@@ -4625,7 +4816,7 @@ async function loadStudentPhotoInto(imgEl, item){
 * return: <void>
 * purpose: Loads and caches student thumbnail photo for list view with placeholder fallback.
 ********************************************************/
-async function loadListPhoto(imgEl, item){
+async function loadListPhoto(imgEl, item) {
 
   try {
     if (!imgEl) return;
@@ -4648,20 +4839,20 @@ async function loadListPhoto(imgEl, item){
 
     if (!fileId) return;
 
-	const cached = await cacheGet("photo_" + fileId);
-	
+    const cached = await cacheGet("photo_" + fileId);
+
     // cache reuse (same cache as details photo)
     if (cached) {
-	  imgEl.src = cached;
-	  photoCache.set(fileId, cached); // keep RAM too
-	  return;
-	}
+      imgEl.src = cached;
+      photoCache.set(fileId, cached); // keep RAM too
+      return;
+    }
 
     const res = await apiGet({
-	  action: "photo",
-	  idToken: state.idToken,
-	  fileId
-	});
+      action: "photo",
+      idToken: state.idToken,
+      fileId
+    });
 
     if (res.status !== "success") return;
 
@@ -4670,9 +4861,9 @@ async function loadListPhoto(imgEl, item){
 
     imgEl.src = dataUrl;
 
-	// ✅ save BOTH RAM + IndexedDB
-	photoCache.set(fileId, dataUrl);
-	await cacheSet("photo_" + fileId, dataUrl);
+    // ✅ save BOTH RAM + IndexedDB
+    photoCache.set(fileId, dataUrl);
+    await cacheSet("photo_" + fileId, dataUrl);
 
   } catch (err) {
     // ignore errors (keep placeholder)
@@ -4685,7 +4876,7 @@ async function loadListPhoto(imgEl, item){
 * return: void
 * purpose: Opens the details view for a record using its index in the current list.
 ********************************************************/
-function openDetailsByIndex(idx){
+function openDetailsByIndex(idx) {
 
   const item = state.list.items[idx];
   if (!item) return;
@@ -4700,7 +4891,7 @@ function openDetailsByIndex(idx){
 * return: void
 * purpose: Renders the left-side record navigation list and highlights the active record.
 ********************************************************/
-function renderRecordNav(activeIdx){
+function renderRecordNav(activeIdx) {
 
   if (!recordNavList) return;
 
@@ -4727,7 +4918,7 @@ function renderRecordNav(activeIdx){
 * return: string
 * purpose: Builds HTML block for displaying long text fields in the details history/info layout.
 ********************************************************/
-function renderLongField(label, value){
+function renderLongField(label, value) {
 
   const v = String(value || "").trim();
   if (!v) return "";
@@ -4745,7 +4936,7 @@ function renderLongField(label, value){
 * return: string
 * purpose: Builds HTML block for Facebook field, rendering clickable link when value is a URL.
 ********************************************************/
-function renderFacebookField(label, value){
+function renderFacebookField(label, value) {
 
   const v = String(value || "").trim();
   if (!v) return "";
@@ -4779,10 +4970,11 @@ function renderFacebookField(label, value){
 * return: <void>
 * purpose: Opens and populates the student details screen, loads photo, grades, learner dev, and evidence data.
 ********************************************************/
-async function openDetails(item, idxInList = 0){
+async function openDetails(item, idxInList = 0) {
 
   try {
     document.getElementById('tabContentGrades')?.classList.add('hidden');
+    document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
 
     state.selected = { ...item, recordKey: buildRecordKey(item), idxInList };
 
@@ -4856,7 +5048,7 @@ async function openDetails(item, idxInList = 0){
             toast("No Proof of Enrollment file found.");
             return;
           }
-          
+
           showLoading("Loading Proof of Enrollment...");
 
           const res = await apiGet({
@@ -4866,7 +5058,7 @@ async function openDetails(item, idxInList = 0){
           });
 
           hideLoading();
-          
+
           if (res.status !== "success") throw new Error(res.message || "Failed to load proof");
 
           const mime = res.mimeType || "image/jpeg";
@@ -4886,6 +5078,7 @@ async function openDetails(item, idxInList = 0){
         openDetailsByIndex(i - 1);
       };
       document.getElementById('tabContentGrades')?.classList.add('hidden');
+      document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
     }
 
     if (btnNextRecord) {
@@ -4895,6 +5088,7 @@ async function openDetails(item, idxInList = 0){
         openDetailsByIndex(i + 1);
       };
       document.getElementById('tabContentGrades')?.classList.add('hidden');
+      document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
     }
 
     if (dLastUpdate) {
@@ -4910,8 +5104,8 @@ async function openDetails(item, idxInList = 0){
 
     if (dPhoto) {
       dPhoto.src =
-      "data:image/svg+xml;charset=utf-8," +
-      encodeURIComponent(`
+        "data:image/svg+xml;charset=utf-8," +
+        encodeURIComponent(`
         <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">
         <rect width="100%" height="100%" fill="#f8fbff"/>
         <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
@@ -4919,48 +5113,48 @@ async function openDetails(item, idxInList = 0){
           Loading photo...
         </text>
         </svg>
-      `); 
+      `);
     }
 
-      // ✅ Clear evidence upload field when switching profiles
-      if (inpEvidenceFile) inpEvidenceFile.value = "";
+    // ✅ Clear evidence upload field when switching profiles
+    if (inpEvidenceFile) inpEvidenceFile.value = "";
 
-      // ✅ Reset evidence list UI while loading new student
-      if (evidenceList) {
-        evidenceList.classList.add("hidden");
-        evidenceList.innerHTML = "";
-      }
+    // ✅ Reset evidence list UI while loading new student
+    if (evidenceList) {
+      evidenceList.classList.add("hidden");
+      evidenceList.innerHTML = "";
+    }
 
-      showScreen(screenDetails);
-      // load photo in background (no blocking)
-      loadStudentPhotoInto(dPhoto, item);
-      
-      // ============================
-      // LOAD GRADES TAB (UI ONLY)
-      // ============================
-        state.currentStudent = item;   // grades context
-        
-        // ✅ LEARNER DEVELOPMENT LOAD
-        await loadLearnerDev(item.studentId);
-        // fallback only if empty from sheet
-        if (!state.learnerDev.categories.length) {
-          seedLearnerDevDefaults();
-        }
+    showScreen(screenDetails);
+    // load photo in background (no blocking)
+    loadStudentPhotoInto(dPhoto, item);
 
-        await loadSeatRoom(state.seat.room);
-        //renderGradeTable();            // build table
-        //if (state.currentStudent?.studentId) {
-        //  if(!gradeEditing){
-        //    await loadTaskGrades(state.currentStudent.studentId);
-        //    console.log("await loadTaskGrades called");
-        //  }
-        //}
+    // ============================
+    // LOAD GRADES TAB (UI ONLY)
+    // ============================
+    state.currentStudent = item;   // grades context
 
-        saveSession();
+    // ✅ LEARNER DEVELOPMENT LOAD
+    await loadLearnerDev(item.studentId);
+    // fallback only if empty from sheet
+    if (!state.learnerDev.categories.length) {
+      seedLearnerDevDefaults();
+    }
 
-        // load evidence in background (no blocking)
-        loadEvidenceList();
-        applyRoleUI();
+    await loadSeatRoom(state.seat.room);
+    //renderGradeTable();            // build table
+    //if (state.currentStudent?.studentId) {
+    //  if(!gradeEditing){
+    //    await loadTaskGrades(state.currentStudent.studentId);
+    //    console.log("await loadTaskGrades called");
+    //  }
+    //}
+
+    saveSession();
+
+    // load evidence in background (no blocking)
+    loadEvidenceList();
+    applyRoleUI();
   } catch (e) {
     console.error("🔥 openDetails crash:", e.stack);
     alert(e.stack);
@@ -4988,7 +5182,7 @@ if (btnSeatPreviewUpload) {
       await handleUploadEvidence(file);
 
       seatPreviewEvidenceFile.value = "";
-      
+
       hideLoading();
     } catch (err) {
       hideLoading();
@@ -5003,7 +5197,7 @@ if (btnSeatPreviewUpload) {
 * return: void
 * purpose: Closes both desktop and mobile seat preview panels and clears preview evidence input.
 ********************************************************/
-function closeSeatPreview(){
+function closeSeatPreview() {
   const pv = document.getElementById("seatPreviewFloat");
   if (pv) pv.classList.add("hidden");
 
@@ -5021,53 +5215,53 @@ function closeSeatPreview(){
 * return: <void>
 * purpose: Opens the mobile seat preview panel with student info, phone lookup, and cached photo loading.
 ********************************************************/
-async function openMobilePreview(seat){
+async function openMobilePreview(seat) {
   state.seat.currentSeat = seat;
   const pv = document.getElementById("seatPreviewMobile");
   pv.classList.remove("hidden");
 
-    const img = document.getElementById("pvMPhoto");
-    img.src = SEAT_PLACEHOLDER;
+  const img = document.getElementById("pvMPhoto");
+  img.src = SEAT_PLACEHOLDER;
 
-    const email = seat.studentEmail?.toLowerCase();
-    if (!email) return;
+  const email = seat.studentEmail?.toLowerCase();
+  if (!email) return;
 
-    // fill text fields
-    document.getElementById("pvMSeatNo").textContent =   seat.seatNo ? `Seat ${seat.seatNo}` : "Seat —";
-    document.getElementById("pvMName").textContent =  (seat.studentName || "—").toUpperCase();
-    document.getElementById("pvMStudentId").textContent = seat.studentId || "—";
-    document.getElementById("pvMEmail").textContent = seat.studentEmail || "—";
-    document.getElementById("pvMRemarks").value = ""; // clear remarks
-    let phone = "—";
+  // fill text fields
+  document.getElementById("pvMSeatNo").textContent = seat.seatNo ? `Seat ${seat.seatNo}` : "Seat —";
+  document.getElementById("pvMName").textContent = (seat.studentName || "—").toUpperCase();
+  document.getElementById("pvMStudentId").textContent = seat.studentId || "—";
+  document.getElementById("pvMEmail").textContent = seat.studentEmail || "—";
+  document.getElementById("pvMRemarks").value = ""; // clear remarks
+  let phone = "—";
 
-    try {
-      const res = await apiGet({
-        action: "recordByEmail",
-        idToken: state.idToken,
-        email: email
-      });
+  try {
+    const res = await apiGet({
+      action: "recordByEmail",
+      idToken: state.idToken,
+      email: email
+    });
 
-      if (res.status === "success" && res.item) {
-        const rec = res.item;
+    if (res.status === "success" && res.item) {
+      const rec = res.item;
 
-        phone =
-          rec.cellphoneNumber ||
-          rec.cellphone ||
-          rec.mobile ||
-          rec.mobileNumber ||
-          rec.contactNumber ||
-          "—";
-      }
-    } catch (e) {
-      console.warn("Mobile preview phone load failed:", e);
+      phone =
+        rec.cellphoneNumber ||
+        rec.cellphone ||
+        rec.mobile ||
+        rec.mobileNumber ||
+        rec.contactNumber ||
+        "—";
     }
+  } catch (e) {
+    console.warn("Mobile preview phone load failed:", e);
+  }
 
-    document.getElementById("pvMPhone").textContent = phone;
-    document.getElementById("pvMRemarks").value = seat.remarks || "";
+  document.getElementById("pvMPhone").textContent = phone;
+  document.getElementById("pvMRemarks").value = seat.remarks || "";
 
-    const stu = (state.seat.masterStudents || []).find(
-      s => String(s.studentEmail || "").toLowerCase() === email
-    );
+  const stu = (state.seat.masterStudents || []).find(
+    s => String(s.studentEmail || "").toLowerCase() === email
+  );
 
   if (stu) {
     const raw =
@@ -5124,7 +5318,7 @@ async function openMobilePreview(seat){
 * return: <void>
 * purpose: Opens the full student profile from seat preview by email and navigates to details screen.
 ********************************************************/
-async function openSeatFullProfile(seat){
+async function openSeatFullProfile(seat) {
   if (!seat?.studentEmail) return;
 
   // para tama ang Back button behavior
@@ -5140,7 +5334,7 @@ async function openSeatFullProfile(seat){
 * return: void
 * purpose: Closes the mobile seat preview panel.
 ********************************************************/
-function closeMobilePreview(){
+function closeMobilePreview() {
 
   const pv = document.getElementById("seatPreviewMobile");
   if (pv) pv.classList.add("hidden");
@@ -5152,7 +5346,7 @@ function closeMobilePreview(){
 * return: void
 * purpose: Positions floating preview panel near cursor while keeping it inside viewport bounds.
 ********************************************************/
-function positionFloatingPreview(event, el){
+function positionFloatingPreview(event, el) {
   const padding = 20;
   let x = event.clientX + 14;
   let y = event.clientY + 14;
@@ -5173,21 +5367,33 @@ function positionFloatingPreview(event, el){
 * return: void
 * purpose: Switches details screen tab content and triggers grade and chart rendering when needed.
 ********************************************************/
-function openDetailsTab(tab){
+function openDetailsTab(tab) {
 
   // hide all tab contents first
-  document.querySelectorAll(".tabContent").forEach(el => el.classList.add("hidden"));
+  document.getElementById("tabContentLearnerDev")?.classList.add("hidden");
+  document.getElementById("tabContentGrades")?.classList.add("hidden");
 
+  if (tab === "learner") {
+    document.getElementById("tabContentLearnerDev")?.classList.remove("hidden");
+    setTimeout(renderLearnerDevChart, 50);
+  }
   if (tab === "grades") {
+    document.getElementById("tabContentGrades")?.classList.remove("hidden");
     const student = state.currentStudent;
     if (!student) return;
-
-    //loadGradesForStudent(student.studentId); -> old
     loadTaskGrades(student.studentId);
-    document.getElementById("tabContentGrades")?.classList.remove("hidden");
-    setTimeout(renderLearnerDevChart, 50);
-    //alert("Grading Summary is still under constructions!");
   }
+
+  //if (tab === "grades") {
+  //  const student = state.currentStudent;
+  //  if (!student) return;
+
+  //loadGradesForStudent(student.studentId); -> old
+  //  loadTaskGrades(student.studentId);
+  //  document.getElementById("tabContentGrades")?.classList.remove("hidden");
+  //  setTimeout(renderLearnerDevChart, 50);
+  //alert("Grading Summary is still under constructions!");
+  //}
 
   //if (tab === "info") {
   //  document.getElementById("tabContentInfo")?.classList.remove("hidden");
@@ -5203,7 +5409,7 @@ function openDetailsTab(tab){
 * return: <string>
 * purpose: Converts a File object into base64 string without data URL prefix.
 ********************************************************/
-function fileToBase64(file){
+function fileToBase64(file) {
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -5223,7 +5429,7 @@ function fileToBase64(file){
 * return: <void>
 * purpose: Loads and renders the evidence file list for the selected student with view handlers.
 ********************************************************/
-async function loadEvidenceList(){
+async function loadEvidenceList() {
 
   if (!state.idToken) return;
   if (!state.selected) return;
@@ -5249,11 +5455,11 @@ async function loadEvidenceList(){
   evidenceList.classList.remove("hidden");
   evidenceList.innerHTML = `
 		${items.map((ev, i) => {
-		  const url = ev.url || "";
-		  const type = ev.type || "FILE";
-		  const uploadedAt = ev.uploadedAt || "—";
+    const url = ev.url || "";
+    const type = ev.type || "FILE";
+    const uploadedAt = ev.uploadedAt || "—";
 
-		  return `
+    return `
 			<div class="history-item">
 			  <div><b>Evidence ${i + 1}</b></div>
 			  <div class="evidenceMeta">${escapeHtml(type)} • Uploaded: ${escapeHtml(uploadedAt)}</div>
@@ -5264,7 +5470,7 @@ async function loadEvidenceList(){
 			  </a>
 			</div>
 		  `;
-		}).join("")}
+  }).join("")}
   `;
 
   evidenceList.querySelectorAll("a[data-url]").forEach(a => {
@@ -5347,7 +5553,7 @@ async function loadEvidenceList(){
 * return: <void>
 * purpose: Loads and displays remarks history entries for the selected record.
 ********************************************************/
-async function loadHistory(){
+async function loadHistory() {
 
   if (!state.selected) return;
   if (!historyWrap) return;
@@ -5378,7 +5584,7 @@ async function loadHistory(){
       </div>
     `).join("")}
   `;
-  
+
   hideLoading();
   historyWrap.classList.remove("hidden");
 }
@@ -5392,7 +5598,7 @@ async function loadHistory(){
 * return: <void>
 * purpose: Saves current student remarks and done status, supports offline queueing and online API update.
 ********************************************************/
-async function saveCurrent(){
+async function saveCurrent() {
 
   if (!state.selected) return;
 
@@ -5438,18 +5644,18 @@ async function saveCurrent(){
     toast(res.message || "Save failed");
     return;
   }
-  
+
   hideLoading();
-	toast("Saved!");
-	// ✅ stay on details screen
-	showScreen(screenDetails);
+  toast("Saved!");
+  // ✅ stay on details screen
+  showScreen(screenDetails);
 
-	// refresh list silently (optional, para updated done/remarks)
-	loadList(false);
+  // refresh list silently (optional, para updated done/remarks)
+  loadList(false);
 
-	// reopen same student details para updated values
-	openStudentDetailsByEmail(state.selected.email);
-    clearRemarksBox(); // ✅ auto clear after save
+  // reopen same student details para updated values
+  openStudentDetailsByEmail(state.selected.email);
+  clearRemarksBox(); // ✅ auto clear after save
 }
 
 /*******************************************************
@@ -5458,7 +5664,7 @@ async function saveCurrent(){
 * return: <void>
 * purpose: Sends queued offline remark updates to the server when connection is restored.
 ********************************************************/
-async function syncPendingUpdates(){
+async function syncPendingUpdates() {
 
   if (!navigator.onLine) return;
 
@@ -5497,7 +5703,7 @@ async function syncPendingUpdates(){
 * return: <void>
 * purpose: Loads available seat map rooms from the API and populates the room selector dropdown.
 ********************************************************/
-async function loadRooms(){
+async function loadRooms() {
 
   try {
     const res = await apiGet({
@@ -5523,7 +5729,7 @@ async function loadRooms(){
 * return: <void>
 * purpose: Deletes the selected room and all its seats via admin-only API call and refreshes seat UI.
 ********************************************************/
-async function deleteRoom(){
+async function deleteRoom() {
 
   if (!state.me || state.me.role !== "admin") {
     toast("Admin only.");
@@ -5577,7 +5783,7 @@ async function deleteRoom(){
 * return: <void>
 * purpose: Removes the highest-numbered empty seat in the current room and reloads seat map.
 ********************************************************/
-async function removeLastSeat(){
+async function removeLastSeat() {
 
   try {
     showLoading("Please wait, removing seat...");
@@ -5660,7 +5866,7 @@ async function removeLastSeat(){
 * return: number
 * purpose: Computes ideal grid column count per side based on seat count with min/max limits.
 ********************************************************/
-function computeBestCols(perSide){
+function computeBestCols(perSide) {
 
   // auto columns depending on perSide count
   // ex: 25 -> 5 cols, 36 -> 6 cols, 49 -> 7 cols
@@ -5674,7 +5880,7 @@ function computeBestCols(perSide){
 * return: void
 * purpose: Renders classroom-style seat grid layout with left/right sides, placeholders, and click behavior.
 ********************************************************/
-function renderSeatGrid(){
+function renderSeatGrid() {
 
   if (!seatGrid) return;
   seatGrid.innerHTML = "";
@@ -5763,9 +5969,8 @@ function renderSeatGrid(){
       </div>
 
       <div class="seatMid">
-        ${
-          hasStudent
-            ? `
+        ${hasStudent
+        ? `
               <div class="seatAvatar">
                 <img class="seatPhoto"
                      data-email="${escapeHtml(seat.studentEmail)}"
@@ -5783,54 +5988,54 @@ function renderSeatGrid(){
               <div class="seatName">${escapeHtml((seat.studentName || seat.studentEmail).toUpperCase())}</div>
               <div class="seatEmail muted">${escapeHtml(seat.studentEmail)}</div>
             `
-            : `
+        : `
               <div class="seatAvatar emptyIcon">👤</div>
               <div class="seatEmpty">Empty</div>
             `
-        }
+      }
       </div>
     `;
 
 
-      div.onclick = async (e) => {
-        if (state.seat.editMode === true) {
-          openSeatEditModal(seat);
+    div.onclick = async (e) => {
+      if (state.seat.editMode === true) {
+        openSeatEditModal(seat);
+        return;
+      }
+
+      const hasStudent =
+        seat.studentEmail || seat.studentId || seat.studentName;
+
+      if (!hasStudent) {
+        toast("Seat is empty.");
+        return;
+      }
+
+      if (!isMobile()) {
+        if (lastSeatClicked && lastSeatClicked !== seat.seatNo) {
+          lastSeatClicked = null;
+        }
+
+        if (lastSeatClicked === seat.seatNo) {
+          closeSeatPreview();
+          await openStudentDetailsByEmail(seat.studentEmail);
+          lastSeatClicked = null;
           return;
         }
 
-        const hasStudent =
-          seat.studentEmail || seat.studentId || seat.studentName;
+        lastSeatClicked = seat.seatNo;
+        openSeatPreview(seat, e);
 
-        if (!hasStudent) {
-          toast("Seat is empty.");
-          return;
-        }
+        clearTimeout(seatPreviewTimer);
+        seatPreviewTimer = setTimeout(() => {
+          lastSeatClicked = null;
+        }, 350);
 
-        if (!isMobile()) {
-          if (lastSeatClicked && lastSeatClicked !== seat.seatNo) {
-            lastSeatClicked = null;
-          }
+        return;
+      }
 
-          if (lastSeatClicked === seat.seatNo) {
-            closeSeatPreview(); 
-            await openStudentDetailsByEmail(seat.studentEmail);
-            lastSeatClicked = null;
-            return;
-          }
-
-          lastSeatClicked = seat.seatNo;
-          openSeatPreview(seat, e);
-
-          clearTimeout(seatPreviewTimer);
-          seatPreviewTimer = setTimeout(() => {
-            lastSeatClicked = null;
-          }, 350);
-
-          return;
-        }
-
-        openMobilePreview(seat);
-      };
+      openMobilePreview(seat);
+    };
     return div;
   };
 
@@ -5918,7 +6123,7 @@ function renderSeatGrid(){
 * return: <void>
 * purpose: Loads and caches student photos for all rendered seat cards using master student data.
 ********************************************************/
-async function loadSeatPhotosInGrid(){
+async function loadSeatPhotosInGrid() {
 
   try {
     if (!seatGrid) return;
@@ -5998,7 +6203,7 @@ async function loadSeatPhotosInGrid(){
 * return: <void>
 * purpose: Fetches a student record by email and opens the details screen view.
 ********************************************************/
-async function openStudentDetailsByEmail(email){
+async function openStudentDetailsByEmail(email) {
   showLoading("Loading profile...");
   if (!email) {
     hideLoading();
@@ -6036,7 +6241,7 @@ async function openStudentDetailsByEmail(email){
 * return: <void>
 * purpose: Saves or updates a seat assignment for the current room via seat map API.
 ********************************************************/
-async function saveSeat(){
+async function saveSeat() {
   if (!state.seat.room) {
     toast("Select a room first.");
     return;
@@ -6076,7 +6281,7 @@ async function saveSeat(){
 * return: void
 * purpose: Clears all seat editor input fields.
 ********************************************************/
-function clearSeatEditor(){
+function clearSeatEditor() {
   if (inpSeatNo) inpSeatNo.value = "";
   if (inpSeatEmail) inpSeatEmail.value = "";
   if (inpSeatId) inpSeatId.value = "";
@@ -6089,7 +6294,7 @@ function clearSeatEditor(){
 * return: <void>
 * purpose: Quickly creates an empty seat entry using the current seat number input.
 ********************************************************/
-async function addSeatEmpty(){
+async function addSeatEmpty() {
 
   if (!state.seat.room) {
     toast("Select a room first.");
@@ -6115,7 +6320,7 @@ async function addSeatEmpty(){
 * return: <void>
 * purpose: Creates a new room with default seats via admin API and loads it into the seat map view.
 ********************************************************/
-async function addRoom(){
+async function addRoom() {
 
   showLoading("Please wait, saving room...");
   if (!state.me || state.me.role !== "admin") {
@@ -6166,9 +6371,10 @@ async function addRoom(){
 * return: <void>
 * purpose: Loads master student list used for seat map matching and autofill.
 ********************************************************/
-async function loadSeatMapMaster(){
+async function loadSeatMapMaster() {
 
   document.getElementById('tabContentGrades')?.classList.add('hidden');
+  document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
   try {
     const res = await apiGet({
       action: "seatmapMaster",
@@ -6229,6 +6435,7 @@ function applyRoleUI() {
     // hide admin buttons
     if (btnSave) btnSave.classList.add("hidden");
     if (btnHistory) btnHistory.classList.add("hidden");
+    if (btnLDev) btnLDev.classList.add("hidden");
 
   }
 
@@ -6252,6 +6459,7 @@ function applyRoleUI() {
 
     if (btnSave) btnSave.classList.remove("hidden");
     if (btnHistory) btnHistory.classList.remove("hidden");
+    if (btnLDev) btnLDev.classList.remove("hidden");
   }
 }
 
@@ -6264,7 +6472,7 @@ function applyRoleUI() {
 * return: void
 * purpose: Toggles accordion section visibility and arrow indicator state.
 ********************************************************/
-function toggleAccordion(bodyEl, arrowEl){
+function toggleAccordion(bodyEl, arrowEl) {
 
   if (!bodyEl || !arrowEl) return;
 
@@ -6360,7 +6568,7 @@ if (btnResetApp) btnResetApp.onclick = async () => {
 
   await cacheClearAll(); // ✅ clear IndexedDB cache
   await deleteEvidenceDB();     // ✅ delete offline evidence DB too
-  
+
   localStorage.removeItem("sf_apiUrl");
   localStorage.removeItem("sf_clientId");
   localStorage.removeItem(LS_SESSION);
@@ -6385,7 +6593,7 @@ if (btnLogout) {
     // ✅ Clear saved session + offline queue
     clearSession();
     localStorage.removeItem(LS_PENDING_UPDATES);
-	  localStorage.removeItem(PENDING_SYNC_KEY);
+    localStorage.removeItem(PENDING_SYNC_KEY);
     localStorage.removeItem("sf_id_token");
     localStorage.removeItem("sf_login_time");
 
@@ -6396,10 +6604,10 @@ if (btnLogout) {
     state.currentStudent = null;
     state.gradeTasks = [];
     state.learnerDev = {
-      categories:[],
-      scores:{}
+      categories: [],
+      scores: {}
     };
-    
+
     // ✅ Reset filters + UI
     state.filters.schoolYear = "";
     state.filters.term = "";
@@ -6463,8 +6671,9 @@ if (btnLogout) {
     hideNetBadge();
     if (syncBadge) syncBadge.classList.add("hidden");
 
-    // hide grading summary
+    // hide grading summary, learner dev
     document.getElementById('tabContentGrades')?.classList.add('hidden');
+    document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
     document.body.classList.remove("student-mode");
 
     // go back to login/setup screen
@@ -6595,46 +6804,35 @@ if (btnNextTop) {
 }
 
 if (btnBackToList) {
-	btnBackToList.onclick = () => {
-	  if (lastScreenBeforeDetails === "seatmap") {
-    document.getElementById('tabContentGrades')?.classList.add('hidden');
-		showScreen(screenSeatMap);
-		lastScreenBeforeDetails = null;
-		return;
-	  } else {
-    document.getElementById('tabContentGrades')?.classList.add('hidden');
-	  showScreen(screenList);
+  btnBackToList.onclick = () => {
+    if (lastScreenBeforeDetails === "seatmap") {
+      document.getElementById('tabContentGrades')?.classList.add('hidden');
+      showScreen(screenSeatMap);
+      lastScreenBeforeDetails = null;
+      return;
+    } else {
+      document.getElementById('tabContentGrades')?.classList.add('hidden');
+      showScreen(screenList);
     }
-	};
+  };
 }
 
 if (btnSave) btnSave.onclick = saveCurrent;
 if (btnHistory) btnHistory.onclick = loadHistory;
-if (btnGrades) {
-  btnGrades.onclick = () => {
-    //console.log("GRADES BUTTON CLICKED — UNDER CONSTRUCTION");
-    openDetailsTab("grades");
-    //alert("Grades module — UNDER CONSTRUCTION");
-  };
-}
-
+if (btnLDev) btnLDev.onclick = () => openDetailsTab("learner");
+if (btnGrades) btnGrades.onclick = () => openDetailsTab("grades");
 if (btnUploadEvidence) {
   btnUploadEvidence.onclick = async () => {
     try {
       if (!state.selected) return;
-
       const file = inpEvidenceFile ? inpEvidenceFile.files[0] : null;
       if (!file) {
         toast("Please choose a file first.");
         return;
       }
-
       showLoading("Please wait, uploading evidence...");
-
       await handleUploadEvidence(file);
-
       await loadEvidenceList();
-
       hideLoading();
     } catch (err) {
       hideLoading();
@@ -6642,6 +6840,11 @@ if (btnUploadEvidence) {
     }
   };
 }
+if (btnaddTaskRow) btnaddTaskRow.onclick = () => addTaskRow();
+if (btnsaveTaskGrades) btnsaveTaskGrades.onclick = () => saveTaskGrades();
+if (btnresetGradesUI) btnresetGradesUI.onclick = () => resetGradesUI();
+if (btnaddLearnerDev) btnaddLearnerDev.onclick = () => addLearnerDev();
+if (btnsaveLearnerDev) btnsaveLearnerDev.onclick = () => saveLearnerDev();
 
 // remarks preview - desktop
 const btnPvSave = document.getElementById("btnPvSaveRemarks");
@@ -6695,7 +6898,7 @@ if (btnPvMSave) {
       alert("Students cannot edit remarks.");
       return;
     }
-    
+
     if (!state.seat.currentSeat) return;
 
     const text = document.getElementById("pvMRemarks").value.trim();
@@ -6969,10 +7172,10 @@ if (selSeatRoom) {
   selSeatRoom.onchange = () => {
     // hide add table UI
     // keep visible for admin even if room not loaded yet
-	if (btnAddTable) {
-	  if (state.me && state.me.role === "admin") btnAddTable.classList.remove("hidden");
-	  else btnAddTable.classList.add("hidden");
-	}
+    if (btnAddTable) {
+      if (state.me && state.me.role === "admin") btnAddTable.classList.remove("hidden");
+      else btnAddTable.classList.add("hidden");
+    }
 
     if (addTableWrap) addTableWrap.classList.add("hidden");
 
@@ -6985,7 +7188,7 @@ if (selSeatRoom) {
 
     // clear grid
     if (seatGrid) seatGrid.innerHTML = "";
-    
+
     refreshDebugInfo();
   };
 }
@@ -6999,9 +7202,9 @@ if (btnSeatEditToggle) {
 
     state.seat.editMode = !state.seat.editMode;
     updateSeatEditUI(); // ✅ apply Fix 25 behavior
-	
-	// update Delete Room button visibility
-	updateDeleteRoomButtonVisibility();
+
+    // update Delete Room button visibility
+    updateDeleteRoomButtonVisibility();
   };
 }
 
@@ -7011,7 +7214,7 @@ if (btnSeatEditToggle) {
 * return: void
 * purpose: Applies selected student data into seat edit modal fields with lock protection.
 ********************************************************/
-function applyStudentToModal(stu){
+function applyStudentToModal(stu) {
 
   if (!stu) return;
 
@@ -7099,24 +7302,24 @@ if (btnSeatEditSave) {
     };
 
     try {
-	  
-	  setSeatEditLocked(true); // ✅ lock
-	  
+
+      setSeatEditLocked(true); // ✅ lock
+
       const res = await apiPost("seatmapSave", body);
 
-		if (res.status !== "success") {
-		  throw new Error(res.message || "Save failed");
-		}
+      if (res.status !== "success") {
+        throw new Error(res.message || "Save failed");
+      }
 
       toast("Seat updated!");
       closeSeatEditModal();
-	  await loadSeatRoom(state.seat.room);    
+      await loadSeatRoom(state.seat.room);
 
     } catch (err) {
       toast("Save error: " + err.toString());
     } finally {
-		setSeatEditLocked(false); // ✅ Always unlock
-	}
+      setSeatEditLocked(false); // ✅ Always unlock
+    }
   };
 }
 
@@ -7153,13 +7356,13 @@ if (btnSeatEditDelete) {
     };
 
     try {
-	  setSeatEditLocked(true); // ✅ lock
-	  
+      setSeatEditLocked(true); // ✅ lock
+
       const res = await apiPost("seatmapSave", body);
 
-		if (res.status !== "success") {
-		  throw new Error(res.message || "Clear failed");
-		}
+      if (res.status !== "success") {
+        throw new Error(res.message || "Clear failed");
+      }
 
       toast("Seat cleared!");
       closeSeatEditModal();
@@ -7168,8 +7371,8 @@ if (btnSeatEditDelete) {
     } catch (err) {
       toast("Clear error: " + err.toString());
     } finally {
-		setSeatEditLocked(false); // ✅ Always unlock
-	}
+      setSeatEditLocked(false); // ✅ Always unlock
+    }
   };
 }
 
@@ -7179,7 +7382,7 @@ if (btnSeatEditDelete) {
 * return: void
 * purpose: Enables autofill linking between student ID, name, and email fields in add-seat form.
 ********************************************************/
-function setupAddTableAutofill(){
+function setupAddTableAutofill() {
 
   const inpId = document.getElementById("inpAddStudentId");
   const inpName = document.getElementById("inpTableStudentName"); // ✅ correct
@@ -7243,7 +7446,7 @@ if (btnClearPending) {
     // delete offline evidence blobs
     q.forEach(item => {
       if (item.type === "uploadEvidence" && item.offlineId) {
-        idbDeleteEvidenceFile(item.offlineId).catch(() => {});
+        idbDeleteEvidenceFile(item.offlineId).catch(() => { });
       }
     });
 
@@ -7267,7 +7470,7 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
 * return: void
 * purpose: Displays the global loading overlay with optional message text.
 ********************************************************/
-function showLoading(msg="Loading..."){
+function showLoading(msg = "Loading...") {
   const el = document.getElementById("globalLoading");
   if (!el) return;
 
@@ -7283,7 +7486,7 @@ function showLoading(msg="Loading..."){
 * return: void
 * purpose: Hides the global loading overlay.
 ********************************************************/
-function hideLoading(){
+function hideLoading() {
   const el = document.getElementById("globalLoading");
   if (!el) return;
   el.classList.add("hidden");
@@ -7298,7 +7501,7 @@ function hideLoading(){
 * return: void
 * purpose: Initializes app configuration, restores session, validates token, loads base data, and routes initial screen.
 ********************************************************/
-(function init(){
+(function init() {
 
   const cfg = loadSetup();
 
@@ -7315,14 +7518,14 @@ function hideLoading(){
   }
 
   startNetWatcherOnce();
-	// ===========================
-	// PHOTO MODAL EVENTS
-	// ===========================
-	attachModalBackdropClose(photoModal);
+  // ===========================
+  // PHOTO MODAL EVENTS
+  // ===========================
+  attachModalBackdropClose(photoModal);
 
-	if (btnClosePhoto) {
-	  btnClosePhoto.onclick = () => closeModal(photoModal);
-	}
+  if (btnClosePhoto) {
+    btnClosePhoto.onclick = () => closeModal(photoModal);
+  }
   updateSyncBadge();
 
   state.apiUrl = cfg.apiUrl;
@@ -7344,9 +7547,9 @@ function hideLoading(){
   if (sess.list?.page) state.list.page = sess.list.page;
   if (sess.list?.pageSize) state.list.pageSize = sess.list.pageSize;
 
-	if (selPageSize) {
-	  selPageSize.value = String(state.list.pageSize || 20);
-	}
+  if (selPageSize) {
+    selPageSize.value = String(state.list.pageSize || 20);
+  }
 
   // reflect restored config in inputs
   if (inpApiUrl) inpApiUrl.value = state.apiUrl;
@@ -7370,12 +7573,12 @@ function hideLoading(){
         showLoading("Loading, after refresh");
         refreshNetBadgeNow();
 
-        let me = await apiGet({ action:"me", idToken: state.idToken });
+        let me = await apiGet({ action: "me", idToken: state.idToken });
 
         if (me.status === "network_error") {
           console.warn("me() network error — retrying once...");
           await new Promise(r => setTimeout(r, 800));
-          me = await apiGet({ action:"me", idToken: state.idToken });
+          me = await apiGet({ action: "me", idToken: state.idToken });
         }
 
         if (!me || me.status !== "success") {
@@ -7446,6 +7649,7 @@ function hideLoading(){
             const ldAdminControls = document.getElementById("ldAdminControls");
             if (ldAdminControls) ldAdminControls.classList.add("hidden");
 
+            await loadTransmutationTables();
             //if (dPhoto) dPhoto.classList.add("hidden");
             await openStudentDetailsByEmail(state.me.email);
 
@@ -7484,9 +7688,9 @@ function hideLoading(){
         loadRooms();
         loadInitialFilters();
         loadSeatMapMaster();
-		    renderPendingUI();
+        renderPendingUI();
 
-        if (state.idToken){
+        if (state.idToken) {
           //console.log("Preloading Seat Master");
 
           const res = await apiGet({
@@ -7494,7 +7698,7 @@ function hideLoading(){
             idToken: state.idToken
           });
 
-          if (res?.status === "success"){
+          if (res?.status === "success") {
             state.seat.masterStudents = res.students || [];
           }
         }
@@ -7572,7 +7776,7 @@ document.addEventListener("click", (e) => {
 * return: void
 * purpose: Updates last activity timestamp in localStorage to extend session lifetime.
 ********************************************************/
-function refreshActivityStamp(){
+function refreshActivityStamp() {
   if (state.idToken) {
     localStorage.setItem("sf_login_time", Date.now());
   }

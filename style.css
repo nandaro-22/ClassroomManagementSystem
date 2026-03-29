@@ -33,7 +33,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   max-width: 100%;
   overflow-x: hidden;
 }
@@ -57,7 +58,7 @@ body {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   padding: 16px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   margin-top: 12px;
   padding: 12px;
 }
@@ -326,8 +327,8 @@ textarea {
   margin-top: 12px;
 }
 
-.grid-4 > div,
-.grid-2 > div {
+.grid-4>div,
+.grid-2>div {
   min-width: 0;
 }
 
@@ -733,12 +734,14 @@ textarea {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45); /* soft gray overlay */
+  background: rgba(15, 23, 42, 0.45);
+  /* soft gray overlay */
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 14px;
-  z-index: 2147483647; /* max safe z-index */
+  z-index: 2147483647;
+  /* max safe z-index */
 }
 
 .modal.hidden {
@@ -752,7 +755,7 @@ textarea {
   border: 1px solid #e2e8f0;
   border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
 }
@@ -769,7 +772,8 @@ textarea {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #ffffff; /* NO BLACK */
+  background: #ffffff;
+  /* NO BLACK */
 }
 
 .modalImg {
@@ -779,7 +783,8 @@ textarea {
   height: auto;
   border-radius: 14px;
   border: 1px solid #e2e8f0;
-  object-fit: contain; /* important */
+  object-fit: contain;
+  /* important */
 }
 
 .modal-inner {
@@ -908,7 +913,7 @@ textarea {
 }
 
 /* aisle dynamic */
-.seatAisle{
+.seatAisle {
   width: clamp(26px, 4vw, 48px);
   border: 2px dashed #cbd5e1;
   border-radius: 14px;
@@ -924,9 +929,10 @@ textarea {
   letter-spacing: 2px;
 }
 
-.seatAisle::before{
+.seatAisle::before {
   content: "AISLE";
-  writing-mode: vertical-rl; /* vertical text */
+  writing-mode: vertical-rl;
+  /* vertical text */
   transform: rotate(180deg);
   font-size: 12px;
   opacity: 0.8;
@@ -935,8 +941,9 @@ textarea {
 /* seat card */
 .seat {
   position: relative;
-  overflow: visible !important; /* para di lumabas yung laman */
-  
+  overflow: visible !important;
+  /* para di lumabas yung laman */
+
   border: 1px solid #e2e8f0;
   background: #ffffff;
   border-radius: 14px;
@@ -946,7 +953,8 @@ textarea {
   text-align: center;
 
   /* ✅ FIX HEIGHT para pantay lahat */
-  height: 150px;          /* adjust mo 140-170 kung gusto mo */
+  height: 150px;
+  /* adjust mo 140-170 kung gusto mo */
   min-height: 150px;
   max-height: 150px;
 
@@ -957,7 +965,7 @@ textarea {
 
 .seat:hover {
   border-color: #60a5fa;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
   z-index: 10;
 }
@@ -1000,14 +1008,15 @@ textarea {
   white-space: nowrap;
 }
 
-.seatMid{
+.seatMid {
   margin-top: 8px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  text-align:center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 6px;
-  flex: 1; /* para sakto ang spacing */
+  flex: 1;
+  /* para sakto ang spacing */
 }
 
 /* ===========================
@@ -1180,6 +1189,7 @@ textarea {
    RESPONSIVE (GENERAL)
 =========================== */
 @media (max-width: 980px) {
+
   .detailsLayout,
   .details-shell {
     grid-template-columns: 1fr;
@@ -1270,9 +1280,10 @@ textarea {
   }
 }
 
-.seatPlaceholder{
-  visibility: hidden; /* occupies space but invisible */
-  opacity:0.35;
+.seatPlaceholder {
+  visibility: hidden;
+  /* occupies space but invisible */
+  opacity: 0.35;
   pointer-events: none;
 }
 
@@ -1315,7 +1326,7 @@ textarea {
     flex-wrap: wrap;
   }
 
-   /* ✅ Mobile default: buttons full width (for forms / screens) */
+  /* ✅ Mobile default: buttons full width (for forms / screens) */
   .btn,
   .btnPrimary,
   .btnDanger {
@@ -1445,18 +1456,20 @@ textarea {
   }
 }
 
-  #seatRoomLabel {
-    display: inline-block;
-    text-align: left !important;
-    font-size: 14px !important;
-    margin-bottom: 12px;
-    background: #dbeafe;      /* light blue */
-    color: #1d4ed8;           /* deep blue text */
-    border: 1px solid #93c5fd;
-    padding: 4px 10px;
-    border-radius: 8px;
-    font-weight: 800;
-  }
+#seatRoomLabel {
+  display: inline-block;
+  text-align: left !important;
+  font-size: 14px !important;
+  margin-bottom: 12px;
+  background: #dbeafe;
+  /* light blue */
+  color: #1d4ed8;
+  /* deep blue text */
+  border: 1px solid #93c5fd;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: 800;
+}
 
 /* Extra small phones */
 @media (max-width: 420px) {
@@ -1479,11 +1492,13 @@ textarea {
 /* FIX: Back button dikit sa photo card (mobile) */
 @media (max-width: 768px) {
   .detailsHeaderBtns {
-    margin-bottom: 14px !important; /* push photo container down */
+    margin-bottom: 14px !important;
+    /* push photo container down */
   }
 
   .photo-card {
-    margin-top: 10px !important; /* extra spacing */
+    margin-top: 10px !important;
+    /* extra spacing */
   }
 }
 
@@ -1562,7 +1577,8 @@ textarea {
 .progressFill {
   height: 100%;
   width: 0%;
-  background: #0ea5e9; /* MOBILE FIXES (768px and below) */
+  background: #0ea5e9;
+  /* MOBILE FIXES (768px and below) */
   transition: width 0.2s ease;
 }
 
@@ -1598,7 +1614,7 @@ textarea {
 }
 
 .pendingPanel {
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 /* =========================================
@@ -1651,7 +1667,8 @@ textarea {
   max-width: 920px;
   width: 100%;
   max-height: 92vh;
-  overflow: hidden; /* important */
+  overflow: hidden;
+  /* important */
 }
 
 .modalViewerTop {
@@ -1672,7 +1689,8 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  touch-action: none; /* allow JS to handle drag */
+  touch-action: none;
+  /* allow JS to handle drag */
 }
 
 /* .modal-photo {
@@ -1686,7 +1704,7 @@ textarea {
   -webkit-user-drag: none;
 } */
 
-.modal-photo{
+.modal-photo {
   width: 100%;
   max-height: 75vh;
   object-fit: contain;
@@ -1711,7 +1729,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.inpSmall{
+.inpSmall {
   padding: 6px 10px;
   border-radius: 10px;
   border: 1px solid #cbd5e1;
@@ -1882,7 +1900,8 @@ button:disabled {
   /* 1) Top action buttons sa Records (Seat Map / Change Filter / Refresh) */
   #screenList .row.space-between .row.gap {
     display: grid !important;
-    grid-template-columns: 1fr 1fr 1fr; /* 3 buttons in one row */
+    grid-template-columns: 1fr 1fr 1fr;
+    /* 3 buttons in one row */
     gap: 10px !important;
     width: 100%;
   }
@@ -1890,7 +1909,8 @@ button:disabled {
   #screenList .row.space-between .row.gap .btn {
     width: 100% !important;
     padding: 12px 10px !important;
-    font-size: 14px !important;     /* pantay font */
+    font-size: 14px !important;
+    /* pantay font */
     font-weight: 700 !important;
     border-radius: 999px !important;
     line-height: 1.2 !important;
@@ -1938,7 +1958,7 @@ button:disabled {
   }
 
   /* Title + Room label stay on top */
-  #screenSeatMap .row.space-between > div:first-child h2 {
+  #screenSeatMap .row.space-between>div:first-child h2 {
     margin: 0 !important;
     font-size: 28px !important;
     line-height: 1.1 !important;
@@ -1952,7 +1972,8 @@ button:disabled {
   /* Buttons container = compact grid */
   #screenSeatMap .row.space-between .row.gap {
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important; /* 2 buttons per row */
+    grid-template-columns: 1fr 1fr !important;
+    /* 2 buttons per row */
     gap: 10px !important;
     width: 100%;
   }
@@ -2061,9 +2082,9 @@ button:disabled {
     align-items: flex-start !important;
     gap: 6px !important;
     margin-left: 0 !important;
-	  padding: 12px 14px !important;
+    padding: 12px 14px !important;
     font-size: 14px !important;
-	  border-radius: 14px !important;
+    border-radius: 14px !important;
   }
 
   #selPageSize {
@@ -2195,24 +2216,30 @@ button:disabled {
    SEAT MAP ICON STYLE (Option C)
 ========================= */
 
-.seatTopRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
+.seatTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.seatStatusDot{
-  width:10px;
-  height:10px;
-  border-radius:999px;
-  background:#cbd5e1;
-  flex:0 0 auto;
+.seatStatusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  flex: 0 0 auto;
 }
-.seatStatusDot.on{ background:#22c55e; }
-.seatStatusDot.off{ background:#94a3b8; }
 
-.seatAvatar{
+.seatStatusDot.on {
+  background: #22c55e;
+}
+
+.seatStatusDot.off {
+  background: #94a3b8;
+}
+
+.seatAvatar {
   width: 46px;
   height: 46px;
   border-radius: 999px;
@@ -2224,21 +2251,21 @@ button:disabled {
   flex: 0 0 auto;
 }
 
-.seatPhoto{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  border-radius:999px;
+.seatPhoto {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 999px;
 }
 
-.seatAvatar.emptyIcon{
-  font-size:22px;
+.seatAvatar.emptyIcon {
+  font-size: 22px;
 }
 
-.seatEmail{
-  font-size:11px;
-  opacity:.85;
-  word-break:break-word;
+.seatEmail {
+  font-size: 11px;
+  opacity: .85;
+  word-break: break-word;
 }
 
 /* ============================
@@ -2274,12 +2301,12 @@ button:disabled {
   }
 }
 
-@media (max-width: 600px){
-  .seatGridClassroom{
+@media (max-width: 600px) {
+  .seatGridClassroom {
     grid-template-columns: 1fr !important;
   }
 
-  .seatAisle{
+  .seatAisle {
     width: 100% !important;
     height: 44px !important;
     align-self: auto !important;
@@ -2290,7 +2317,7 @@ button:disabled {
     border-radius: 14px !important;
   }
 
-  .seatAisle::before{
+  .seatAisle::before {
     writing-mode: initial !important;
     transform: none !important;
     content: "AISLE";
@@ -2312,7 +2339,8 @@ button:disabled {
   .topbar-right {
     width: 100%;
     display: grid !important;
-    grid-template-columns: 1fr 1fr; /* 2 columns */
+    grid-template-columns: 1fr 1fr;
+    /* 2 columns */
     gap: 10px !important;
     justify-content: stretch !important;
     align-items: stretch !important;
@@ -2346,7 +2374,8 @@ button:disabled {
   /* --- Top buttons: Prev / Next / Back --- */
   .detailsHeaderBtns {
     display: grid !important;
-    grid-template-columns: 1fr 1fr 1fr !important; /* 3 buttons in one row */
+    grid-template-columns: 1fr 1fr 1fr !important;
+    /* 3 buttons in one row */
     gap: 10px !important;
     width: 100% !important;
     margin-top: 10px !important;
@@ -2386,12 +2415,12 @@ button:disabled {
 /* =========================================
    FIX: Save / Upload / View History = 1 Row (Mobile)
 ========================================= */
-@media (max-width: 600px){
+@media (max-width: 600px) {
 
   /* ito yung container ng 3 buttons (safe selector) */
   #btnSave,
   #btnUploadEvidence,
-  #btnViewHistory{
+  #btnViewHistory {
     width: 100% !important;
     min-width: 0 !important;
     flex: 1 1 0 !important;
@@ -2403,28 +2432,28 @@ button:disabled {
     justify-content: center !important;
     align-items: center !important;
     /*white-space: nowrap !important;*/
-    white-space: normal !important; /* allow text wrap */
+    white-space: normal !important;
+    /* allow text wrap */
     flex-wrap: wrap !important;
   }
 
   /* pinaka-important: yung PARENT nila gawing grid */
   #btnSave,
   #btnUploadEvidence,
-  #btnViewHistory{
+  #btnViewHistory {
     margin: 0 !important;
   }
 
   /* hanapin natin yung pinaka-common parent layout */
   .detailsHeaderBtns,
   .row.gap,
-  .row.gap > div,
+  .row.gap>div,
   .row.gap.actions,
-  .row.gap.detailsBtns{
-  }
+  .row.gap.detailsBtns {}
 
   #btnSave.parentRowFix,
   #btnUploadEvidence.parentRowFix,
-  #btnViewHistory.parentRowFix{
+  #btnViewHistory.parentRowFix {
     /* placeholder - ignore */
   }
 }
@@ -2559,178 +2588,182 @@ button:disabled {
    DESKTOP BOTTOM SHEET PREVIEW
 ========================= */
 
-.seatPreview{
+.seatPreview {
   position: fixed;
-  width: 380px;               
+  width: 380px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 18px;
-  box-shadow: 0 22px 48px rgba(0,0,0,.20);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, .20);
   padding: 16px;
   z-index: 9999999;
 }
 
-.seatPreviewHeader{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:10px;
+.seatPreviewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
-.seatPreviewSeat{
-  font-weight:900;
-  font-size:16px;
+.seatPreviewSeat {
+  font-weight: 900;
+  font-size: 16px;
   color: #00f;
 }
 
-.seatPreviewBody{
-  display:flex;
-  gap:14px;
-  align-items:flex-start;
+.seatPreviewBody {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
 }
 
-.seatPreviewPhoto{
-  width:126px;
-  height:132px;
-  border-radius:16px;
-  object-fit:cover;
-  border:1px solid #e2e8f0;
-  background:#f1f5f9;
+.seatPreviewPhoto {
+  width: 126px;
+  height: 132px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+  background: #f1f5f9;
 }
 
-.seatPreviewName{
-  font-weight:900;
-  font-size:20px;
-  margin-bottom:4px;
-  line-height:1.2;
-  text-transform: uppercase;   
+.seatPreviewName {
+  font-weight: 900;
+  font-size: 20px;
+  margin-bottom: 4px;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 /* meta lines */
-.seatPreviewMeta{
-  font-size:16px;
-  line-height:1.35;
-  color:#00321f !important;
-  margin-bottom:3px;
+.seatPreviewMeta {
+  font-size: 16px;
+  line-height: 1.35;
+  color: #00321f !important;
+  margin-bottom: 3px;
   padding: 4px;
-  font-weight:600;
+  font-weight: 600;
 }
 
 /* =========================
    MOBILE BOTTOM SHEET PREVIEW
 ========================= */
 
-.seatPreviewMobile{
+.seatPreviewMobile {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background:#ffffff;
-  border-top-left-radius:20px;
-  border-top-right-radius:20px;
-  box-shadow: 0 -12px 36px rgba(0,0,0,.22);
+  background: #ffffff;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, .22);
   padding: 16px 16px 20px;
   z-index: 9999999;
   font-size: 16px;
 }
 
 /* drag handle */
-.seatPreviewMobileHandle{
-  width:48px;
-  height:5px;
-  background:#cbd5e1;
-  border-radius:999px;
-  margin:0 auto 12px;
+.seatPreviewMobileHandle {
+  width: 48px;
+  height: 5px;
+  background: #cbd5e1;
+  border-radius: 999px;
+  margin: 0 auto 12px;
 }
 
 /* content layout */
-.seatPreviewMobileBody{
-  display:flex;
-  gap:14px;
-  align-items:flex-start;
+.seatPreviewMobileBody {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
 }
 
 /* photo bigger */
-#pvMPhoto{
-  width:126px;
-  height:132px;
-  border-radius:16px;
-  object-fit:cover;
-  background:#f1f5f9;
-  flex-shrink:0;
+#pvMPhoto {
+  width: 126px;
+  height: 132px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: #f1f5f9;
+  flex-shrink: 0;
 }
 
 /* right side info */
-.seatPreviewMobileInfo{
-  flex:1;
-  min-width:0;
+.seatPreviewMobileInfo {
+  flex: 1;
+  min-width: 0;
 }
 
 /* seat number label */
-#pvMSeatNo{
-  font-size:16px;
-  font-weight:800;
+#pvMSeatNo {
+  font-size: 16px;
+  font-weight: 800;
   /* color:#64748b; */
   color: #00f;
-  margin-bottom:4px;
+  margin-bottom: 4px;
 }
 
 /* NAME — bigger */
-#pvMName{
-  font-size:20px;
-  font-weight:800;
-  line-height:1.2;
-  margin-bottom:2px;
-  word-break:break-word;
+#pvMName {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 2px;
+  word-break: break-word;
 }
 
 /* meta lines */
 #pvMStudentId,
 #pvMEmail,
-#pvMPhone{
-  font-size:16px;
-  line-height:1.35;
-  margin-bottom:1px;
-  color:#334155;
-  word-break:break-all;
+#pvMPhone {
+  font-size: 16px;
+  line-height: 1.35;
+  margin-bottom: 1px;
+  color: #334155;
+  word-break: break-all;
 }
 
 /* only direct buttons — not grid row buttons */
-.seatPreviewMobile > .btn,
-.seatPreviewMobile > button{
-  margin-top:10px;
-  width:100%;
+.seatPreviewMobile>.btn,
+.seatPreviewMobile>button {
+  margin-top: 10px;
+  width: 100%;
 }
 
 /* desktop/mobile switch */
-@media (min-width: 769px){
-  .seatPreviewMobile{ display:none !important; }
+@media (min-width: 769px) {
+  .seatPreviewMobile {
+    display: none !important;
+  }
 }
 
-@media (max-width: 768px){
-  .seatPreview{ display:none !important; }
+@media (max-width: 768px) {
+  .seatPreview {
+    display: none !important;
+  }
 }
 
-.seatPreviewRemarks{
-  width:100%;
-  border:1px solid #cbd5e1;
-  border-radius:12px;
-  padding:8px;
-  font-size:14px;
-  resize:vertical;
-  margin-top:6px;
+.seatPreviewRemarks {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 8px;
+  font-size: 14px;
+  resize: vertical;
+  margin-top: 6px;
 }
 
-.btn-sm{
-  padding:6px 12px;
-  font-size:13px;
-  margin-top:6px;
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  margin-top: 6px;
 }
 
 /* =========================
    FIX: Mobile Preview Buttons = One Row
 ========================= */
-.seatPreviewMobile .previewBtnRow{
+.seatPreviewMobile .previewBtnRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -2738,7 +2771,7 @@ button:disabled {
 }
 
 .seatPreviewMobile .previewBtnRow .btn,
-.seatPreviewMobile .previewBtnRow button{
+.seatPreviewMobile .previewBtnRow button {
   width: 100% !important;
   margin-top: 0 !important;
 }
@@ -2747,7 +2780,7 @@ button:disabled {
    DESKTOP PREVIEW BUTTONS — ONE ROW
 ========================= */
 
-.seatPreview .previewBtnRow{
+.seatPreview .previewBtnRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -2755,54 +2788,56 @@ button:disabled {
 }
 
 .seatPreview .previewBtnRow .btn,
-.seatPreview .previewBtnRow button{
+.seatPreview .previewBtnRow button {
   width: 100% !important;
   margin-top: 0 !important;
 }
 
 /* ===== GLOBAL LOADING MODAL ===== */
 
-.loadingOverlay{
+.loadingOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.35);
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  background: rgba(0, 0, 0, .35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 99999999;
 
   /* block all clicks */
   pointer-events: all;
 }
 
-.loadingBox{
-  background:#ffffff;
-  border-radius:18px;
-  padding:22px 30px;
-  box-shadow:0 25px 60px rgba(0,0,0,.25);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:14px;
-  min-width:180px;
+.loadingBox {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 22px 30px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, .25);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  min-width: 180px;
 }
 
-.loadingText{
-  font-weight:800;
-  font-size:16px;
+.loadingText {
+  font-weight: 800;
+  font-size: 16px;
 }
 
-.loadingSpinner{
-  width:30px;
-  height:30px;
-  border:4px solid #e5e7eb;
-  border-top:4px solid #2563eb;
-  border-radius:50%;
+.loadingSpinner {
+  width: 30px;
+  height: 30px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #2563eb;
+  border-radius: 50%;
   animation: spinLoader .8s linear infinite;
 }
 
-@keyframes spinLoader{
-  to { transform: rotate(360deg); }
+@keyframes spinLoader {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ===== GRADE STATUS BADGE ===== */
@@ -2857,14 +2892,22 @@ button:disabled {
 }
 
 /* widths */
-#newGradeName { width: 240px; }
-#newGradeMax { width: 110px; }
-#newGradeWeight { width: 120px; }
+#newGradeName {
+  width: 240px;
+}
+
+#newGradeMax {
+  width: 110px;
+}
+
+#newGradeWeight {
+  width: 120px;
+}
 
 /* focus effect */
 .gradeAddRow input:focus {
   border-color: #1ea7fd;
-  box-shadow: 0 0 0 3px rgba(30,167,253,.15);
+  box-shadow: 0 0 0 3px rgba(30, 167, 253, .15);
 }
 
 /* hover */
@@ -2874,10 +2917,10 @@ button:disabled {
 
 /* ===== SCORE INPUT ===== */
 
-.seatPreviewMobile .seatPreviewBody{
-  display:flex;
-  gap:14px;
-  align-items:flex-start;
+.seatPreviewMobile .seatPreviewBody {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
 }
 
 @media (max-width: 520px) {
@@ -2887,24 +2930,24 @@ button:disabled {
   }
 }
 
-@media (max-width:768px){
+@media (max-width:768px) {
 
-  #gradeAdminTools{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:10px;
+  #gradeAdminTools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
-  #gradeAdminTools select{
-    grid-column:1 / -1;
+  #gradeAdminTools select {
+    grid-column: 1 / -1;
   }
 
-  #gradeAdminTools input{
-    width:100%;
+  #gradeAdminTools input {
+    width: 100%;
   }
 
-  #gradeAdminTools button{
-    width:100%;
+  #gradeAdminTools button {
+    width: 100%;
   }
 }
 
@@ -2912,22 +2955,22 @@ button:disabled {
    LEARNER DEVELOPMENT CHART
 ========================= */
 
-.learnerDevChartWrap{
+.learnerDevChartWrap {
   width: 100%;
   max-width: 900px;
   height: 520px;
   margin: 14px auto 0;
 }
 
-#learnerDevChart{
+#learnerDevChart {
   width: 100% !important;
   height: 100% !important;
   display: block;
 }
 
 /* mobile */
-@media (max-width: 768px){
-  .learnerDevChartWrap{
+@media (max-width: 768px) {
+  .learnerDevChartWrap {
     height: 320px;
   }
 }
@@ -2959,174 +3002,176 @@ button:disabled {
   grid-column: 1 !important;
 }
 
-.app-booting #screenConfig { display:none !important; }
+.app-booting #screenConfig {
+  display: none !important;
+}
 
 /* =========================
    GRADES TABLE
 ========================= */
-.gradeTable{
-width:100%;
-min-width: 650px;
-border-collapse: collapse;
-margin-top: 10px;
+.gradeTable {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  margin-top: 10px;
 }
 
-.gradeTable th{
-text-align:left;
-font-weight:600;
-padding:8px 6px;
-border-bottom:1px solid #e2e8f0;
-font-size:13px;
-color:#64748b;
+.gradeTable th {
+  text-align: left;
+  font-weight: 600;
+  padding: 8px 6px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #64748b;
 }
 
-.gradeTable td{
-padding:8px 6px;
-border-bottom:1px solid #f1f5f9;
-font-size:14px;
+.gradeTable td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 14px;
 }
 
-.gradePercent.pass{
-color:#16a34a;
-font-weight:600;
+.gradePercent.pass {
+  color: #16a34a;
+  font-weight: 600;
 }
 
-.gradePercent.fail{
-color:#dc2626;
-font-weight:600;
+.gradePercent.fail {
+  color: #dc2626;
+  font-weight: 600;
 }
 
-.taskGradeTable{
+.taskGradeTable {
 
-width:100%;
-border-collapse:collapse;
-
-}
-
-.taskGradeTable th{
-
-text-align:left;
-padding:8px;
-font-weight:800;
-border-bottom:1px solid #e2e8f0;
+  width: 100%;
+  border-collapse: collapse;
 
 }
 
-.taskGradeTable td{
+.taskGradeTable th {
 
-padding:8px;
-border-bottom:1px solid #f1f5f9;
+  text-align: left;
+  padding: 8px;
+  font-weight: 800;
+  border-bottom: 1px solid #e2e8f0;
+
+}
+
+.taskGradeTable td {
+
+  padding: 8px;
+  border-bottom: 1px solid #f1f5f9;
 
 }
 
 /* score input field*/
-.gradeInput{
+.gradeInput {
 
-width:90px;
-padding:6px;
-border-radius:8px;
-border:1px solid #cbd5e1;
-text-align:center;
+  width: 90px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  text-align: center;
 
 }
 
-.gradeReadonly{
-  font-weight:800;
-  color:#2563eb;
+.gradeReadonly {
+  font-weight: 800;
+  color: #2563eb;
 }
 
-#gradeStatusBadge{
-  padding:6px 14px;
-  border-radius:14px;
-  font-weight:600;
+#gradeStatusBadge {
+  padding: 6px 14px;
+  border-radius: 14px;
+  font-weight: 600;
 }
 
-.passed{
-  background:#e6f9ed;
-  color:#15803d;
-  font-weight:800;
-  padding:4px 12px;
-  border-radius:10px;
+.passed {
+  background: #e6f9ed;
+  color: #15803d;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 10px;
 }
 
-.failed{
-  background:#fde8e8;
-  color:#b42318;
-  font-weight:800;
-  padding:4px 12px;
-  border-radius:10px;
+.failed {
+  background: #fde8e8;
+  color: #b42318;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 10px;
 }
 
-.hidden{
-  display:none;
+.hidden {
+  display: none;
 }
 
-.gradeCategoryHeader:hover{
-  background:#e2e8f0;
+.gradeCategoryHeader:hover {
+  background: #e2e8f0;
 }
 
 /* =============================
    GRADE TOOLBAR POLISH
 ============================= */
 
-.gradeToolbar{
-  display:flex;
-  gap:10px;
-  align-items:center;
-  flex-wrap:wrap;
+.gradeToolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-.gradeField{
-  height:42px;
-  border-radius:8px;
-  border:1px solid #cbd5e1;
-  padding:0 12px;
-  font-size:14px;
-  outline:none;
-  transition:all .2s ease;
+.gradeField {
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  padding: 0 12px;
+  font-size: 14px;
+  outline: none;
+  transition: all .2s ease;
 }
 
-.gradeField:focus{
-  border-color:#0ea5e9;
-  box-shadow:0 0 0 2px rgba(14,165,233,.2);
+.gradeField:focus {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, .2);
 }
 
 /* Dropdown slightly smaller */
-.gradeDropdown{
-  min-width:160px;
-  max-width:360px;
+.gradeDropdown {
+  min-width: 160px;
+  max-width: 360px;
 }
 
 /* Input larger */
-.gradeInputField{
-  width:120px;
-  text-align:center;
-  font-weight:600;
+.gradeInputField {
+  width: 120px;
+  text-align: center;
+  font-weight: 600;
 }
 
 /* Button same height */
-.gradeBtn{
-  height:42px;
-  padding:0 20px;
-  border-radius:8px;
-  font-weight:600;
+.gradeBtn {
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-weight: 600;
 }
 
 /* ================================
    RESPONSIVE GRADE TABLE FIX
 ================================ */
 
-.gradeTableWrap{
-  width:100%;
-  overflow-x:auto;
+.gradeTableWrap {
+  width: 100%;
+  overflow-x: auto;
 }
 
-@media (max-width:768px){
-  .gradeTable{
-    font-size:12px;
+@media (max-width:768px) {
+  .gradeTable {
+    font-size: 12px;
   }
 
-  .gradeInput{
-    width:60px;
+  .gradeInput {
+    width: 60px;
   }
 }
