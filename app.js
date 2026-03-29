@@ -733,9 +733,9 @@ function renderTaskGrades() {
     };
   });
 
-  //setTimeout(() => {
-  recomputeAllGrades();
-  //}, 0);
+  setTimeout(() => {
+    recomputeAllGrades();
+  }, 0);
 
   document.querySelectorAll('input[name="subjectType"]').forEach(radio => {
     radio.onchange = function () {
@@ -1063,9 +1063,11 @@ function recomputeAllGrades() {
       const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
       const safeCat = category.replace(/[^a-zA-Z0-9]/g, "_");
 
-      const cell = document.querySelector(
+      /*const cell = document.querySelector(
         `.catAvgRow_${safePeriod}_${safeCat}.catAvgRow`
-      );
+      );*/
+      const row = document.querySelector(`.catAvgRow_${safePeriod}_${safeCat}`);
+      const cell = row ? row.querySelector(".catAvgRow") : null;
 
       if (cell) {
         cell.textContent = result.grade.toFixed(0);
@@ -1074,7 +1076,7 @@ function recomputeAllGrades() {
     });
   });
 
-  //console.log("✅ CATEGORY GRADES:", state.categoryGrades);
+  console.log("✅ CATEGORY GRADES:", state.categoryGrades);
 
   // ✅ PERIOD + FINAL
   recomputePeriodAverages();
@@ -1340,7 +1342,8 @@ function computePeriodGrade(period) {
   let total = 0;
 
   Object.keys(weights).forEach(cat => {
-    const grade = categories[normalize(cat)];
+    //const grade = categories[normalize(cat)];
+    const grade = categories[cat] ?? categories[normalize(cat)];
     if (grade !== undefined) {
       total += grade * weights[cat];
     }
@@ -1356,15 +1359,13 @@ function computePeriodGrade(period) {
 * purpose: -
 *******************************************************/
 function transmute(rawScore, subjectType = "minor") {
-  const table = subjectType === "major"
-    ? state.transmutationMajor
-    : state.transmutationMinor;
+  const table = subjectType === "major" ? state.transmutationMajor : state.transmutationMinor;
 
   //console.log("📥 RAW TABLE:", table?.slice(0, 10));
   //console.log("📥 RAW INPUT:", rawScore);
 
-  if (!Array.isArray(table)) {
-    //console.warn("❌ Table is not array");
+  if (!Array.isArray(table) || !table.length) {
+    console.warn("❌ Table is not array");
     return rawScore;
   }
 
@@ -1378,7 +1379,7 @@ function transmute(rawScore, subjectType = "minor") {
     const gradeStr = String(row[1]).trim();
 
     if (rawStr === "" || gradeStr === "") {
-      //console.warn("🚨 SKIPPING EMPTY ROW:", i, row);
+      console.warn("🚨 SKIPPING EMPTY ROW:", i, row);
       return;
     }
 
@@ -1386,7 +1387,7 @@ function transmute(rawScore, subjectType = "minor") {
     const grade = Number(gradeStr);
 
     if (!Number.isFinite(raw) || !Number.isFinite(grade)) {
-      //console.warn("🚨 INVALID ROW:", i, row);
+      console.warn("🚨 INVALID ROW:", i, row);
       return;
     }
 
@@ -1396,7 +1397,7 @@ function transmute(rawScore, subjectType = "minor") {
   //console.log("✅ CLEAN TABLE:", clean.slice(0, 10));
 
   if (!clean.length) {
-    //console.error("❌ CLEAN TABLE EMPTY → API ISSUE");
+    console.error("❌ CLEAN TABLE EMPTY → API ISSUE");
     return rawScore;
   }
 
