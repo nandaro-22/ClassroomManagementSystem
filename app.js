@@ -384,7 +384,6 @@ const LS_SESSION = "sf_session_v1"; // ✅ keep login + current page on refresh
 /* ===========================
    Google OAuth and Web API Base URL (Apps Script Web App)
 =========================== */
-//const FIXED_API_URL = "https://script.google.com/macros/s/AKfycbwjtnD9r1uPmOgEe7c3oE1__UazCfJOvseJZzrfvNCODIPXBMCvbnlvHxAcj3VfNC9DYQ/exec";
 const FIXED_API_URL = "https://script.google.com/macros/s/AKfycbxXC__2kB9B6VhTIE3pggIsDFbeX4-YFn7h9ew0TzTTk9ms22erbzeDZHQvQeLNL2we/exec";
 const FIXED_CLIENT_ID = "157290002152-c2ngtbf8312no72eotpqo9j0nfvt5io1.apps.googleusercontent.com";
 
@@ -823,7 +822,7 @@ async function loadTaskGrades(studentId) {
     showLoading("Loading grades, please wait...");
     // Stop API call if logged out
     if (!state.idToken) {
-      console.log("Skipped grades load - no session.");
+      //console.log("Skipped grades load - no session.");
       return;
     }
 
@@ -846,12 +845,10 @@ async function loadTaskGrades(studentId) {
       throw new Error(res?.message || "Load failed");
     }
 
-    console.log("GRADE API RESPONSE:", res);
+    //console.log("GRADE API RESPONSE:", res);
 
-    const tasks = res.items || res.tasks || [];
-    //if (!res.items || res.items.length === 0) {
-    if (!tasks.length) {
-      console.log("No sheet data. Using default template.");
+    if (!res.items || res.items.length === 0) {
+      //console.log("No sheet data. Using default template.");
       state.gradeTasks = getDefaultGradeTemplate();
     } else {
       state.gradeTasks = res.items;
@@ -864,7 +861,7 @@ async function loadTaskGrades(studentId) {
     }
     hideLoading();
   } catch (err) {
-    console.error("TASK LOAD ERROR:", err);
+    //console.error("TASK LOAD ERROR:", err);
     hideLoading();
     state.gradeTasks = getDefaultGradeTemplate();
     renderTaskGrades();
@@ -4247,6 +4244,7 @@ function renderGoogleLoginButton() {
 async function onGoogleCredential(resp) {
 
   try {
+    showLoading("Loading Google Sign-In...");
     state.idToken = resp.credential;
 
     // ✅ PERSISTENT LOGIN SAVE (1 week session)
@@ -4270,7 +4268,6 @@ async function onGoogleCredential(resp) {
     state.me = me;
     applyRoleUI();
 
-    showLoading("Loading Google Sign-In...");
     localStorage.setItem("sf_id_token", state.idToken);
     localStorage.setItem("sf_user_email", me.email || "");
     document.body.classList.remove("student-mode");
