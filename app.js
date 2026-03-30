@@ -167,6 +167,7 @@ const screenFilters = document.getElementById("screenFilters");
 const screenList = document.getElementById("screenList");
 const screenDetails = document.getElementById("screenDetails");
 const screenSeatMap = document.getElementById("screenSeatMap");
+const screenExport = document.getElementById("screenExport");
 const screenMenu = document.getElementById("screenMenu");
 
 /* ===========================
@@ -336,6 +337,7 @@ const inpAddStudentEmail = document.getElementById("inpAddStudentEmail");
 =========================== */
 const menuStudentInfo = document.getElementById("menuStudentInfo");
 const menuSeatMapInfo = document.getElementById("menuSeatMapInfo");
+const menuExport = document.getElementById("menuExport");
 
 /* ===========================
    DOM — DEBUG & SYNC PANEL
@@ -763,7 +765,12 @@ function recomputePeriodAverages() {
     const cell = row.querySelector("td:last-child");
 
     if (cell) {
-      cell.textContent = grade.toFixed(1);
+      const value = Number(grade) || 0;
+      // update value
+      cell.textContent = value.toFixed(1);
+      if (value >= 85) cell.style.color = "#1f7a3f"; // green
+      else if (value >= 75) cell.style.color = "#b26a00"; // orange
+      else cell.style.color = "#b42318"; // red
     }
   });
 }
@@ -819,6 +826,9 @@ function getCategoryType(category) {
 *******************************************************/
 async function loadTaskGrades(studentId) {
   try {
+
+    // reset all fields
+    resetGradeUI();
     showLoading("Loading grades, please wait...");
     // Stop API call if logged out
     if (!state.idToken) {
@@ -897,15 +907,9 @@ function recomputeTaskFinal() {
     const cell = document.getElementById("taskPct_" + task.taskCode);
     if (cell) {
       cell.textContent = pct.toFixed(1) + "%";
-      if (pct >= 75) {
-        cell.style.color = "#1f7a3f"; // green
-      }
-      else if (pct >= 50) {
-        cell.style.color = "#b26a00"; // orange
-      }
-      else {
-        cell.style.color = "#b42318"; // red
-      }
+      if (pct >= 85) cell.style.color = "#1f7a3f"; // green
+      else if (pct >= 75) cell.style.color = "#b26a00"; // orange
+      else cell.style.color = "#b42318"; // red
     }
   });
 
@@ -927,10 +931,9 @@ function recomputeTaskFinal() {
   // reset class safely
   badge.classList.remove("passed", "failed");
   // if no grade yet
-  if (count === 0) {
-    badge.textContent = "-";
-    return;
-  }
+  const hasMidterm = hasPeriodGrades("MIDTERM PERIOD");
+  const hasFinal = hasPeriodGrades("FINAL PERIOD");
+
   if (final >= 75) {
     badge.textContent = "PASSED";
     badge.classList.add("passed");
@@ -939,11 +942,37 @@ function recomputeTaskFinal() {
     badge.classList.add("failed");
   }
 
+  if (!hasMidterm || !hasFinal) {
+    badge.textContent = "INCOMPLETE";
+    badge.classList.add("incomplete");
+    return;
+  }
+
   /*console.log("FINAL DEBUG: ", {
     midterm,
     finalPeriod,
     final
   });*/
+}
+
+/*******************************************************
+* function name: hasPeriodGrades
+* parameter: 
+* return: -
+* purpose: 
+*******************************************************/
+function hasPeriodGrades(period) {
+  return (state.gradeTasks || []).some(t => {
+    const p = normalize(t.period || "MIDTERM PERIOD");
+    const score = Number(t.score);
+    const max = Number(t.max);
+
+    return (
+      p === normalize(period) &&
+      Number.isFinite(score) &&
+      max > 0
+    );
+  });
 }
 
 /*******************************************************
@@ -1070,13 +1099,18 @@ function recomputeAllGrades() {
       const cell = row ? row.querySelector(".catAvgRow") : null;
 
       if (cell) {
-        cell.textContent = result.grade.toFixed(0);
-      }
+        const value = Number(result.grade) || 0;
 
+        // update value
+        cell.textContent = value.toFixed(0);
+        if (value >= 85) cell.style.color = "#1f7a3f"; // green
+        else if (value >= 75) cell.style.color = "#b26a00"; // orange
+        else cell.style.color = "#b42318"; // red
+      }
     });
   });
 
-  console.log("✅ CATEGORY GRADES:", state.categoryGrades);
+  //console.log("✅ CATEGORY GRADES:", state.categoryGrades);
 
   // ✅ PERIOD + FINAL
   recomputePeriodAverages();
@@ -1426,18 +1460,15 @@ function computeCategoryGrade(tasks, type = "minor") {
   let totalMax = 0;
 
   tasks.forEach(t => {
-    const score = parseFloat(t.score);
+    const rawScore = t.score;
+    const score = rawScore === "" || rawScore === null || rawScore === undefined
+      ? 0   // ✅ treat missing as ZERO
+      : parseFloat(rawScore);
+
     const max = parseFloat(t.max);
 
-    /*console.log("📊 TASK CHECK:", {
-      rawScore: t.score,
-      rawMax: t.max,
-      score,
-      max
-    });*/
-
-    if (!isNaN(score) && !isNaN(max) && max > 0) {
-      totalScore += score;
+    if (!isNaN(max) && max > 0) {
+      totalScore += (isNaN(score) ? 0 : score); // safe fallback
       totalMax += max;
     }
   });
@@ -1475,6 +1506,76 @@ function normalize(str) {
   return String(str || "").toUpperCase()
     .replace(/\s+/g, " ")   // remove extra spaces
     .trim();
+}
+
+/*******************************************************
+* function name: resetGradesUI
+* parameter: none
+* return: -
+* purpose: Clears all grade scores in state, resets final grade and status display, and re-renders the grade table.
+********************************************************/
+function resetGradesUI() {
+  state.grades.scores = {};
+
+  const finalEl = document.getElementById("finalGradeValue");
+  if (finalEl) finalEl.textContent = "0.00%";
+
+  const statusEl = document.getElementById("finalGradeStatus");
+  if (statusEl) {
+    statusEl.textContent = "—";
+    statusEl.className = "gradeStatus";
+  }
+
+  //renderGradeTable();
+}
+
+/*******************************************************
+* function name: resetGradeUI
+* parameter: none
+* return: -
+* purpose: -
+*******************************************************/
+function resetGradeUI() {
+
+  // ✅ CLEAR STATE
+  state.gradeTasks = [];
+  state.categoryGrades = {
+    "MIDTERM PERIOD": {},
+    "FINAL PERIOD": {}
+  };
+  state.gradeCategoryState = {};
+
+  // ✅ CLEAR TABLE
+  const tbody = document.getElementById("gradeTableBody");
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;color:#94a3b8;">
+          Loading...
+        </td>
+      </tr>
+    `;
+  }
+
+  // ✅ CLEAR FINAL GRADE
+  const finalEl = document.getElementById("finalGradeValue");
+  if (finalEl) {
+    finalEl.textContent = "-";
+    finalEl.style.color = "#64748b";
+  }
+
+  // ✅ CLEAR STATUS BADGE
+  const badge = document.getElementById("finalGradeStatus");
+  if (badge) {
+    badge.textContent = "-";
+    badge.classList.remove("passed", "failed", "incomplete");
+  }
+
+  // ✅ CLEAR STUDENT ID DISPLAY
+  const idEl = document.getElementById("gradeStudentId");
+  if (idEl) {
+    idEl.textContent = "-";
+  }
 }
 
 /*******************************************************
@@ -1740,6 +1841,27 @@ function openCacheDB() {
 }
 
 /*******************************************************
+* function name: openscreenExport
+* parameter: 
+* return: -
+* purpose: 
+********************************************************/
+function openscreenExport() {
+  document.getElementById("screenExport").classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: closescreenExport
+* parameter: 
+* return: -
+* purpose: 
+********************************************************/
+function closescreenExport() {
+  document.getElementById("screenExport").classList.add("hidden");
+  showScreen(screenMenu);
+}
+
+/*******************************************************
 * function name: cacheSet
 * parameter: key (string), value (any)
 * return: -
@@ -1820,7 +1942,8 @@ function showScreen(el) {
     screenFilters,
     screenList,
     screenDetails,
-    screenSeatMap
+    screenSeatMap,
+    screenExport
   ];
 
   // hide grades
@@ -1848,6 +1971,7 @@ function showScreen(el) {
   else if (el === screenList) state.currentScreen = "list";
   else if (el === screenDetails) state.currentScreen = "details";
   else if (el === screenSeatMap) state.currentScreen = "seatmap";
+  else if (el === screenExport) state.currentScreen = "export"
   //else if (el === screenConfig) state.currentScreen = "config";
   //else state.currentScreen = "config";
   else state.currentScreen = "menu";
@@ -2448,27 +2572,6 @@ function updateGradeStatus(val) {
 
   el.textContent = txt;
   el.className = cls;
-}
-
-/*******************************************************
-* function name: resetGradesUI
-* parameter: none
-* return: -
-* purpose: Clears all grade scores in state, resets final grade and status display, and re-renders the grade table.
-********************************************************/
-function resetGradesUI() {
-  state.grades.scores = {};
-
-  const finalEl = document.getElementById("finalGradeValue");
-  if (finalEl) finalEl.textContent = "0.00%";
-
-  const statusEl = document.getElementById("finalGradeStatus");
-  if (statusEl) {
-    statusEl.textContent = "—";
-    statusEl.className = "gradeStatus";
-  }
-
-  //renderGradeTable();
 }
 
 /*******************************************************
@@ -3785,6 +3888,236 @@ if (btnFullscreenPhoto) {
   };
 }
 
+/*******************************************************
+* function name: getStudentsForExport
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+/*function getStudentsForExport(scope, section, studentId) {
+  let list = state.list.items || [];
+
+  if (scope === "section") {
+    return list.filter(s => s.section === section);
+  }
+
+  if (scope === "student") {
+    return list.filter(s => s.studentId === studentId);
+  }
+
+  return list;
+}*/
+
+/*******************************************************
+* function name: runExport
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+/*async function runExport() {
+  console.log("runExport called");
+  const type = document.getElementById("exportType").value;
+  const scope = document.getElementById("exportScope").value;
+  const section = document.getElementById("exportSection").value;
+  const student = document.getElementById("exportStudent").value;
+
+  const students = getStudentsForExport(scope, section, student);
+
+  if (!students.length) {
+    alert("No students found.");
+    return;
+  }
+
+  if (type === "excel") {
+    await exportExcel(students);
+  } else {
+    await exportPDF(students);
+  }
+}*/
+async function runExport() {
+  console.log("runExport called");
+  const type = document.getElementById("exportType").value;
+  const scope = document.getElementById("exportScope").value;
+  const section = document.getElementById("exportSection").value;
+  const student = document.getElementById("exportStudent").value;
+
+  const students = await getStudentsForExport(scope, section, student);
+
+  if (!students.length) {
+    alert("No students found.");
+    return;
+  }
+
+  if (type === "excel") {
+    await exportExcel(students);
+  } else {
+    await exportPDF(students);
+  }
+}
+
+/*******************************************************
+* function name: getStudentsForExport
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function getStudentsForExport(scope, section, studentId) {
+
+  console.log("getStudentsForExport called");
+
+  const res = await apiGet({
+    action: "exportGrades",
+
+    // ✅ EXACT PARAM ALIGNMENT
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || "",
+    courseSubject: state.filters.courseSubject || "",
+
+    // 🔥 IMPORTANT: send BOTH for safety
+    program: state.filters.program || "",
+    section: section || "",
+
+    idToken: state.idToken
+  });
+
+  console.log("res: ", res);
+
+  // ✅ HANDLE ERROR PROPERLY
+  if (!res || res.status !== "success") {
+    console.error("Export API failed:", res);
+    return [];
+  }
+
+  let list = res.items || [];
+
+  console.log("list: ", list);
+
+  // ✅ FILTER PER STUDENT
+  if (scope === "student" && studentId) {
+    list = list.filter(s =>
+      String(s.studentId).trim() === String(studentId).trim()
+    );
+  }
+
+  return list;
+}
+
+/*******************************************************
+* function name: loadGradesForExport
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function loadGradesForExport(studentId) {
+  const res = await apiGet({
+    action: "gradesTaskLoad",
+    studentId,
+    idToken: state.idToken
+  });
+
+  return res?.items || [];
+}
+
+/*******************************************************
+* function name: exportExcel
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function exportExcel(students) {
+
+  console.log("exportExcel called");
+
+  if (typeof XLSX === "undefined") {
+    alert("XLSX library not loaded!");
+    return;
+  }
+  const rows = [];
+
+  for (const s of students) {
+
+    const tasks = await loadGradesForExport(s.studentId);
+
+    state.gradeTasks = tasks;
+    recomputeAllGrades();
+
+    const midterm = computePeriodGrade("MIDTERM PERIOD") || 0;
+    const final = computePeriodGrade("FINAL PERIOD") || 0;
+    const total = (midterm * 0.5) + (final * 0.5);
+
+    rows.push({
+      StudentID: s.studentId,
+      Name: s.name,
+      Section: s.section,
+      Midterm: midterm.toFixed(1),
+      Final: final.toFixed(1),
+      FinalGrade: total.toFixed(2)
+    });
+  }
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(wb, ws, "Grades");
+
+  XLSX.writeFile(wb, "GradesExport.xlsx");
+  console.log("XLSX: ", XLSX);
+  alert("Export complete!");
+}
+
+/*******************************************************
+* function name: exportPDF
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function exportPDF(students) {
+
+  console.log("exportExcel called");
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  let y = 10;
+
+  doc.text("Student Grades Report", 10, y);
+  y += 10;
+
+  for (const s of students) {
+
+    const tasks = await loadGradesForExport(s.studentId);
+
+    state.gradeTasks = tasks;
+    recomputeAllGrades();
+
+    const midterm = computePeriodGrade("MIDTERM PERIOD") || 0;
+    const final = computePeriodGrade("FINAL PERIOD") || 0;
+    const total = (midterm * 0.5) + (final * 0.5);
+
+    doc.text(`${s.name} | ${total.toFixed(2)}`, 10, y);
+
+    y += 8;
+
+    if (y > 270) {
+      doc.addPage();
+      y = 10;
+    }
+  }
+
+  doc.save("GradesReport.pdf");
+}
+
+/*******************************************************
+* function name: populateExportSection
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function populateExportSection() {
+  const select = document.getElementById("exportSection");
+  const sections = [...new Set((state.list.items || []).map(s => s.section))];
+
+  select.innerHTML = sections.map(s => `<option value="${s}">${s}</option>`).join("");
+}
 
 /* ===========================
    API HELPERS
@@ -4313,6 +4646,7 @@ async function onGoogleCredential(resp) {
         // ❌ KEEP MENU CARDS HIDDEN
         if (menuStudentInfo) menuStudentInfo.classList.add("hidden");
         if (menuSeatMapInfo) menuSeatMapInfo.classList.add("hidden");
+        if (menuExport) menuExport.classList.add("hidden");
         if (btnOpenSeatMap) btnOpenSeatMap.classList.add("hidden");
         if (btnGoList) btnGoList.classList.add("hidden");
 
@@ -4335,6 +4669,7 @@ async function onGoogleCredential(resp) {
       document.body.classList.remove("student-mode");
       if (menuStudentInfo) menuStudentInfo.classList.remove("hidden");
       if (menuSeatMapInfo) menuSeatMapInfo.classList.remove("hidden");
+      if (menuExport) menuExport.classList.remove("hidden");
       if (btnOpenSeatMap) btnOpenSeatMap.classList.remove("hidden");
       if (btnGoList) btnGoList.classList.remove("hidden");
 
@@ -4453,6 +4788,7 @@ function forceLogout(message) {
     // hide menu cards if any
     if (menuStudentInfo) menuStudentInfo.classList.add("hidden");
     if (menuSeatMapInfo) menuSeatMapInfo.classList.add("hidden");
+    if (menuExport) menuExport.classList.add("hidden");
 
     showScreen(screenConfig);
     hideNetBadge();
@@ -4878,7 +5214,6 @@ function openDetailsByIndex(idx) {
 
   const item = state.list.items[idx];
   if (!item) return;
-  console.log("openDetailsByIndex-openDetails");
   openDetails(item, idx);
   saveSession();
 }
@@ -7034,6 +7369,12 @@ if (menuSeatMapInfo) {
   };
 }
 
+if (menuExport) {
+  menuExport.onclick = () => {
+    showScreen(screenExport); // Export to excel/pdf
+  };
+}
+
 if (btnSeatAddRoom) {
   btnSeatAddRoom.onclick = () => {
     seatAddRoomWrap.classList.remove("hidden");
@@ -7716,6 +8057,9 @@ function hideLoading() {
         else if (target === "seatmap") {
           showScreen(screenSeatMap);
         }
+        else if (target === "export") {
+          showScreen(screenExport);
+        }
         else {
           showScreen(screenList);
         }
@@ -7763,6 +8107,16 @@ document.addEventListener("click", (e) => {
   const img = modal.querySelector("img");
   if (img) img.src = "";
 });
+
+document.getElementById("exportScope").onchange = function () {
+  const scope = this.value;
+
+  document.getElementById("exportSectionWrap")
+    .classList.toggle("hidden", scope !== "section");
+
+  document.getElementById("exportStudentWrap")
+    .classList.toggle("hidden", scope !== "student");
+};
 
 /* ===========================
    SESSION ACTIVITY REFRESH

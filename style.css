@@ -2392,7 +2392,7 @@ button:disabled {
   /* --- Bottom buttons: Save / Upload Evidence / View History --- */
   #btnSave,
   #btnUploadEvidence,
-  #btnViewHistory {
+  #btnHistory {
     width: 100% !important;
     min-height: 44px !important;
     font-size: 14px !important;
@@ -2420,7 +2420,7 @@ button:disabled {
   /* ito yung container ng 3 buttons (safe selector) */
   #btnSave,
   #btnUploadEvidence,
-  #btnViewHistory {
+  #btnHistory {
     width: 100% !important;
     min-width: 0 !important;
     flex: 1 1 0 !important;
@@ -2440,7 +2440,7 @@ button:disabled {
   /* pinaka-important: yung PARENT nila gawing grid */
   #btnSave,
   #btnUploadEvidence,
-  #btnViewHistory {
+  #btnHistory {
     margin: 0 !important;
   }
 
@@ -2453,7 +2453,7 @@ button:disabled {
 
   #btnSave.parentRowFix,
   #btnUploadEvidence.parentRowFix,
-  #btnViewHistory.parentRowFix {
+  #btnHistory.parentRowFix {
     /* placeholder - ignore */
   }
 }
@@ -3097,6 +3097,14 @@ button:disabled {
 .failed {
   background: #fde8e8;
   color: #b42318;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 10px;
+}
+
+.incomplete {
+  background: #fde8e8;
+  color: #b26a00;
   font-weight: 800;
   padding: 4px 12px;
   border-radius: 10px;

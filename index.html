@@ -108,6 +108,11 @@
 					<div class="menuTitle">Room / Seat Map Information</div>
 					<div class="menuSub">Seat Map</div>
 				</div>
+
+				<div class="menuCard" id="menuExport">
+					<div class="menuTitle">Export Student Grades</div>
+					<div class="menuSub">Choose Export Option</div>
+				</div>
 			</div>
 		</section>
 
@@ -289,6 +294,45 @@
 		</section>
 
 		<!-- =========================
+				Export to excel
+				========================= -->
+		<div id="screenExport" class="modal hidden">
+			<div class="modal-inner">
+
+				<h3>Export Grades</h3>
+
+				<label>Format</label>
+				<select id="exportType">
+					<option value="excel">Excel</option>
+					<option value="pdf">PDF</option>
+				</select>
+
+				<label>Scope</label>
+				<select id="exportScope">
+					<option value="all">All Students</option>
+					<option value="section">Per Section</option>
+					<option value="student">Single Student</option>
+				</select>
+
+				<div id="exportSectionWrap" class="hidden">
+					<label>Section</label>
+					<select id="exportSection"></select>
+				</div>
+
+				<div id="exportStudentWrap" class="hidden">
+					<label>Student</label>
+					<select id="exportStudent"></select>
+				</div>
+
+				<div class="row gap" style="margin-top:12px;">
+					<button class="btn btn-primary" onclick="runExport()">Export</button>
+					<button class="btn btn-ghost" onclick="closescreenExport()">Cancel</button>
+				</div>
+
+			</div>
+		</div>
+
+		<!-- =========================
 				LEARNER DEVELOPMENT (RADAR INPUT)
 				========================= -->
 		<div id="tabContentLearnerDev" class="tabContent hidden">
@@ -329,6 +373,17 @@
 				<div class="muted" style="margin-bottom:12px;">
 					<!-- Seat: <b style="color: #00f" id="gradeSeatNo">—</b> | -->
 					Student ID: <b style="color: #00f" id="gradeStudentId">—</b>
+					<div style="margin-bottom:10px;">
+						<label style="margin-left:15px;">
+							<input type="radio" name="subjectType" value="major">
+							Major (Base 60)
+						</label>
+
+						<label style="margin-left:15px;">
+							<input type="radio" name="subjectType" value="minor" checked>
+							Minor (Base 50)
+						</label>
+					</div>
 				</div>
 
 				<!-- ✅ GRADES — ADMIN ADD TOOL (TEMP - frontend only) -->
@@ -354,18 +409,6 @@
 
 					<input id="newTaskMax" type="number" class="gradeField gradeInputField" placeholder="Items">
 					<button id="btnaddTaskRow" class="btn btn-primary">Add Item</button>
-				</div>
-
-				<div style="margin-bottom:10px;">
-					<label>
-						<input type="radio" name="subjectType" value="major">
-						Major (Base 60)
-					</label>
-
-					<label style="margin-left:15px;">
-						<input type="radio" name="subjectType" value="minor" checked>
-						Minor (Base 50)
-					</label>
 				</div>
 
 				<!-- Grades Table -->
@@ -1102,7 +1145,15 @@
 	</div>
 
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+	<!-- ✅ LOAD LIBRARIES FIRST -->
+	<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+	<!-- ✅ FIX JSPDF  -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 	<script src="app.js"></script>
+
 	<div id="seatTooltip" class="seatTooltip hidden"></div>
 
 	<!-- GLOBAL LOADING MODAL -->
