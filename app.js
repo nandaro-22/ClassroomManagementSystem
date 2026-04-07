@@ -776,39 +776,6 @@ function recomputePeriodAverages() {
 }
 
 /*******************************************************
-* function name: recomputeCategoryAverage
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-/*function computeCategoryGrade(tasks, type = "minor") {
-  let totalScore = 0;
-  let totalMax = 0;
-
-  tasks.forEach(t => {
-    const score = parseFloat(t.score);
-    const max = parseFloat(t.max);
-
-    if (!isNaN(score) && !isNaN(max) && max > 0) {
-      totalScore += score;
-      totalMax += max;
-    }
-  });
-
-  const raw = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
-  const grade = transmute(raw, type);
-
-  console.log("📊 CATEGORY:", tasks[0]?.category, {
-    totalScore,
-    totalMax,
-    raw,
-    grade
-  });
-
-  return { raw, grade };
-}*/
-
-/*******************************************************
 * function name: getCategoryType
 * parameter: -
 * return: -
@@ -1392,7 +1359,8 @@ function computePeriodGrade(period) {
 * return: -
 * purpose: -
 *******************************************************/
-function transmute(rawScore, subjectType = "minor") {
+// working transmute need to update for export
+/*function transmute(rawScore, subjectType = "minor") {
   const table = subjectType === "major" ? state.transmutationMajor : state.transmutationMinor;
 
   //console.log("📥 RAW TABLE:", table?.slice(0, 10));
@@ -1447,6 +1415,59 @@ function transmute(rawScore, subjectType = "minor") {
   }
 
   return clean[clean.length - 1].grade;
+}*/
+function transmute(rawScore, subjectType = "minor") {
+
+  let table = subjectType === "major" ? state.transmutationMajor : state.transmutationMinor;
+
+  // ✅ HARD FAIL SAFE (DO NOT BREAK EXPORT)
+  if (!Array.isArray(table) || !table.length) {
+    console.warn("❌ Transmutation table missing. Using raw score.");
+    return rawScore;
+  }
+
+  // ✅ CACHE CLEANED TABLE (PERFORMANCE BOOST)
+  const cacheKey = subjectType === "major" ? "_cachedMajor" : "_cachedMinor";
+
+  if (!state[cacheKey]) {
+
+    const clean = [];
+
+    table.forEach((row, i) => {
+      if (!row || row.length < 2) return;
+
+      const raw = Number(String(row[0]).trim());
+      const grade = Number(String(row[1]).trim());
+
+      if (!Number.isFinite(raw) || !Number.isFinite(grade)) {
+        console.warn("🚨 INVALID ROW:", i, row);
+        return;
+      }
+
+      clean.push({ raw, grade });
+    });
+
+    if (!clean.length) {
+      console.error("❌ CLEAN TABLE EMPTY → fallback raw");
+      return rawScore;
+    }
+
+    // ✅ SORT ONCE ONLY
+    clean.sort((a, b) => b.raw - a.raw);
+
+    state[cacheKey] = clean;
+  }
+
+  const cleanTable = state[cacheKey];
+
+  // ✅ MATCH (UNCHANGED LOGIC)
+  for (const row of cleanTable) {
+    if (rawScore >= row.raw) {
+      return row.grade;
+    }
+  }
+
+  return cleanTable[cleanTable.length - 1].grade;
 }
 
 /*******************************************************
@@ -1455,7 +1476,7 @@ function transmute(rawScore, subjectType = "minor") {
 * return: -
 * purpose: -
 *******************************************************/
-function computeCategoryGrade(tasks, type = "minor") {
+/*function computeCategoryGrade(tasks, type = "minor") {
   let totalScore = 0;
   let totalMax = 0;
 
@@ -1487,12 +1508,41 @@ function computeCategoryGrade(tasks, type = "minor") {
     transmuted
   });*/
 
-  //console.log("TOTAL SCORE:", totalScore)
-  //console.log("TABLE SAMPLE:", state.transmutationMinor.slice(0, 10))
-
+//console.log("TOTAL SCORE:", totalScore)
+//console.log("TABLE SAMPLE:", state.transmutationMinor.slice(0, 10))
+/*
   return {
     raw,
     grade: transmuted
+  };
+}*/
+function computeCategoryGrade(tasks, type = "minor") {
+
+  let totalScore = 0;
+  let totalMax = 0;
+
+  tasks.forEach(t => {
+    const rawScore = t.score;
+
+    const score = rawScore === "" || rawScore === null || rawScore === undefined ? 0 : parseFloat(rawScore);
+
+    const max = parseFloat(t.max);
+
+    if (!isNaN(max) && max > 0) {
+      totalScore += (isNaN(score) ? 0 : score);
+      totalMax += max;
+    }
+  });
+
+  const raw = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
+
+  const transmuted = transmute(raw, type);
+
+  return {
+    raw,                 // % (e.g. 77.5)
+    grade: transmuted,   // transmuted (e.g. 88)
+    totalScore,          // e.g. 31
+    totalMax             // e.g. 40
   };
 }
 
@@ -3914,34 +3964,16 @@ if (btnFullscreenPhoto) {
 * return: 
 * purpose: 
 ********************************************************/
-/*async function runExport() {
-  console.log("runExport called");
-  const type = document.getElementById("exportType").value;
-  const scope = document.getElementById("exportScope").value;
-  const section = document.getElementById("exportSection").value;
-  const student = document.getElementById("exportStudent").value;
-
-  const students = getStudentsForExport(scope, section, student);
-
-  if (!students.length) {
-    alert("No students found.");
-    return;
-  }
-
-  if (type === "excel") {
-    await exportExcel(students);
-  } else {
-    await exportPDF(students);
-  }
-}*/
 async function runExport() {
-  console.log("runExport called");
+  state.subjectType = document.getElementById("subjectType")?.value || "minor";
+
   const type = document.getElementById("exportType").value;
   const scope = document.getElementById("exportScope").value;
-  const section = document.getElementById("exportSection").value;
+  const section = document.getElementById("exportCourse").value;
   const student = document.getElementById("exportStudent").value;
 
   const students = await getStudentsForExport(scope, section, student);
+  //console.log("students: ", students);
 
   if (!students.length) {
     alert("No students found.");
@@ -3961,9 +3993,9 @@ async function runExport() {
 * return: 
 * purpose: 
 ********************************************************/
-async function getStudentsForExport(scope, section, studentId) {
+async function getStudentsForExport(scope, section, name) {
 
-  console.log("getStudentsForExport called");
+  //console.log("getStudentsForExport called");
 
   const res = await apiGet({
     action: "exportGrades",
@@ -3992,13 +4024,18 @@ async function getStudentsForExport(scope, section, studentId) {
 
   console.log("list: ", list);
 
-  // ✅ FILTER PER STUDENT
-  if (scope === "student" && studentId) {
-    list = list.filter(s =>
-      String(s.studentId).trim() === String(studentId).trim()
-    );
+  // ===== FILTERING =====
+  // 🔹 PER STUDENT
+  if (scope === "student" && name) {
+    list = list.filter(s => String(s["lastname,firstnamem.i."]).trim().toUpperCase() === String(name).trim().toUpperCase());
   }
-
+  console.log("name: ", name);
+  // 🔹 PER SECTION / COURSE
+  if (scope === "section" && section) {
+    list = list.filter(s => String(s["course(subject)"] || "").trim().toUpperCase() === String(section).trim().toUpperCase());
+  }
+  console.log("section: ", section);
+  console.log("list: ", list);
   return list;
 }
 
@@ -4019,104 +4056,1492 @@ async function loadGradesForExport(studentId) {
 }
 
 /*******************************************************
+* function name: normalizePeriod
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function normalizePeriod(p) {
+  return String(p || "").toUpperCase().includes("FINAL") ? "FINAL PERIOD" : "MIDTERM PERIOD";
+}
+
+/*******************************************************
+* function name: normalizeCategory
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function normalizeCategory(c, period) {
+  c = String(c || "").toUpperCase();
+
+  if (c.includes("AUG")) return "AUGUSTINIAN VALUE";
+  if (c.includes("QUIZ")) return "QUIZ";
+
+  if (c.includes("EXAM") && period === "MIDTERM PERIOD") return "MIDTERM EXAM";
+  if (c.includes("EXAM") && period === "FINAL PERIOD") return "FINAL EXAM";
+
+  if (c.includes("PARTICIPATION")) return "CLASS PARTICIPATION";
+
+  return c;
+}
+
+/*******************************************************
+* function name: getMaxScores
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function getMaxScores(students, period, category) {
+  let max = 0;
+
+  students.forEach(s => {
+    const tasks = s.grades || [];
+
+    const count = tasks.filter(t => {
+      const p = normalizePeriod(t.period);
+      const c = normalizeCategory(t.category, p);
+
+      return p === period && c === category;
+    }).length;
+
+    if (count > max) max = count;
+  });
+
+  return max;
+}
+
+/*******************************************************
 * function name: exportExcel
 * parameter: 
 * return: 
 * purpose: 
 ********************************************************/
+// VERSION 2
 async function exportExcel(students) {
 
-  console.log("exportExcel called");
-
+  showLoading("Exporting. Please wait...");
+  console.log("Exporting. Please wait...")
   if (typeof XLSX === "undefined") {
-    alert("XLSX library not loaded!");
+    hideLoading();
+    alert("XLSX not loaded");
     return;
   }
-  const rows = [];
 
-  for (const s of students) {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([]);
 
-    const tasks = await loadGradesForExport(s.studentId);
+  // ================= CONFIG =================
+  const categories = [
+    "AUGUSTINIAN VALUE",
+    "CLASS PARTICIPATION",
+    "QUIZ",
+    "MIDTERM EXAM"
+  ];
 
-    state.gradeTasks = tasks;
-    recomputeAllGrades();
+  const START_COL = 3; // Column D
 
-    const midterm = computePeriodGrade("MIDTERM PERIOD") || 0;
-    const final = computePeriodGrade("FINAL PERIOD") || 0;
-    const total = (midterm * 0.5) + (final * 0.5);
+  // ================= HELPERS =================
+  const normalizePeriod = p =>
+    String(p || "").toUpperCase().includes("FINAL") ? "FINAL PERIOD" : "MIDTERM PERIOD";
 
-    rows.push({
-      StudentID: s.studentId,
-      Name: s.name,
-      Section: s.section,
-      Midterm: midterm.toFixed(1),
-      Final: final.toFixed(1),
-      FinalGrade: total.toFixed(2)
+  const normalizeCategory = (c, period) => {
+    c = String(c || "").toUpperCase();
+
+    if (c.includes("AUG")) return "AUGUSTINIAN VALUE";
+    if (c.includes("QUIZ")) return "QUIZ";
+    if (c.includes("PARTICIPATION")) return "CLASS PARTICIPATION";
+
+    if (c.includes("EXAM"))
+      return period === "FINAL PERIOD" ? "FINAL EXAM" : "MIDTERM EXAM";
+
+    return c;
+  };
+
+  const colLetter = n => {
+    let s = "";
+    while (n >= 0) {
+      s = String.fromCharCode((n % 26) + 65) + s;
+      n = Math.floor(n / 26) - 1;
+    }
+    return s;
+  };
+
+  const getMaxScores = (students, period, category) => {
+    let max = 0;
+
+    students.forEach(s => {
+      const count = (s.grades || []).filter(t => {
+        const p = normalizePeriod(t.period);
+        const c = normalizeCategory(t.category, p);
+        return p === period && c === category;
+      }).length;
+
+      if (count > max) max = count;
     });
+
+    return max;
+  };
+
+  // ================= HEADER BUILD =================
+  let headerPeriod = ["NAME", "", ""];
+  let headerCategory = ["Subject", ""];
+  let headerLabels = ["", ""];
+  let maxRow = ["LAST NAME", "FIRST NAME"];
+
+  let colIndex = START_COL;
+
+  // ===== MIDTERM =====
+  let midStart = colIndex;
+
+  categories.forEach(cat => {
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+    const span = max + 3;
+
+    // Period
+    headerPeriod.push(...Array(span).fill(""));
+
+    // Category
+    headerCategory.push(cat, ...Array(span - 1).fill(""));
+
+    // Labels
+    headerLabels.push(...Array(max).fill("Score"));
+
+    const weight = gradeWeights?.["MIDTERM PERIOD"]?.[cat] || 0;
+
+    headerLabels.push("Per", "Trans", `${weight * 100}%`);
+    maxRow.push(...Array(span).fill(""));
+
+    colIndex += span;
+  });
+
+  let midEnd = colIndex - 1;
+
+  // MIDTERM GRADE
+  headerPeriod.push("");
+  headerCategory.push("MIDTERM PERIOD GRADE");
+  headerLabels.push("");
+  maxRow.push("");
+  colIndex++;
+
+  // spacer
+  headerPeriod.push("");
+  headerCategory.push("");
+  headerLabels.push("");
+  maxRow.push("");
+  colIndex++;
+
+  // ===== FINAL =====
+  let finalStart = colIndex;
+
+  categories.forEach(cat => {
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+    const span = max + 3;
+
+    headerPeriod.push(...Array(span).fill(""));
+    headerCategory.push(realCat, ...Array(span - 1).fill(""));
+    headerLabels.push(...Array(max).fill("Score"));
+
+    const weight = gradeWeights?.["FINAL PERIOD"]?.[realCat] || 0;
+
+    headerLabels.push("Per", "Trans", `${weight * 100}%`);
+    maxRow.push(...Array(span).fill(""));
+
+    colIndex += span;
+  });
+
+  let finalEnd = colIndex - 1;
+
+  // FINAL GRADE
+  headerPeriod.push("");
+  headerCategory.push("FINAL PERIOD GRADES");
+  headerLabels.push("");
+  maxRow.push("");
+  colIndex++;
+
+  // spacer
+  headerPeriod.push("");
+  headerCategory.push("");
+  headerLabels.push("");
+  maxRow.push("");
+  colIndex++;
+
+  // ===== SUMMARY =====
+  const colMG = colIndex++;
+  const colMG50 = colIndex++;
+  const colFG = colIndex++;
+  const colFG50 = colIndex++;
+  const colFINAL = colIndex++;
+
+  headerLabels.push("", "", "", "", "FINAL GRADE");
+  maxRow.push("MG", "", "", "", "");
+
+  // ================= WRITE HEADERS =================
+  XLSX.utils.sheet_add_aoa(ws, [headerPeriod], { origin: { r: 1, c: 1 } });
+  XLSX.utils.sheet_add_aoa(ws, [headerCategory], { origin: { r: 2, c: 1 } });
+  XLSX.utils.sheet_add_aoa(ws, [headerLabels], { origin: { r: 3, c: 1 } });
+  XLSX.utils.sheet_add_aoa(ws, [maxRow], { origin: { r: 4, c: 1 } });
+
+  // ================= MERGES =================
+  ws["!merges"] = [];
+
+  // PERIOD
+  ws["!merges"].push(
+    { s: { r: 1, c: 1 }, e: { r: 1, c: 2 } },
+    { s: { r: 1, c: midStart }, e: { r: 1, c: midEnd + 1 } },
+    { s: { r: 1, c: finalStart }, e: { r: 1, c: finalEnd + 1 } }
+  );
+
+  let catCol = START_COL;
+
+  // ===== MIDTERM CATEGORY =====
+  categories.forEach(cat => {
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+    const span = max + 3;
+
+    ws["!merges"].push({
+      s: { r: 2, c: catCol },
+      e: { r: 2, c: catCol + span - 1 }
+    });
+
+    catCol += span;
+  });
+
+  // skip MIDTERM GRADE + spacer
+  catCol += 2;
+
+  // ===== FINAL CATEGORY =====
+  categories.forEach(cat => {
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+    const span = max + 3;
+
+    ws["!merges"].push({
+      s: { r: 2, c: catCol },
+      e: { r: 2, c: catCol + span - 1 }
+    });
+
+    catCol += span;
+  });
+
+  let transColPtr = START_COL;
+
+  // ===== MIDTERM =====
+  categories.forEach(cat => {
+
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+
+    const transCol = transColPtr + max + 1;
+    const percentCol = transColPtr + max + 2;
+
+    ws["!merges"].push({
+      s: { r: 3, c: transCol },
+      e: { r: 4, c: transCol }
+    });
+
+    ws["!merges"].push({
+      s: { r: 3, c: percentCol },
+      e: { r: 4, c: percentCol }
+    });
+
+    transColPtr += max + 3;
+  });
+
+  // skip MIDTERM GRADE + spacer
+  transColPtr += 2;
+
+  // ===== FINAL =====
+  categories.forEach(cat => {
+
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+
+    const transCol = transColPtr + max + 1;
+    const percentCol = transColPtr + max + 2;
+
+    ws["!merges"].push({
+      s: { r: 3, c: transCol },
+      e: { r: 4, c: transCol }
+    });
+
+    ws["!merges"].push({
+      s: { r: 3, c: percentCol },
+      e: { r: 4, c: percentCol }
+    });
+
+    transColPtr += max + 3;
+  });
+
+  // MIDTERM GRADE MERGE
+  ws["!merges"].push({
+    s: { r: 2, c: midEnd + 1 },
+    e: { r: 4, c: midEnd + 1 }
+  });
+
+  // FINAL GRADE MERGE
+  ws["!merges"].push({
+    s: { r: 2, c: finalEnd + 1 },
+    e: { r: 4, c: finalEnd + 1 }
+  });
+
+  // SUMMARY
+  ws["!merges"].push({
+    s: { r: 1, c: colMG },
+    e: { r: 1, c: colFINAL }
+  });
+
+  // Midterm Period
+  ws["!merges"].push({
+    s: { r: 2, c: colMG },
+    e: { r: 3, c: colMG + 1 }
+  });
+
+  // Final Period
+  ws["!merges"].push({
+    s: { r: 2, c: colFG },
+    e: { r: 3, c: colFG + 1 }
+  });
+
+  // FINAL GRADE
+  ws["!merges"].push({
+    s: { r: 2, c: colFINAL },
+    e: { r: 4, c: colFINAL }
+  });
+
+  // ================= LABELS =================
+  ws[XLSX.utils.encode_cell({ r: 1, c: midStart })] = { t: "s", v: "MIDTERM PERIOD" };
+  ws[XLSX.utils.encode_cell({ r: 1, c: finalStart })] = { t: "s", v: "FINAL PERIOD" };
+  ws[XLSX.utils.encode_cell({ r: 1, c: colMG })] = { t: "s", v: "SUMMARY OF GRADES" };
+
+  // ===== CENTER MIDTERM / FINAL GRADE HEADERS =====
+
+  // MIDTERM PERIOD GRADE
+  const midRef = XLSX.utils.encode_cell({ r: 2, c: midEnd + 1 });
+  if (ws[midRef]) {
+    ws[midRef].s = {
+      ...(ws[midRef].s || {}),
+      alignment: { horizontal: "center", vertical: "center" },
+      font: { bold: true }
+    };
   }
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
+  // FINAL PERIOD GRADE
+  const finalRef = XLSX.utils.encode_cell({ r: 2, c: finalEnd + 1 });
+  if (ws[finalRef]) {
+    ws[finalRef].s = {
+      ...(ws[finalRef].s || {}),
+      alignment: { horizontal: "center", vertical: "center" },
+      font: { bold: true }
+    };
+  }
 
-  XLSX.utils.book_append_sheet(wb, ws, "Grades");
+  // ================= DATA =================
+  // ✅ SORT FIRST (PLACE HERE)
+  students.sort((a, b) => {
+    const [lastA = "", firstA = ""] =
+      (a["lastname,firstnamem.i."] || "").toUpperCase().split(",");
 
-  XLSX.writeFile(wb, "GradesExport.xlsx");
-  console.log("XLSX: ", XLSX);
-  alert("Export complete!");
-}
+    const [lastB = "", firstB = ""] =
+      (b["lastname,firstnamem.i."] || "").toUpperCase().split(",");
 
-/*******************************************************
-* function name: exportPDF
-* parameter: 
-* return: 
-* purpose: 
-********************************************************/
-async function exportPDF(students) {
+    if (lastA < lastB) return -1;
+    if (lastA > lastB) return 1;
 
-  console.log("exportExcel called");
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
+    if (firstA < firstB) return -1;
+    if (firstA > firstB) return 1;
 
-  let y = 10;
+    return 0;
+  });
 
-  doc.text("Student Grades Report", 10, y);
-  y += 10;
+  let rowIndex = 5;
+  let allMaxValues = [];
 
-  for (const s of students) {
+  students.forEach(s => {
 
-    const tasks = await loadGradesForExport(s.studentId);
+    const tasks = s.grades || [];
+    const [last, first] = (s["lastname,firstnamem.i."] || "").toUpperCase().split(",");
 
-    state.gradeTasks = tasks;
-    recomputeAllGrades();
+    let row = ["", last || "", first || ""];
+    let rowMax = [];
+    let col = START_COL;
+    let midWeights = [];
+    let finalWeights = [];
 
-    const midterm = computePeriodGrade("MIDTERM PERIOD") || 0;
-    const final = computePeriodGrade("FINAL PERIOD") || 0;
-    const total = (midterm * 0.5) + (final * 0.5);
+    const rowNum = rowIndex + 1;
 
-    doc.text(`${s.name} | ${total.toFixed(2)}`, 10, y);
+    // ===== MIDTERM =====
+    categories.forEach(cat => {
 
-    y += 8;
+      const max = getMaxScores(students, "MIDTERM PERIOD", cat);
 
-    if (y > 270) {
-      doc.addPage();
-      y = 10;
+      const list = tasks.filter(t => {
+        const p = normalizePeriod(t.period);
+        const c = normalizeCategory(t.category, p);
+        return p === "MIDTERM PERIOD" && c === cat;
+      });
+
+      const start = col;
+
+      for (let i = 0; i < max; i++) {
+        row.push(list[i]?.score ?? "");
+        rowMax.push(list[i]?.max ?? "");
+        col++;
+      }
+
+      const end = col - 1;
+
+      const sum = `SUM(${colLetter(start)}${rowNum}:${colLetter(end)}${rowNum})`;
+      const maxSum = `SUM(${colLetter(start)}5:${colLetter(end)}5)`;
+
+      // %
+      row.push({ f: `IFERROR((${sum}/${maxSum})*100,0)` }); rowMax.push("");
+      col++;
+
+      // trans
+      const totalCol = colLetter(col - 1);
+      const lookup = state.subjectType === "major"
+        ? `LOOKUP(${totalCol}${rowNum},Transmutation!B4:B104,Transmutation!C4:C104)`
+        : `LOOKUP(${totalCol}${rowNum},Transmutation!F4:F104,Transmutation!G4:G104)`;
+
+      row.push({ f: `IFERROR(${lookup},0)` }); rowMax.push("");
+      col++;
+
+      // weighted
+      const weight = gradeWeights?.["MIDTERM PERIOD"]?.[cat] || 0;
+      row.push({ f: `${colLetter(col - 1)}${rowNum}*${weight}` }); rowMax.push("");
+
+      midWeights.push(`${colLetter(col)}${rowNum}`);
+      col++;
+    });
+
+    // MIDTERM GRADE
+    row.push({ f: `SUM(${midWeights.join(",")})` }); rowMax.push("");
+    const midCol = colLetter(col++);
+    row.push(""); rowMax.push(""); col++;
+
+    // ===== FINAL =====
+    categories.forEach(cat => {
+
+      const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+      const max = getMaxScores(students, "FINAL PERIOD", realCat);
+
+      const list = tasks.filter(t => {
+        const p = normalizePeriod(t.period);
+        const c = normalizeCategory(t.category, p);
+        return p === "FINAL PERIOD" && c === realCat;
+      });
+
+      const start = col;
+
+      for (let i = 0; i < max; i++) {
+        row.push(list[i]?.score ?? "");
+        rowMax.push(list[i]?.max ?? "");
+        col++;
+      }
+
+      const end = col - 1;
+
+      const sum = `SUM(${colLetter(start)}${rowNum}:${colLetter(end)}${rowNum})`;
+      const maxSum = `SUM(${colLetter(start)}5:${colLetter(end)}5)`;
+
+      // %
+      row.push({ f: `IFERROR((${sum}/${maxSum})*100,0)` }); rowMax.push("");
+      col++;
+
+      // trans
+      const totalCol = colLetter(col - 1);
+      const lookup = state.subjectType === "major"
+        ? `LOOKUP(${totalCol}${rowNum},Transmutation!B4:B104,Transmutation!C4:C104)`
+        : `LOOKUP(${totalCol}${rowNum},Transmutation!F4:F104,Transmutation!G4:G104)`;
+
+      row.push({ f: `IFERROR(${lookup},0)` }); rowMax.push("");
+      col++;
+
+      // weighted
+      const weight = gradeWeights?.["FINAL PERIOD"]?.[realCat] || 0;
+      row.push({ f: `${colLetter(col - 1)}${rowNum}*${weight}` }); rowMax.push("");
+
+      finalWeights.push(`${colLetter(col)}${rowNum}`);
+      col++;
+    });
+
+    // FINAL GRADE
+    row.push({ f: `SUM(${finalWeights.join(",")})` }); rowMax.push("");
+    const finalCol = colLetter(col++);
+
+    // ===== SUMMARY =====
+    row.push(""); rowMax.push(""); col++;
+
+    row.push({ f: `${midCol}${rowNum}` }); rowMax.push(""); col++;
+    row.push({ f: `${midCol}${rowNum}*0.5` }); rowMax.push(""); col++;
+    row.push({ f: `${finalCol}${rowNum}` }); rowMax.push(""); col++;
+    row.push({ f: `${finalCol}${rowNum}*0.5` }); rowMax.push(""); col++;
+    row.push({ f: `(${midCol}${rowNum}*0.5)+(${finalCol}${rowNum}*0.5)` }); rowMax.push("");
+
+    // collect max row
+    rowMax.forEach((v, i) => {
+      if (!allMaxValues[i]) allMaxValues[i] = v || "";
+    });
+
+    XLSX.utils.sheet_add_aoa(ws, [row], { origin: rowIndex++ });
+
+  });
+
+  // ================= MAX ROW =================
+  XLSX.utils.sheet_add_aoa(ws, [allMaxValues], { origin: { r: 4, c: 3 } });
+
+  let fixCol = START_COL;
+
+  // ===== MIDTERM =====
+  categories.forEach(cat => {
+
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+
+    const start = fixCol;
+    const end = fixCol + max - 1;
+    const perCol = end + 1;
+
+    if (max > 0) {
+      const ref = XLSX.utils.encode_cell({ r: 4, c: perCol });
+
+      ws[ref] = {
+        t: "n",
+        f: `SUM(${colLetter(start)}5:${colLetter(end)}5)`
+      };
+    }
+
+    fixCol += max + 3;
+  });
+
+  // spacer (IMPORTANT — matches your layout)
+  fixCol++;
+  fixCol++;
+
+  // ===== FINAL =====
+  categories.forEach(cat => {
+
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+
+    const start = fixCol;
+    const end = fixCol + max - 1;
+    const perCol = end + 1;
+
+    if (max > 0) {
+      const ref = XLSX.utils.encode_cell({ r: 4, c: perCol });
+
+      ws[ref] = {
+        t: "n",
+        f: `SUM(${colLetter(start)}5:${colLetter(end)}5)`
+      };
+    }
+
+    fixCol += max + 3;
+  });
+
+  ws[XLSX.utils.encode_cell({ r: 2, c: colMG })] = { t: "s", v: "Midterm Period" };
+  ws[XLSX.utils.encode_cell({ r: 2, c: colFG })] = { t: "s", v: "Final Period" };
+  ws[XLSX.utils.encode_cell({ r: 2, c: colFG50 + 1 })] = { t: "s", v: "FINAL GRADE" };
+  ws[XLSX.utils.encode_cell({ r: 4, c: colMG })] = { t: "s", v: "MG" };
+  ws[XLSX.utils.encode_cell({ r: 4, c: colMG50 })] = { t: "s", v: "50%" };
+  ws[XLSX.utils.encode_cell({ r: 4, c: colFG })] = { t: "s", v: "FG" };
+  ws[XLSX.utils.encode_cell({ r: 4, c: colFG50 })] = { t: "s", v: "50%" };
+
+  // ================= STYLES =================
+
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+
+  // ===== IDENTIFY IMPORTANT COLUMNS =====
+  let ptr = START_COL;
+
+  // MIDTERM BLOCKS
+  categories.forEach(cat => {
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+    ptr += max + 3;
+  });
+
+  const midGradeCol = ptr;
+  ptr++;
+
+  const spacer1 = ptr;
+  ptr++;
+
+  // FINAL BLOCKS
+  categories.forEach(cat => {
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+    ptr += max + 3;
+  });
+
+  const finalGradeCol = ptr;
+  ptr++;
+
+  const spacer2 = ptr;
+
+  const summaryFinalCol = colFINAL;
+
+  // ================= MAIN LOOP =================
+
+  let paintPtr = START_COL;
+
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    let C = range.s.c;
+
+    // ===== LOOP THROUGH ALL COLUMNS =====
+    while (C <= range.e.c) {
+
+      const ref = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!ws[ref]) {
+        C++;
+        continue;
+      }
+
+      const isHeader = R >= 1 && R <= 4;
+      const isName = (C === 1 || C === 2);
+      const isColA = (C === 0);
+      const isSpacer = (C === spacer1 || C === spacer2);
+
+      let style = {
+        alignment: { horizontal: isName ? "left" : "center", vertical: "center", }
+      };
+
+      // ===== MIDTERM + FINAL BLOCK COLORING =====
+      let ptr = START_COL;
+
+      const applyCategoryColors = (period) => {
+        categories.forEach(cat => {
+
+          const realCat = (period === "FINAL PERIOD" && cat === "MIDTERM EXAM") ? "FINAL EXAM" : cat;
+
+          const max = getMaxScores(students, period, realCat);
+
+          // 🔵 SCORE (BLUE)
+          /*for (let i = 0; i < max; i++) {
+            if (C === ptr + i && !isHeader) {
+              style.fill = {
+                patternType: "solid",
+                fgColor: { rgb: "BDD7EE" }
+              };
+            }
+          }*/
+
+          // 🟡 PERCENT
+          if (C === ptr + max && !isHeader) {
+            style.fill = { patternType: "solid", fgColor: { rgb: "B7DEE8" } };
+          }
+
+          // 🔴 TRANSMUTATION
+          if (C === ptr + max + 1 && !isHeader) {
+            style.fill = { patternType: "solid", fgColor: { rgb: "B7DEE8" } };
+          }
+
+          // 🟣 WEIGHTED
+          if (C === ptr + max + 2 && !isHeader) {
+            style.fill = { patternType: "solid", fgColor: { rgb: "FFFF00" } };
+          }
+
+          ptr += max + 3;
+        });
+      };
+
+      // APPLY BOTH PERIODS
+      applyCategoryColors("MIDTERM PERIOD");
+
+      // MIDTERM GRADE
+      /*const midGradeCol = ptr;
+      if (C === midGradeCol && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FBD5B5" } };
+        style.font = { bold: true };
+      }*/
+      // MIDTERM PERIOD GRADE
+      const midRef = XLSX.utils.encode_cell({ r: 2, c: midEnd + 1 });
+      if (ws[midRef]) {
+        ws[midRef].s = {
+          ...(ws[midRef].s || {}),
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          font: { bold: true }
+        };
+      }
+
+      const midGradeCol = ptr;
+      if (C === midGradeCol && !isHeader) {
+        style.fill = {
+          patternType: "solid",
+          fgColor: { rgb: "FBD5B5" }
+        };
+        style.font = { bold: true };
+      }
+
+      ptr += 2; // grade + spacer
+
+      applyCategoryColors("FINAL PERIOD");
+
+      // FINAL GRADE
+      /*const finalGradeCol = ptr;
+      if (C === finalGradeCol && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FBD5B5" } };
+        style.font = { bold: true };
+      }*/
+      // FINAL PERIOD GRADE
+      const finalRef = XLSX.utils.encode_cell({ r: 2, c: finalEnd + 1 });
+      if (ws[finalRef]) {
+        ws[finalRef].s = {
+          ...(ws[finalRef].s || {}),
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          font: { bold: true }
+        };
+      }
+
+      const finalGradeCol = ptr;
+      if (C === finalGradeCol && !isHeader) {
+        style.fill = {
+          patternType: "solid",
+          fgColor: { rgb: "FBD5B5" }
+        };
+        style.font = { bold: true };
+      }
+
+      ptr += 2;
+
+      // SUMMARY FINAL GRADE (WRAP)
+      const summaryRef = XLSX.utils.encode_cell({ r: 2, c: colFINAL });
+      if (ws[summaryRef]) {
+        ws[summaryRef].s = {
+          ...(ws[summaryRef].s || {}),
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          font: { bold: true }
+        };
+      }
+
+      // ===== HEADER STYLE =====
+      /*if (isHeader && !isSpacer) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "A5A5A5" } };
+        style.font = { bold: true };
+      }*/
+      if (!isSpacer) {
+
+        const isRow1 = R === 1;
+        const isRow2 = R === 2;
+        const isRow5 = R === 4; // ✅ Per VALUE row
+
+        const cellValue = ws[ref]?.v || "";
+        const isWeight = String(cellValue).includes("%");
+
+        const isGradeCol = C === midGradeCol || C === finalGradeCol;
+
+        const isSummaryMain = C === colMG || C === colFG || C === colFINAL;
+
+        // ===== DETECT PER COLUMN =====
+        let isPerValue = false;
+        let ptrCheck = START_COL;
+
+        // MIDTERM
+        categories.forEach(cat => {
+          const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+          const perCol = ptrCheck + max;
+
+          if (C === perCol && isRow5) {
+            isPerValue = true;
+          }
+
+          ptrCheck += max + 3;
+        });
+
+        ptrCheck += 2;
+
+        // FINAL
+        categories.forEach(cat => {
+          const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+          const max = getMaxScores(students, "FINAL PERIOD", realCat);
+          const perCol = ptrCheck + max;
+
+          if (C === perCol && isRow5) {
+            isPerValue = true;
+          }
+
+          ptrCheck += max + 3;
+        });
+
+        // ===== HEADER COLOR =====
+        if (isHeader) {
+          style.fill = { patternType: "solid", fgColor: { rgb: "A5A5A5" } };
+        }
+
+        // ===== FINAL BOLD RULE =====
+        if (isRow1 || isRow2 || isWeight || isGradeCol || isSummaryMain || isPerValue) {
+          style.font = { bold: true };
+        } else {
+          style.font = { bold: false };
+        }
+      }
+
+      // ===== BORDERS =====
+      if (!isColA && !isSpacer) {
+        style.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+      }
+
+      if (isName) {
+        style.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+      }
+
+      // ===== SUMMARY COLORS and BOLD STYLES=====
+      // MIDTERM PERIO GRADE + FINAL PERIOD GRADE
+      if ((C === midGradeCol || C === finalGradeCol) && !isHeader) {
+        style.font = { ...(style.font || {}), bold: true, sz: 12 };
+      }
+
+      // MG
+      if (C === colMG && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FCD5B4" } };
+      }
+
+      // 50% (mid)
+      if (C === colMG50 && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FFFF00" } };
+      }
+
+      // FG
+      if (C === colFG && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FCD5B4" } };
+      }
+
+      // 50% (final)
+      if (C === colFG50 && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FFFF00" } };
+      }
+
+      // FINAL GRADE
+      if (C === colFINAL && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "B1A0C7" } };
+        style.font = { ...(style.font || {}), bold: true, sz: 13 };
+      }
+
+      ws[ref].s = style;
+
+      C++;
     }
   }
 
-  doc.save("GradesReport.pdf");
+  // ================= 🔥 FIX SUMMARY (PLACE HERE) =================
+  for (let R = 1; R <= range.e.r; R++) {
+    for (let C = colMG; C <= colFINAL; C++) {
+
+      const ref = XLSX.utils.encode_cell({ r: R, c: C });
+
+      // ✅ ensure cell exists
+      if (!ws[ref]) {
+        ws[ref] = { t: "s", v: "" };
+      }
+
+      ws[ref].s = {
+        ...(ws[ref].s || {}),
+        border: {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" }
+        }
+      };
+    }
+  }
+
+  // ===== NUMBER FORMATTING =====
+  const range2 = XLSX.utils.decode_range(ws["!ref"]);
+
+  for (let R = 5; R <= range2.e.r; R++) {
+    for (let C = START_COL; C <= range2.e.c; C++) {
+
+      const ref = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!ws[ref]) continue;
+
+      // DEFAULT → NO DECIMALS
+      ws[ref].z = "0";
+
+    }
+  }
+
+  // ===== APPLY 1 DECIMAL PLACES =====
+  let formatCol = START_COL;
+
+  // ===== MIDTERM =====
+  categories.forEach(cat => {
+
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+
+    // move to next block
+    formatCol += max + 3;
+  });
+
+  // MIDTERM GRADE COLUMN
+  const midGradeColIndex = formatCol;
+
+  // apply 1 decimal
+  for (let R = 5; R <= range.e.r; R++) {
+    const ref = XLSX.utils.encode_cell({ r: R, c: midGradeColIndex });
+    if (ws[ref]) ws[ref].z = "0.0";
+  }
+
+  formatCol++;
+
+  // spacer
+  formatCol++;
+
+  // ===== FINAL =====
+  categories.forEach(cat => {
+
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+
+    formatCol += max + 3;
+  });
+
+  // FINAL PERIOD GRADE COLUMN
+  const finalGradeColIndex = formatCol;
+
+  // apply 1 decimal
+  for (let R = 5; R <= range.e.r; R++) {
+    const ref = XLSX.utils.encode_cell({ r: R, c: finalGradeColIndex });
+    if (ws[ref]) ws[ref].z = "0.0";
+  }
+
+  formatCol++;
+
+  // spacer before summary
+  formatCol++;
+
+  // ===== FINAL GRADE (SUMMARY) =====
+  const finalColIndex = formatCol + 4; // MG,50,FG,50 → FINAL
+
+  for (let R = 5; R <= range.e.r; R++) {
+    const ref = XLSX.utils.encode_cell({ r: R, c: finalColIndex });
+    if (ws[ref]) ws[ref].z = "0.0";
+  }
+
+  // ===== COLUN SIZING =====
+  //const range = XLSX.utils.decode_range(ws["!ref"]);
+
+  ws["!cols"] = [];
+
+  // loop all columns
+  for (let C = 0; C <= range.e.c; C++) {
+
+    let width = 5.38; // default
+
+    if (C === 0 || C === spacer2) {
+      width = 1.5;
+    }
+
+    // NAME columns
+    if (C === 1) {
+      width = 14.63;
+    } else if (C === 2) {
+      width = 29.38;
+    }
+
+    // SPACER columns
+    if (C === spacer1) {
+      width = 6.38;
+    }
+
+    // FINAL GRADE columns (important)
+    if (C === midGradeCol || C === finalGradeCol || C === colFINAL) {
+      width = 5.38;
+    }
+
+    ws["!cols"][C] = { wch: width };
+  }
+
+  // ================= LEGEND (FINAL - DYNAMIC) =================
+  const finalRange = XLSX.utils.decode_range(ws["!ref"]);
+
+  const legendCol = finalRange.e.c + 2;
+  const labelCol = legendCol + 1;
+  const valueCol = legendCol + 2;
+
+  const startRow = 6;
+
+  ws[XLSX.utils.encode_cell({ r: startRow, c: legendCol })] = {
+    t: "s",
+    v: "Legend"
+  };
+
+  const legendData = [
+    ["MG-", "Midterm Grade"],
+    ["FPG-", "Final Period Grade"],
+    ["Per", "Percentile"],
+    ["Trans-", "Transmutation"]
+  ];
+
+  legendData.forEach((row, i) => {
+    const r = startRow + 1 + i;
+
+    ws[XLSX.utils.encode_cell({ r, c: labelCol })] = { t: "s", v: row[0] };
+    ws[XLSX.utils.encode_cell({ r, c: valueCol })] = { t: "s", v: row[1] };
+  });
+
+  legendData.forEach((row, i) => {
+    const r = startRow + 1 + i;
+
+    const labelRef = XLSX.utils.encode_cell({ r, c: labelCol });
+    const valueRef = XLSX.utils.encode_cell({ r, c: valueCol });
+
+    const isMain = row[0] === "MG-" || row[0] === "FPG-";
+
+    // LABEL (BD)
+    if (ws[labelRef]) {
+      ws[labelRef].s = {
+        alignment: { horizontal: "left" },
+        font: { bold: isMain }
+      };
+    }
+
+    // VALUE (BE)
+    if (ws[valueRef]) {
+      ws[valueRef].s = {
+        alignment: { horizontal: "left" }
+      };
+    }
+  });
+
+  const newEndCol = valueCol;
+  const newEndRow = startRow + legendData.length + 1;
+
+  const updatedRange = XLSX.utils.decode_range(ws["!ref"]);
+
+  updatedRange.e.c = Math.max(updatedRange.e.c, newEndCol);
+  updatedRange.e.r = Math.max(updatedRange.e.r, newEndRow);
+
+  ws["!ref"] = XLSX.utils.encode_range(updatedRange);
+
+  ws["!cols"][legendCol] = { wch: 12 };
+  ws["!cols"][labelCol] = { wch: 10 };
+  ws["!cols"][valueCol] = { wch: 28 };
+
+  // ================= COLUMN GROUPING =================
+  // ensure !cols exists
+  if (!ws["!cols"]) ws["!cols"] = [];
+
+  // ===== MIDTERM GROUP =====
+  for (let c = midStart; c <= midEnd + 1; c++) {
+    if (!ws["!cols"][c]) ws["!cols"][c] = {};
+    ws["!cols"][c].level = 1;
+  }
+
+  // ===== FINAL GROUP =====
+  for (let c = finalStart; c <= finalEnd + 1; c++) {
+    if (!ws["!cols"][c]) ws["!cols"][c] = {};
+    ws["!cols"][c].level = 1;
+  }
+
+  // ===== SUMMARY GROUP =====
+  for (let c = colMG; c <= colFINAL; c++) {
+    if (!ws["!cols"][c]) ws["!cols"][c] = {};
+    ws["!cols"][c].level = 1;
+  }
+
+  // ================= TRANSMUTATION =================
+  const transSheet = XLSX.utils.aoa_to_sheet([]);
+
+  // ✅ COMPLETE TRANSMUTATION TABLE (MAJOR + MINOR)
+  const major = {
+    0: 65, 1: 65, 2: 65, 3: 65, 4: 65, 5: 65, 6: 65, 7: 65, 8: 65, 9: 65, 10: 65,
+    11: 65, 12: 65, 13: 65, 14: 65, 15: 65, 16: 65, 17: 65, 18: 65, 19: 65, 20: 65,
+    21: 66, 22: 66, 23: 66, 24: 66, 25: 67, 26: 67, 27: 67, 28: 67, 29: 68, 30: 68,
+    31: 68, 32: 68, 33: 69, 34: 69, 35: 69, 36: 69, 37: 70, 38: 70, 39: 70, 40: 70,
+    41: 71, 42: 71, 43: 71, 44: 71, 45: 72, 46: 72, 47: 72, 48: 72, 49: 72, 50: 73,
+    51: 73, 52: 73, 53: 73, 54: 73, 55: 74, 56: 74, 57: 74, 58: 74, 59: 74, 60: 75,
+    61: 76, 62: 76, 63: 77, 64: 77, 65: 78, 66: 78, 67: 79, 68: 79, 69: 80, 70: 80,
+    71: 81, 72: 81, 73: 82, 74: 82, 75: 83, 76: 83, 77: 84, 78: 84, 79: 85, 80: 85,
+    81: 86, 82: 86, 83: 87, 84: 87, 85: 88, 86: 88, 87: 89, 88: 89, 89: 90, 90: 90,
+    91: 91, 92: 91, 93: 92, 94: 92, 95: 93, 96: 93, 97: 94, 98: 94, 99: 95, 100: 95
+  };
+
+  const minor = {
+    0: 65, 1: 65, 2: 65, 3: 65, 4: 65, 5: 65, 6: 65, 7: 65, 8: 65, 9: 65, 10: 65,
+    11: 65, 12: 65, 13: 65, 14: 65, 15: 65, 16: 66, 17: 66, 18: 66, 19: 67, 20: 67,
+    21: 67, 22: 68, 23: 68, 24: 68, 25: 68, 26: 69, 27: 69, 28: 69, 29: 69, 30: 70,
+    31: 70, 32: 70, 33: 70, 34: 71, 35: 71, 36: 71, 37: 71, 38: 72, 39: 72, 40: 72,
+    41: 72, 42: 73, 43: 73, 44: 73, 45: 73, 46: 74, 47: 74, 48: 74, 49: 74, 50: 75,
+    51: 76, 52: 76, 53: 77, 54: 77, 55: 78, 56: 78, 57: 79, 58: 79, 59: 80, 60: 80,
+    61: 81, 62: 81, 63: 82, 64: 82, 65: 83, 66: 83, 67: 84, 68: 84, 69: 85, 70: 85,
+    71: 86, 72: 86, 73: 86, 74: 87, 75: 87, 76: 87, 77: 88, 78: 88, 79: 88, 80: 89,
+    81: 89, 82: 89, 83: 90, 84: 90, 85: 90, 86: 91, 87: 91, 88: 91, 89: 92, 90: 92,
+    91: 92, 92: 93, 93: 93, 94: 93, 95: 94, 96: 94, 97: 94, 98: 95, 99: 95, 100: 95
+  };
+
+  const transData = [["", "BASE 60 (Major Subject)", "", "", "", "BASE 50 (Minor Subject)"],
+  ["", "RAW SCORE", "RATE", "", "", "RAW SCORE", "RATE"]];
+
+  for (let i = 0; i <= 100; i++) {
+    transData.push(["", i, major[i], "", "", i, minor[i]]);
+  }
+
+  XLSX.utils.sheet_add_aoa(transSheet, transData);
+
+  // ================= SAVE =================
+  XLSX.utils.book_append_sheet(wb, ws, "Grades");
+  XLSX.utils.book_append_sheet(wb, transSheet, "Transmutation");
+
+  XLSX.writeFile(wb, "Final_Report.xlsx", { cellFormula: true });
+  console.log("Saving. Please wait...")
+  hideLoading();
 }
 
 /*******************************************************
-* function name: populateExportSection
+* function name: updateExportUI
 * parameter: 
 * return: 
 * purpose: 
 ********************************************************/
-function populateExportSection() {
-  const select = document.getElementById("exportSection");
-  const sections = [...new Set((state.list.items || []).map(s => s.section))];
+function updateExportUI() {
+  const scope = document.getElementById("exportScope").value;
 
-  select.innerHTML = sections.map(s => `<option value="${s}">${s}</option>`).join("");
+  document.getElementById("exportCourseWrap").classList.toggle("hidden", scope !== "section");
+
+  document.getElementById("exportStudentWrap").classList.toggle("hidden", scope !== "student");
+}
+
+/*******************************************************
+* function name: initExportForm
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function initExportForm() {
+  const students = await getStudentsForExport("section");
+
+  window.currentStudents = students; // store globally
+
+  loadCourses(students);
+  loadStudents(students);
+  //console.log("students: ", students);
+}
+
+/*******************************************************
+* function name: loadCourses
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function loadCourses(students) {
+  const select = document.getElementById("exportCourse");
+
+  const uniqueCourses = [...new Set(students.map(s => s["course(subject)"]).filter(Boolean))];
+
+  // clear first
+  select.innerHTML = `<option value="">Select Course</option>`;
+
+  uniqueCourses.forEach(c => { select.innerHTML += `<option value="${c}">${c}</option>`; });
+}
+
+/*******************************************************
+* function name: loadCourses
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function loadStudents(students) {
+  const select = document.getElementById("exportStudent");
+
+  // clear first
+  select.innerHTML = `<option value="">Select Student</option>`;
+
+  // OPTIONAL: filter by selected course
+  const selectedCourse = document.getElementById("exportCourse")?.value;
+
+  let filtered = students;
+
+  if (selectedCourse) {
+    filtered = students.filter(s => s["course(subject)"] === selectedCourse);
+  }
+
+  filtered.sort((a, b) => {
+    const [lastA = "", firstA = ""] =
+      (a["lastname,firstnamem.i."] || "").toUpperCase().split(",");
+
+    const [lastB = "", firstB = ""] =
+      (b["lastname,firstnamem.i."] || "").toUpperCase().split(",");
+
+    // sort by LAST NAME
+    if (lastA < lastB) return -1;
+    if (lastA > lastB) return 1;
+
+    // if same last → FIRST NAME
+    if (firstA < firstB) return -1;
+    if (firstA > firstB) return 1;
+
+    return 0;
+  });
+
+  filtered.forEach(s => {
+    const name = s["lastname,firstnamem.i."].toUpperCase();
+    select.innerHTML += `<option value="${name}">${name}</option>`;
+  });
+}
+
+/*******************************************************
+* function name: computeStudentGrades
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+/*function computeStudentGrades(tasks) {
+  
+    const result = {
+      midterm: {},
+      final: {}
+    };
+  
+    const grouped = {};
+  
+    tasks.forEach(t => {
+      const rawPeriod = normalize(t.period || "MIDTERM");
+      const period = rawPeriod.includes("FINAL") ? "FINAL PERIOD" : "MIDTERM PERIOD";
+      let category = normalize(t.category);
+  
+      if (category.includes("AUG")) category = "AUGUSTINIAN VALUE";
+      if (category === "EXAM" && period === "MIDTERM PERIOD") category = "MIDTERM EXAM";
+      if (category === "EXAM" && period === "FINAL PERIOD") category = "FINAL EXAM";
+  
+      if (!grouped[period]) grouped[period] = {};
+      if (!grouped[period][category]) grouped[period][category] = [];
+  
+      grouped[period][category].push(t);
+    });
+  
+    ["MIDTERM PERIOD", "FINAL PERIOD"].forEach(period => {
+  
+      const p = normalize(period);
+      result[p] = {};
+  
+      const categories = grouped[p] || {};
+  
+      Object.keys(categories).forEach(cat => {
+        const { grade } = computeCategoryGrade(categories[cat], state.subjectType);
+        result[p][cat] = grade;
+      });
+    });
+  
+    return result;
+  }*/
+function computeStudentGrades(tasks) {
+
+  const result = {};
+
+  if (!Array.isArray(tasks)) return result;
+
+  const grouped = {};
+
+  tasks.forEach(t => {
+    if (!t) return;
+
+    const rawPeriod = normalize(t.period || "MIDTERM");
+    const period = rawPeriod.includes("FINAL") ? "FINAL PERIOD" : "MIDTERM PERIOD";
+
+    let category = normalize(t.category || "");
+
+    // normalize category
+    if (category.includes("AUG")) category = "AUGUSTINIAN VALUE";
+    if (category === "EXAM" && period === "MIDTERM PERIOD") category = "MIDTERM EXAM";
+    if (category === "EXAM" && period === "FINAL PERIOD") category = "FINAL EXAM";
+
+    if (!grouped[period]) grouped[period] = {};
+    if (!grouped[period][category]) grouped[period][category] = [];
+
+    grouped[period][category].push(t);
+  });
+
+  Object.keys(grouped).forEach(period => {
+    result[period] = {};
+
+    Object.keys(grouped[period]).forEach(cat => {
+      const { grade } = computeCategoryGrade(grouped[period][cat], state.subjectType);
+      result[period][cat] = grade;
+    });
+  });
+
+  return result;
+}
+
+/*******************************************************
+* function name: getSafe
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function getSafe(grades, period, category) {
+  const p = normalize(period);
+  const c = normalize(category);
+
+  return (grades[p] && grades[p][c]) ? grades[p][c] : 0;
+}
+
+/*******************************************************
+* function name: computePeriodFromGrades
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function computePeriodFromGrades(grades, period) {
+  const p = normalize(period);
+  const categories = grades[p] || {};
+
+  const weights = gradeWeights?.[period] || {};
+  let total = 0;
+
+  Object.keys(weights).forEach(cat => {
+    const g = categories[normalize(cat)] || 0;
+    total += g * weights[cat];
+  });
+
+  return total;
+}
+
+/*******************************************************
+* function name: computeDistribution
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function computeDistribution(transmuted, weight) {
+  return transmuted * weight;
+}
+
+/*******************************************************
+* function name: getMaxTasksMap
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function getMaxTasksMap(students) {
+  const map = {};
+
+  students.forEach(s => {
+    const tasks = Array.isArray(s.grades) ? s.grades : [];
+
+    tasks.forEach(t => {
+      const period = normalize(t.period || "").includes("FINAL")
+        ? "FINAL PERIOD"
+        : "MIDTERM PERIOD";
+
+      let category = normalize(t.category || "");
+      if (category.includes("aug")) category = "AUGUSTINIAN VALUE";
+      if (category === "exam" && period === "MIDTERM PERIOD") category = "MIDTERM EXAM";
+      if (category === "exam" && period === "FINAL PERIOD") category = "FINAL EXAM";
+
+      const key = `${period}|${category}`;
+
+      if (!map[key]) map[key] = 0;
+
+      const count = tasks.filter(x => {
+        const p = normalize(x.period || "").includes("FINAL")
+          ? "FINAL PERIOD"
+          : "MIDTERM PERIOD";
+
+        let c = normalize(x.category || "");
+        if (c.includes("aug")) c = "AUGUSTINIAN VALUE";
+        if (c === "exam" && p === "MIDTERM PERIOD") c = "MIDTERM EXAM";
+        if (c === "exam" && p === "FINAL PERIOD") c = "FINAL EXAM";
+
+        return p === period && c === category;
+      }).length;
+
+      map[key] = Math.max(map[key], count);
+    });
+  });
+
+  return map;
+}
+
+/*******************************************************
+* function name: buildHeader
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function buildHeader(maxMap) {
+
+  const header = ["Student Name"];
+
+  const categories = [
+    ["MIDTERM PERIOD", "AUGUSTINIAN VALUE"],
+    ["MIDTERM PERIOD", "QUIZ"],
+    ["MIDTERM PERIOD", "MIDTERM EXAM"],
+    ["MIDTERM PERIOD", "CLASS PARTICIPATION"],
+
+    ["FINAL PERIOD", "AUGUSTINIAN VALUE"],
+    ["FINAL PERIOD", "QUIZ"],
+    ["FINAL PERIOD", "FINAL EXAM"],
+    ["FINAL PERIOD", "CLASS PARTICIPATION"]
+  ];
+
+  categories.forEach(([period, cat]) => {
+
+    const key = `${period}|${cat}`;
+    const max = maxMap[key] || 0;
+
+    // 🔥 dynamic score columns
+    for (let i = 1; i <= max; i++) {
+      header.push(`${cat} ${i}`);
+    }
+
+    // fixed columns
+    header.push(`${cat} %`);
+    header.push(`${cat} Trans`);
+    header.push(`${cat} W`);
+  });
+
+  header.push("Final Grade");
+
+  return header;
+}
+
+/*******************************************************
+* function name: extractCategory
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function extractCategory(tasks, period, category) {
+
+  const list = tasks.filter(t => {
+    const p = normalize(t.period || "").includes("FINAL")
+      ? "FINAL PERIOD"
+      : "MIDTERM PERIOD";
+
+    let c = normalize(t.category || "");
+    if (c.includes("aug")) c = "AUGUSTINIAN VALUE";
+    if (c === "exam" && p === "MIDTERM PERIOD") c = "MIDTERM EXAM";
+    if (c === "exam" && p === "FINAL PERIOD") c = "FINAL EXAM";
+
+    return p === period && c === category;
+  });
+
+  let scores = [];
+  let totalScore = 0;
+  let totalMax = 0;
+
+  list.forEach(t => {
+    const score = Number(t.score || 0);
+    const max = Number(t.max || 0);
+
+    scores.push(score);
+    totalScore += score;
+    totalMax += max;
+  });
+
+  const percent = totalMax ? (totalScore / totalMax) * 100 : 0;
+  const trans = transmute(percent, state.subjectType);
+  const weight = gradeWeights?.[period]?.[category] || 0;
+  const weighted = trans * weight;
+
+  return {
+    scores,
+    percent,
+    trans,
+    weighted
+  };
 }
 
 /* ===========================
@@ -8108,15 +9533,14 @@ document.addEventListener("click", (e) => {
   if (img) img.src = "";
 });
 
-document.getElementById("exportScope").onchange = function () {
-  const scope = this.value;
+// onchange
+document.getElementById("exportScope").onchange = updateExportUI;
 
-  document.getElementById("exportSectionWrap")
-    .classList.toggle("hidden", scope !== "section");
+document.getElementById("menuExport").addEventListener("click", async () => {
+  openscreenExport();
+  initExportForm();
+});
 
-  document.getElementById("exportStudentWrap")
-    .classList.toggle("hidden", scope !== "student");
-};
 
 /* ===========================
    SESSION ACTIVITY REFRESH

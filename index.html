@@ -314,15 +314,21 @@
 					<option value="student">Single Student</option>
 				</select>
 
-				<div id="exportSectionWrap" class="hidden">
-					<label>Section</label>
-					<select id="exportSection"></select>
+				<div id="exportCourseWrap" class="hidden">
+					<label>Course (Subject)</label>
+					<select id="exportCourse"></select>
 				</div>
 
 				<div id="exportStudentWrap" class="hidden">
 					<label>Student</label>
 					<select id="exportStudent"></select>
 				</div>
+
+				<label>Calculation Type</label>
+				<select id="subjectType" style="width: 100%; margin-bottom:10px;">
+					<option value="minor" selected>Minor (Base 50)</option>
+					<option value="major">Major (Base 60)</option>
+				</select>
 
 				<div class="row gap" style="margin-top:12px;">
 					<button class="btn btn-primary" onclick="runExport()">Export</button>
@@ -1147,9 +1153,9 @@
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 	<!-- ✅ LOAD LIBRARIES FIRST -->
-	<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style/dist/xlsx.bundle.js"></script>
 
-	<!-- ✅ FIX JSPDF  -->
+	<!-- ✅ EXCEL  -->
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 	<script src="app.js"></script>
