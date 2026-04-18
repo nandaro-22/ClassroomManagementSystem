@@ -304,6 +304,7 @@
 				<label>Format</label>
 				<select id="exportType">
 					<option value="excel">Excel</option>
+					<option value="csv">CSV</option>
 					<option value="pdf">PDF</option>
 				</select>
 
@@ -378,7 +379,8 @@
 				<!-- Student context -->
 				<div class="muted" style="margin-bottom:12px;">
 					<!-- Seat: <b style="color: #00f" id="gradeSeatNo">—</b> | -->
-					Student ID: <b style="color: #00f" id="gradeStudentId">—</b>
+					Student ID: <b style="color: #00f" id="gradeStudentId">—</b> |
+					Course: <b style="color: #00f" id="courseStudentId">—</b>
 					<div style="margin-bottom:10px;">
 						<label style="margin-left:15px;">
 							<input type="radio" name="subjectType" value="major">
@@ -394,6 +396,10 @@
 
 				<!-- ✅ GRADES — ADMIN ADD TOOL (TEMP - frontend only) -->
 				<div class="row gradeToolbar" id="gradeAdminTools">
+					<select id="newTaskCourseSection" class="gradeField gradeDropdown">
+						<option value="">-- Select Course/Section --</option>
+					</select>
+
 					<select id="newTaskPeriod" class="gradeField gradeDropdown">
 						<option value="">-- Select Period --</option>
 						<option value="MIDTERM PERIOD">MIDTERM PERIOD</option>
@@ -1150,14 +1156,25 @@
 		</div>
 	</div>
 
+	<!-- RADAR INPUT -->
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-	<!-- ✅ LOAD LIBRARIES FIRST -->
+	<!-- Excel -->
 	<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style/dist/xlsx.bundle.js"></script>
 
-	<!-- ✅ EXCEL  -->
+	<!-- REQUIRED for jsPDF.html -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+
+	<!-- REQUIRED for jsPDF.html -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+	<!-- jsPDF -->
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+	<!-- OPTIONAL (can remove) -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+	<!-- Your app -->
 	<script src="app.js"></script>
 
 	<div id="seatTooltip" class="seatTooltip hidden"></div>

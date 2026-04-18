@@ -338,6 +338,7 @@ const inpAddStudentEmail = document.getElementById("inpAddStudentEmail");
 const menuStudentInfo = document.getElementById("menuStudentInfo");
 const menuSeatMapInfo = document.getElementById("menuSeatMapInfo");
 const menuExport = document.getElementById("menuExport");
+const exportCourse = document.getElementById("exportCourse");
 
 /* ===========================
    DOM — DEBUG & SYNC PANEL
@@ -437,6 +438,8 @@ let learnerChart = null;
 
 let gradeEditing = false;
 
+let ALL_STUDENTS = []; // global cache
+
 /* ===========================
    GLOBAL STATE
 =========================== */
@@ -510,55 +513,12 @@ state.gradeCategoryState = state.gradeCategoryState || {};
 
 state.subjectType = "minor"; // default
 
+/* ======================================================
+   GRADES SYSTEM
+====================================================== */
 /* ===========================
-   UI HELPERS
+   Rendering & UI
 =========================== */
-
-/*******************************************************
-* function name: formatShortDate
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function formatShortDate(d) {
-  if (!d) return "-";
-  const date = new Date(d);
-  if (isNaN(date)) return d;
-  return date.toISOString().split("T")[0];
-}
-
-/*******************************************************
-* function name: formatGradeDate
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function formatGradeDate(dateStr) {
-  if (!dateStr) return "-";
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-PH", {
-      year: "numeric",
-      month: "short",
-      day: "numeric"
-    });
-  } catch (e) {
-    return dateStr;
-  }
-}
-
-/*******************************************************
-* function name: updateGradeSeat
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function isTaskMissing(score) {
-  if (score === "" || score === null || score === undefined) return true;
-  if (Number.isNaN(Number(score))) return true;
-  return false;
-}
-
 /*******************************************************
 * function name: renderTaskGrades
 * parameter: studentId (string)
@@ -569,23 +529,15 @@ function renderTaskGrades() {
   const tbody = document.getElementById("gradeTableBody");
   if (!tbody) return;
   tbody.innerHTML = "";
+
   const tasks = state.gradeTasks || [];
   if (!tasks.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#64748b;">No grade items</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#dc2626;">No grade items</td></tr>`; //#64748b
     return;
   }
   // ===== CATEGORY ORDER (EXCEL STYLE)
-  const categoryOrder = [
-    "AUGUSTINIAN VALUE",
-    "QUIZ",
-    "ASSIGNMENT",
-    "EXERCISE",
-    "PROJECT",
-    "MIDTERM EXAM",
-    "FINAL EXAM",
-    "CLASS PARTICIPATION",
-    "OTHERS"
-  ];
+  const categoryOrder = ["AUGUSTINIAN VALUE", "QUIZ", "ASSIGNMENT", "EXERCISE", "PROJECT", "MIDTERM EXAM", "FINAL EXAM", "CLASS PARTICIPATION", "OTHERS"];
+
   // ===== GROUP BY PERIOD
   const periodGroups = {};
   tasks.forEach(t => {
@@ -593,9 +545,11 @@ function renderTaskGrades() {
     if (!periodGroups[period]) periodGroups[period] = [];
     periodGroups[period].push(t);
   });
+
   // ===== LOOP PERIODS
   Object.keys(periodGroups).forEach(period => {
     const periodTasks = periodGroups[period];
+
     // PERIOD HEADER
     const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
     const periodHeader = document.createElement("tr");
@@ -603,6 +557,7 @@ function renderTaskGrades() {
     periodHeader.dataset.period = safePeriod;
     periodHeader.innerHTML = `<td colspan="6" style="background:#fde047; font-weight:900; font-size:16px; cursor:pointer;"><span id="periodArrow_${safePeriod}">▼</span>${period}</td>`;
     tbody.appendChild(periodHeader);
+
     // PERIOD HEADER COLLAPSE
     periodHeader.onclick = () => {
       const rows = document.querySelectorAll(".periodRow_" + safePeriod);
@@ -613,6 +568,7 @@ function renderTaskGrades() {
       });
       arrow.textContent = hidden ? "▼" : "▶";
     };
+
     // ===== GROUP BY CATEGORY
     const grouped = {};
     periodTasks.forEach(t => {
@@ -620,12 +576,14 @@ function renderTaskGrades() {
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(t);
     });
+
     // ===== SORT CATEGORY ORDER
     const sortedCategories = Object.keys(grouped).sort((a, b) => {
       const ia = categoryOrder.indexOf(a);
       const ib = categoryOrder.indexOf(b);
       return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
     });
+
     // ===== LOOP CATEGORY
     sortedCategories.forEach(cat => {
       const safeCat = cat.replace(/[^a-zA-Z0-9]/g, "_");
@@ -636,12 +594,14 @@ function renderTaskGrades() {
       if (state.gradeCategoryState[catKey] === undefined) {
         state.gradeCategoryState[catKey] = true;
       }
+
       // ===== COUNT MISSING
       grouped[cat].forEach(t => {
         if (isTaskMissing(t.score)) {
           missingCount++;
         }
       });
+
       // ===== CATEGORY HEADER
       const headerRow = document.createElement("tr");
       headerRow.className = "gradeCategoryHeader";
@@ -651,6 +611,7 @@ function renderTaskGrades() {
         <span id="catArrow_${safePeriod}_${safeCat}">${state.gradeCategoryState[catKey] ? "▼" : "▶"}</span>
         ${escapeHtml(cat)}${missingCount > 0 ? `<span class="missingBadge" style=" margin-left:10px; background:#fee2e2; color:#b42318; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700;">${missingCount} Missing</span>` : ""}</td>`;
       tbody.appendChild(headerRow);
+
       // ===== COLLAPSE
       headerRow.onclick = () => {
         const rows = document.querySelectorAll(".catRow_" + safePeriod + "_" + safeCat);
@@ -662,6 +623,7 @@ function renderTaskGrades() {
         state.gradeCategoryState[catKey] = !hidden;
         arrow.textContent = hidden ? "▶" : "▼";
       };
+
       // ===== TASK ROWS
       grouped[cat].forEach(t => {
         const tr = document.createElement("tr");
@@ -697,13 +659,8 @@ function renderTaskGrades() {
         `;
         tbody.appendChild(tr);
       });
+
       // ===== CATEGORY AVERAGE
-      //const avg = totalMax>0 ? (totalScore/totalMax)*100 : 0;
-      //state.categoryGrades[cat]=avg;
-      //const raw = totalMax>0 ? (totalScore/totalMax)*100 : 0;
-      //const transmuted = transmute(raw,"major");
-      //state.categoryGrades[cat]=transmuted;
-      //const transmuted = state.categoryGrades?.[period]?.[cat] ?? 0;
       const transmuted = state.categoryGrades?.[period]?.[cat] !== undefined ? state.categoryGrades[period][cat] : 0;
       let avgColor = "#b42318";
       if (transmuted >= 75) avgColor = "#1f7a3f";
@@ -718,6 +675,7 @@ function renderTaskGrades() {
       //<td class="catAvgRow" style="font-weight:900; background:#f8fafc; color:${avgColor}; font-size:16px;">${transmuted.toFixed(0)}</td>`;
       tbody.appendChild(avgRow);
     });
+
     // ===== PERIOD AVERAGE (ONCE ONLY)
     const periodGrade = computePeriodGrade(period);
     const periodAvgRow = document.createElement("tr");
@@ -727,6 +685,7 @@ function renderTaskGrades() {
       <td style="font-weight:900; font-size:18px; color:#1f7a3f;">${periodGrade.toFixed(1)}</td>`;
     tbody.appendChild(periodAvgRow);
   });
+
   // ===== INPUT EVENTS
   document.querySelectorAll(".gradeInput").forEach(input => {
     input.oninput = function () {
@@ -742,108 +701,165 @@ function renderTaskGrades() {
   document.querySelectorAll('input[name="subjectType"]').forEach(radio => {
     radio.onchange = function () {
       state.subjectType = this.value;
-      //console.log("SUBJECT TYPE:", state.subjectType);
       recomputeAllGrades();
     };
   });
 }
 
+/* OBSOLETE */
 /*******************************************************
-* function name: recomputePeriodAverages
-* parameter: -
+* function name: resetGradesUI
+* parameter: none
 * return: -
-* purpose: -
-*******************************************************/
-function recomputePeriodAverages() {
-  ["MIDTERM PERIOD", "FINAL PERIOD"].forEach(period => {
-    const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
-    const grade = computePeriodGrade(period);
+* purpose: Clears all grade scores in state, resets final grade and status display, and re-renders the grade table.
+********************************************************/
+/*function resetGradesUI() {
+  state.grades.scores = {};
 
-    const row = document.querySelector(".periodAvg_" + safePeriod);
-    if (!row) return;
+  const finalEl = document.getElementById("finalGradeValue");
+  if (finalEl) finalEl.textContent = "0.00%";
 
-    const cell = row.querySelector("td:last-child");
-
-    if (cell) {
-      const value = Number(grade) || 0;
-      // update value
-      cell.textContent = value.toFixed(1);
-      if (value >= 85) cell.style.color = "#1f7a3f"; // green
-      else if (value >= 75) cell.style.color = "#b26a00"; // orange
-      else cell.style.color = "#b42318"; // red
-    }
-  });
-}
-
-/*******************************************************
-* function name: getCategoryType
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function getCategoryType(category) {
-  return state.subjectType; // dynamic
-}
-
-/*******************************************************
-* function name: loadTaskGrades
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-async function loadTaskGrades(studentId) {
-  try {
-
-    // reset all fields
-    resetGradeUI();
-    showLoading("Loading grades, please wait...");
-    // Stop API call if logged out
-    if (!state.idToken) {
-      //console.log("Skipped grades load - no session.");
-      return;
-    }
-
-    const student = state.currentStudent;
-    if (!student) return;
-
-    // Load Transmutation table
-    if (!state.transmutationMajor) {
-      await loadTransmutationTables();
-    }
-
-    const res = await apiGet({
-      action: "gradesTaskLoad",
-      studentId,
-      idToken: state.idToken
-    });
-
-    if (!res || res.status !== "success") {
-      hideLoading();
-      throw new Error(res?.message || "Load failed");
-    }
-
-    //console.log("GRADE API RESPONSE:", res);
-
-    if (!res.items || res.items.length === 0) {
-      //console.log("No sheet data. Using default template.");
-      state.gradeTasks = getDefaultGradeTemplate();
-    } else {
-      state.gradeTasks = res.items;
-    }
-
-    document.getElementById("gradeStudentId").textContent = student.studentId || "—";
-    if (!gradeEditing) {
-      renderTaskGrades();
-      recomputeTaskFinal();
-    }
-    hideLoading();
-  } catch (err) {
-    //console.error("TASK LOAD ERROR:", err);
-    hideLoading();
-    state.gradeTasks = getDefaultGradeTemplate();
-    renderTaskGrades();
-    recomputeTaskFinal();
+  const statusEl = document.getElementById("finalGradeStatus");
+  if (statusEl) {
+    statusEl.textContent = "—";
+    statusEl.className = "gradeStatus";
   }
+}*/
+
+/*******************************************************
+* function name: resetGradeUI
+* parameter: none
+* return: -
+* purpose: -
+*******************************************************/
+async function resetGradeUI() {
+
+  // 1. Clear State
+  state.gradeTasks = [];
+
+  // 2. Load default template into state
+  state.gradeTasks = getDefaultGradeTemplate();
+
+  // 3. Reset computed values
+  state.categoryGrades = {
+    "MIDTERM PERIOD": {},
+    "FINAL PERIOD": {}
+  };
+  state.gradeCategoryState = {};
+
+  // 4. Clear table (optional, render will overwrite anyway)
+  const tbody = document.getElementById("gradeTableBody");
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;color:#94a3b8;">
+          Loading...
+        </td>
+      </tr>
+    `;
+  }
+
+  // 5. Re-render UI
+  // Load Transmutation table
+  if (!state.transmutationMajor) {
+    await loadTransmutationTables();
+  }
+  renderTaskGrades();
+
+  // 6. Recompute grades
+  recomputeAllGrades();
+
+  // 7. Reset final grade display
+  // ✅ CLEAR FINAL GRADE
+  const finalEl = document.getElementById("finalGradeValue");
+  if (finalEl) {
+    finalEl.textContent = "-";
+    finalEl.style.color = "#64748b";
+  }
+
+  // ✅ CLEAR STATUS BADGE
+  const badge = document.getElementById("finalGradeStatus");
+  if (badge) {
+    badge.textContent = "-";
+    badge.classList.remove("passed", "failed", "incomplete");
+  }
+
+  // ✅ CLEAR STUDENT ID DISPLAY
+  const idEl = document.getElementById("gradeStudentId");
+  if (idEl) {
+    idEl.textContent = "-";
+  }
+
+}
+
+/* ===========================
+   Recompute / Calculation Engine
+=========================== */
+/*******************************************************
+* function name: recomputeAllGrades
+* parameter: 
+* return: -
+* purpose: 
+*******************************************************/
+function recomputeAllGrades() {
+
+  state.categoryGrades = {
+    "MIDTERM PERIOD": {},
+    "FINAL PERIOD": {}
+  };
+
+  const tasks = state.gradeTasks || [];
+
+  // ✅ GROUP FIRST (NO FILTER BUGS)
+  const grouped = {};
+
+  tasks.forEach(t => {
+    const period = normalize(t.period || "MIDTERM PERIOD");
+    const category = normalize(t.category);
+
+    if (!grouped[period]) grouped[period] = {};
+    if (!grouped[period][category]) grouped[period][category] = [];
+
+    grouped[period][category].push(t);
+  });
+
+  // ✅ COMPUTE PER CATEGORY
+  Object.keys(grouped).forEach(period => {
+    Object.keys(grouped[period]).forEach(category => {
+
+      const tasksForCategory = grouped[period][category];
+
+      if (!tasksForCategory.length) return;
+
+      const type = getCategoryType(category);
+
+      const result = computeCategoryGrade(tasksForCategory, type);
+
+      // ✅ STORE USING NORMALIZED KEY
+      state.categoryGrades[period][category] = result.grade;
+
+      // ✅ UPDATE UI
+      const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
+      const safeCat = category.replace(/[^a-zA-Z0-9]/g, "_");
+
+      const row = document.querySelector(`.catAvgRow_${safePeriod}_${safeCat}`);
+      const cell = row ? row.querySelector(".catAvgRow") : null;
+
+      if (cell) {
+        const value = Number(result.grade) || 0;
+
+        // update value
+        cell.textContent = value.toFixed(0);
+        if (value >= 85) cell.style.color = "#1f7a3f";      // green
+        else if (value >= 75) cell.style.color = "#b26a00"; // orange
+        else cell.style.color = "#b42318";                  // red
+      }
+    });
+  });
+
+  // ✅ PERIOD + FINAL
+  recomputePeriodAverages();
+  recomputeTaskFinal();
 }
 
 /*******************************************************
@@ -874,32 +890,34 @@ function recomputeTaskFinal() {
     const cell = document.getElementById("taskPct_" + task.taskCode);
     if (cell) {
       cell.textContent = pct.toFixed(1) + "%";
-      if (pct >= 85) cell.style.color = "#1f7a3f"; // green
+      if (pct >= 85) cell.style.color = "#1f7a3f";      // green
       else if (pct >= 75) cell.style.color = "#b26a00"; // orange
-      else cell.style.color = "#b42318"; // red
+      else cell.style.color = "#b42318";                // red
     }
   });
 
   // ===== FINAL GRADE =====
-  //const final = count ? (total/count) : 0; for deletion
   const midterm = computePeriodGrade("MIDTERM PERIOD") || 0;
   const finalPeriod = computePeriodGrade("FINAL PERIOD") || 0;
-  //const final = computePeriodGrade("MIDTERM PERIOD");
   const final = (midterm * 0.5) + (finalPeriod * 0.5);
-  // FINAL VALUE
   const finalEl = document.getElementById("finalGradeValue");
   if (finalEl) {
-    //finalEl.textContent = final.toFixed(2)+"%";
     finalEl.textContent = final.toFixed(2);
   }
   // ===== BADGE =====
   const badge = document.getElementById("finalGradeStatus");
   if (!badge) return;
   // reset class safely
-  badge.classList.remove("passed", "failed");
+  badge.classList.remove("passed", "failed", "incomplete");
   // if no grade yet
   const hasMidterm = hasPeriodGrades("MIDTERM PERIOD");
   const hasFinal = hasPeriodGrades("FINAL PERIOD");
+
+  if (!hasMidterm || !hasFinal) {
+    badge.textContent = "INCOMPLETE";
+    badge.classList.add("incomplete");
+    return;
+  }
 
   if (final >= 75) {
     badge.textContent = "PASSED";
@@ -908,18 +926,112 @@ function recomputeTaskFinal() {
     badge.textContent = "FAILED";
     badge.classList.add("failed");
   }
+}
 
-  if (!hasMidterm || !hasFinal) {
-    badge.textContent = "INCOMPLETE";
-    badge.classList.add("incomplete");
-    return;
-  }
+/*******************************************************
+* function name: recomputePeriodAverages
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function recomputePeriodAverages() {
+  ["MIDTERM PERIOD", "FINAL PERIOD"].forEach(period => {
+    const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
+    const grade = computePeriodGrade(period);
 
-  /*console.log("FINAL DEBUG: ", {
-    midterm,
-    finalPeriod,
-    final
-  });*/
+    const row = document.querySelector(".periodAvg_" + safePeriod);
+    if (!row) return;
+
+    const cell = row.querySelector("td:last-child");
+
+    if (cell) {
+      const value = Number(grade) || 0;
+      // update value
+      cell.textContent = value.toFixed(1);
+      if (value >= 85) cell.style.color = "#1f7a3f";      // green
+      else if (value >= 75) cell.style.color = "#b26a00"; // orange
+      else cell.style.color = "#b42318";                  // red
+    }
+  });
+}
+
+/*******************************************************
+* function name: computePeriodGrade
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function computePeriodGrade(period) {
+  const weights = gradeWeights[period];
+  const categories = state.categoryGrades[period] || {};
+
+  let total = 0;
+
+  Object.keys(weights).forEach(cat => {
+    const grade = categories[cat] ?? categories[normalize(cat)];
+    if (grade !== undefined) {
+      total += grade * weights[cat];
+    }
+  });
+
+  return total;
+}
+
+/*******************************************************
+* function name: computeCategoryGrade
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+function computeCategoryGrade(tasks, type = "minor") {
+
+  let totalScore = 0;
+  let totalMax = 0;
+
+  tasks.forEach(t => {
+    const rawScore = t.score;
+
+    const score = rawScore === "" || rawScore === null || rawScore === undefined ? 0 : parseFloat(rawScore);
+
+    const max = parseFloat(t.max);
+
+    if (!isNaN(max) && max > 0) {
+      totalScore += (isNaN(score) ? 0 : score);
+      totalMax += max;
+    }
+  });
+
+  const raw = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
+
+  const transmuted = transmute(raw, type);
+
+  return {
+    raw,                 // % (e.g. 77.5)
+    grade: transmuted,   // transmuted (e.g. 88)
+    totalScore,          // e.g. 31
+    totalMax             // e.g. 40
+  };
+}
+
+/*******************************************************
+* function name: computeRawPercent
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function computeRawPercent(tasks) {
+  let totalScore = 0;
+  let totalMax = 0;
+  tasks.forEach(t => {
+    const score = Number(t.score);
+    const max = Number(t.max);
+    if (Number.isFinite(score) && max > 0) {
+      totalScore += score;
+      totalMax += max;
+    }
+  });
+  if (totalMax === 0) return 0;
+  return (totalScore / totalMax) * 100;
 }
 
 /*******************************************************
@@ -980,9 +1092,9 @@ function updateGradeRealtime(taskCode, input) {
   if (pctCell) {
     pctCell.textContent = pct.toFixed(1) + "%";
     // realtime color
-    if (pct >= 75) pctCell.style.color = "#1f7a3f";   // green
-    else if (pct >= 50) pctCell.style.color = "#b26a00";   // orange
-    else pctCell.style.color = "#b42318";   // red
+    if (pct >= 75) pctCell.style.color = "#1f7a3f";         // green
+    else if (pct >= 50) pctCell.style.color = "#b26a00";    // orange
+    else pctCell.style.color = "#b42318";                   // red
   }
 
   // ===== ROW =====
@@ -996,92 +1108,13 @@ function updateGradeRealtime(taskCode, input) {
   taskCell.querySelectorAll(".notSubmitted").forEach(e => e.remove());
 
   if (isMissing) {
-    taskCell.insertAdjacentHTML(
-      "beforeend",
-      `<span class="notSubmitted" style="color:#b42318; font-weight:700; margin-left:8px;">⚠️ NOT SUBMITTED</span>`
-    );
+    taskCell.insertAdjacentHTML("beforeend", `<span class="notSubmitted" style="color:#b42318; font-weight:700; margin-left:8px;">⚠️ NOT SUBMITTED</span>`);
   }
 
   updateCategoryMissingBadge(task.category);
 
   // ===== FINAL =====
   recomputeAllGrades();
-}
-
-/*******************************************************
-* function name: recomputeAllGrades
-* parameter: 
-* return: -
-* purpose: 
-*******************************************************/
-function recomputeAllGrades() {
-
-  //console.log("🚀 RECOMPUTE START");
-
-  state.categoryGrades = {
-    "MIDTERM PERIOD": {},
-    "FINAL PERIOD": {}
-  };
-
-  const tasks = state.gradeTasks || [];
-
-  // ✅ GROUP FIRST (NO FILTER BUGS)
-  const grouped = {};
-
-  tasks.forEach(t => {
-    const period = normalize(t.period || "MIDTERM PERIOD");
-    const category = normalize(t.category);
-
-    if (!grouped[period]) grouped[period] = {};
-    if (!grouped[period][category]) grouped[period][category] = [];
-
-    grouped[period][category].push(t);
-  });
-
-  //console.log("📦 GROUPED:", grouped);
-
-  // ✅ COMPUTE PER CATEGORY
-  Object.keys(grouped).forEach(period => {
-    Object.keys(grouped[period]).forEach(category => {
-
-      const tasksForCategory = grouped[period][category];
-
-      if (!tasksForCategory.length) return;
-
-      const type = getCategoryType(category);
-
-      const result = computeCategoryGrade(tasksForCategory, type);
-
-      // ✅ STORE USING NORMALIZED KEY
-      state.categoryGrades[period][category] = result.grade;
-
-      // ✅ UPDATE UI
-      const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
-      const safeCat = category.replace(/[^a-zA-Z0-9]/g, "_");
-
-      /*const cell = document.querySelector(
-        `.catAvgRow_${safePeriod}_${safeCat}.catAvgRow`
-      );*/
-      const row = document.querySelector(`.catAvgRow_${safePeriod}_${safeCat}`);
-      const cell = row ? row.querySelector(".catAvgRow") : null;
-
-      if (cell) {
-        const value = Number(result.grade) || 0;
-
-        // update value
-        cell.textContent = value.toFixed(0);
-        if (value >= 85) cell.style.color = "#1f7a3f"; // green
-        else if (value >= 75) cell.style.color = "#b26a00"; // orange
-        else cell.style.color = "#b42318"; // red
-      }
-    });
-  });
-
-  //console.log("✅ CATEGORY GRADES:", state.categoryGrades);
-
-  // ✅ PERIOD + FINAL
-  recomputePeriodAverages();
-  recomputeTaskFinal();
 }
 
 /*******************************************************
@@ -1100,7 +1133,6 @@ function updateCategoryMissingBadge(category) {
     const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
     const safeCat = categoryUpper.replace(/[^a-zA-Z0-9]/g, "_");
 
-    // ✅ FIX: correct selector (WITH PERIOD)
     const rows = document.querySelectorAll(`.catRow_${safePeriod}_${safeCat}`);
 
     if (!rows.length) return;
@@ -1118,10 +1150,7 @@ function updateCategoryMissingBadge(category) {
       }
     });
 
-    // ✅ FIX: correct header (WITH PERIOD)
-    const header = document.querySelector(
-      `.gradeCategoryHeader.periodRow_${safePeriod}[data-category="${safeCat}"]`
-    );
+    const header = document.querySelector(`.gradeCategoryHeader.periodRow_${safePeriod}[data-category="${safeCat}"]`);
 
     if (!header) return;
 
@@ -1147,6 +1176,201 @@ function updateCategoryMissingBadge(category) {
   });
 }
 
+/* ===========================
+   Load / Fetch
+=========================== */
+/*******************************************************
+* function name: loadTaskGrades
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+async function loadTaskGrades(studentId) {
+  try {
+
+    // reset all fields
+    resetGradeUI();
+    showLoading("Loading GRADES... Please wait!");
+
+    // Stop API call if logged out
+    if (!state.idToken) {
+      console.log("Skipped grades load - no session.");
+      return;
+    }
+
+    const student = state.currentStudent;
+    if (!student) return;
+
+    // Load Transmutation table
+    if (!state.transmutationMajor) {
+      await loadTransmutationTables();
+    }
+
+    const res = await apiGet({
+      action: "gradesTaskLoad",
+      studentId,
+      idToken: state.idToken
+    });
+
+    if (!res || res.status !== "success") {
+      hideLoading();
+      throw new Error(res?.message || "Load failed");
+    }
+
+    document.getElementById("gradeStudentId").textContent = state.currentStudent.studentId || "—";
+    document.getElementById("courseStudentId").textContent = state.currentStudent.courseSubject || "-";
+
+    // 🔥 ALWAYS RESET FIRST
+    let items = res.items || [];
+
+    // ===== CASE 1: NO DATA → USE TEMPLATE
+    if (!items.length) {
+
+      console.log("⚠️ No sheet data → using default template");
+
+      state.gradeTasks = getDefaultGradeTemplate();
+
+      // 🔥 IMPORTANT
+      //loadGradeCourses(student, res.items);
+      renderTaskGrades();
+      recomputeTaskFinal();
+      hideLoading();
+      return;
+    }
+
+    // ===== CASE 2: WITH DATA
+
+    // 🔥 STEP 1: SET DEFAULT COURSE
+    if (!state.filters.courseSubject) {
+      const firstCourse = items.find(i => i.courseSubject)?.courseSubject;
+      if (firstCourse) {
+        state.filters.courseSubject = firstCourse;
+        //console.log("state.filters.courseSubject = firstCourse: ", state.filters.courseSubject = firstCourse);
+      }
+    }
+
+    // 🔥 STEP 2: FILTER
+    const selectedCourse = state.filters.courseSubject;
+    //console.log("state.filters.courseSubject: ", state.filters.courseSubject);
+
+    let filtered = items.filter(item =>
+      !selectedCourse || item.courseSubject === selectedCourse
+    );
+
+    // 🔥 NO MATCH, USE TEMPLATE
+    if (!filtered.length) {
+      console.warn("⚠️ No matching course → using default template");
+
+      state.gradeTasks = getDefaultGradeTemplate();
+    } else {
+      state.gradeTasks = filtered;
+    }
+
+    //console.log("loadTaskGrades student: ", student);
+
+    if (!gradeEditing) {
+      //loadGradeCourses(student, res.items);
+      renderTaskGrades();
+      recomputeTaskFinal();
+    }
+    hideLoading();
+  } catch (err) {
+    //console.error("TASK LOAD ERROR:", err);
+    state.gradeTasks = getDefaultGradeTemplate();
+    renderTaskGrades();
+    recomputeTaskFinal();
+    hideLoading();
+  }
+}
+
+/*******************************************************
+* function name: loadGradeCourses
+* parameter: 
+* return: 
+* purpose: 
+*******************************************************/
+/*async function loadGradeCourses(student, gradeItems) {
+
+  const select = document.getElementById("newTaskCourseSection");
+  select.innerHTML = '<option value="">-- Select Course/Section --</option>';
+
+  let courseSet = new Set();
+
+  try {
+    // ✅ CALL NEW API
+    const res = await apiGet({
+      action: "getStudentCourses",
+      studentId: student.studentId,
+      idToken: state.idToken
+    });
+
+    if (res.status === "success") {
+      (res.courses || []).forEach(c => {
+        if (c) courseSet.add(c.trim());
+      });
+    }
+
+  } catch (e) {
+    console.error("Course load failed:", e);
+  }
+
+  // ✅ FALLBACK (grades)
+  (gradeItems || []).forEach(item => {
+    if (item.courseSubject) {
+      courseSet.add(item.courseSubject.trim());
+    }
+  });
+
+  // ✅ FALLBACK (student)
+  if (student.courseSubject) {
+    courseSet.add(student.courseSubject.trim());
+  }
+
+  const courses = [...courseSet].sort();
+
+  console.log("FINAL COURSES:", courses);
+
+  // ✅ POPULATE
+  courses.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    select.appendChild(opt);
+  });
+
+  // ✅ DEFAULT
+  if (!state.filters.courseSubject) {
+    state.filters.courseSubject = courses[0] || "";
+  }
+
+  select.value = state.filters.courseSubject;
+
+  select.onchange = function () {
+    state.filters.courseSubject = this.value;
+    loadTaskGrades(state.currentStudent.studentId);
+  };
+}*/
+
+/*******************************************************
+* function name: loadTransmutationTables
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+async function loadTransmutationTables() {
+  const res = await apiPost({
+    action: "getTransmutationTables",
+    idToken: state.idToken
+  });
+
+  state.transmutationMajor = res.major;
+  state.transmutationMinor = res.minor;
+
+}
+
+/* ===========================
+   Save / Modify
+=========================== */
 /*******************************************************
 * function name: saveTaskGrades
 * parameter: 
@@ -1155,6 +1379,7 @@ function updateCategoryMissingBadge(category) {
 *******************************************************/
 async function saveTaskGrades() {
   showLoading("Saving task grades...");
+
   try {
     const student = state.currentStudent;
     if (!student) {
@@ -1163,7 +1388,43 @@ async function saveTaskGrades() {
       return;
     }
 
-    // ===== CORRECT API POST =====
+    const selectedCourse = document.getElementById("newTaskCourseSection").value;
+    if (!selectedCourse) {
+      hideLoading();
+      alert("Please select a Course/Subject first");
+      return;
+    }
+
+    // 🔥 STEP 1: GET ALL EXISTING DATA FIRST
+    const resLoad = await apiGet({
+      action: "gradesTaskLoad",
+      studentId: student.studentId,
+      idToken: state.idToken
+    });
+
+    let allItems = resLoad?.items || [];
+
+    // 🔥 STEP 2: REMOVE ONLY CURRENT COURSE
+    allItems = allItems.filter(item =>
+      (item.courseSubject || "").trim().toUpperCase() !== selectedCourse.trim().toUpperCase()
+    );
+
+    // 🔥 STEP 3: ADD UPDATED COURSE ITEMS
+    const newItems = (state.gradeTasks || []).map(g => ({
+      courseSubject: selectedCourse,
+      period: g.period,
+      date: g.date,
+      category: g.category,
+      taskCode: g.taskCode,
+      taskName: g.taskName,
+      max: g.max,
+      score: g.score,
+      percent: g.percent
+    }));
+
+    const finalItems = [...allItems, ...newItems];
+
+    // 🔥 STEP 4: SAVE MERGED DATA
     const res = await apiPost(
       {
         action: "gradesTaskSave",
@@ -1171,18 +1432,21 @@ async function saveTaskGrades() {
       },
       {
         studentId: student.studentId,
-        items: state.gradeTasks
-      });
+        items: finalItems
+      }
+    );
 
-    hideLoading();
-    //console.log("SAVE RESPONSE:", res);
     if (!res || res.status !== "success") {
+      hideLoading();
       alert(res?.message || "Save failed");
       return;
     }
+
     alert("Grades Saved Successfully ✅");
-    // ⭐ reload from sheet (important)
+
     await loadTaskGrades(student.studentId);
+
+    hideLoading();
   } catch (e) {
     hideLoading();
     console.error(e);
@@ -1244,6 +1508,31 @@ async function addTaskRow() {
   renderTaskGrades();
 }
 
+/* ===========================
+   Helpers (Grades)
+=========================== */
+/*******************************************************
+* function name: isTaskMissing
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function isTaskMissing(score) {
+  if (score === "" || score === null || score === undefined) return true;
+  if (Number.isNaN(Number(score))) return true;
+  return false;
+}
+
+/*******************************************************
+* function name: getCategoryType
+* parameter: -
+* return: -
+* purpose: -
+*******************************************************/
+function getCategoryType(category) {
+  return state.subjectType; // dynamic
+}
+
 /*******************************************************
 * function name: getCategoryPrefix
 * parameter: category
@@ -1271,86 +1560,10 @@ function getCategoryPrefix(category) {
 * purpose: -
 *******************************************************/
 function getDefaultGradeTemplate() {
+  const today = new Date().toISOString().slice(0, 10);
   return [
-    { date: "2026-01-15", period: "MIDTERM PERIOD", category: "AUGUSTINIAN VALUE", taskCode: "Augustinian Value1", taskName: "Augustinian Value1", max: 10, score: "" },
-    /*{ date:"2026-01-15", period:"MIDTERM PERIOD", category:"ASSIGNMENT", taskCode:"Assign1", taskName:"Blog Entry1", max:20, score:"" },
-    { date:"2026-02-13", period:"MIDTERM PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation1", taskName:"Participation1", max:5, score:"" },
-    { date:"2026-02-02", period:"MIDTERM PERIOD", category:"QUIZ", taskCode:"QUIZ1", taskName:"Quiz1", max:20, score:"" },
-    { date:"2026-02-02", period:"MIDTERM PERIOD", category:"EXERCISE", taskCode:"EXERCISE", taskName:"Exer1", max:20, score:"" },
-    { date:"2026-02-15", period:"MIDTERM PERIOD", category:"MIDTERM EXAM", taskCode:"MID EXAM1", taskName:"Mid Exam1", max:100, score:"" },
-    { date:"2026-02-15", period:"MIDTERM PERIOD", category:"PROJECT", taskCode:"PROJECT", taskName:"Proj1", max:100, score:"" },*/
-
-    /*{ date: "2026-01-15", period: "FINAL PERIOD", category: "AUGUSTINIAN VALUE", taskCode: "Augustinian Value2", taskName: "Augustinian Value2", max: 10, score: "" },
-    { date:"2026-02-13", period:"FINAL PERIOD", category:"CLASS PARTICIPATION", taskCode:"Participation2", taskName:"Participation2", max:5, score:"" },
-    { date:"2026-02-02", period:"FINAL PERIOD", category:"QUIZ", taskCode:"QUIZ2", taskName:"Quiz2", max:20, score:"" },
-    { date:"2026-02-02", period:"FINAL PERIOD", category:"EXERCISE", taskCode:"EXERCISE2", taskName:"Exer2", max:20, score:"" },
-    { date:"2026-02-15", period:"FINAL PERIOD", category:"FINAL EXAM", taskCode:"FIN EXAM1", taskName:"Fin Exam1", max:100, score:"" },
-    { date:"2026-02-15", period:"FINAL PERIOD", category:"PROJECT", taskCode:"PROJECT2", taskName:"Proj2", max:100, score:"" }*/
+    { date: today, period: "MIDTERM PERIOD", category: "AUGUSTINIAN VALUE", taskCode: "Augustinian Value1", taskName: "Augustinian Value1", max: 10, score: "" },
   ];
-}
-
-/*******************************************************
-* function name: loadTransmutationTables
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-async function loadTransmutationTables() {
-  const res = await apiPost({
-    action: "getTransmutationTables",
-    idToken: state.idToken
-  });
-  //console.log("TRANSMUTATION RESPONSE: ", res);
-  state.transmutationMajor = res.major;
-  state.transmutationMinor = res.minor;
-
-  //console.log("🚨 RAW API MINOR:", res.minor.slice(0, 10));
-  //console.log("🚨 RAW API MAJOR:", res.major.slice(0, 10));
-  //console.log("TRANS TABLE SAMPLE: ", state.transmutationMinor.slice(0, 10));
-}
-
-/*******************************************************
-* function name: computeRawPercent
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function computeRawPercent(tasks) {
-  let totalScore = 0;
-  let totalMax = 0;
-  tasks.forEach(t => {
-    const score = Number(t.score);
-    const max = Number(t.max);
-    if (Number.isFinite(score) && max > 0) {
-      totalScore += score;
-      totalMax += max;
-    }
-  });
-  if (totalMax === 0) return 0;
-  return (totalScore / totalMax) * 100;
-}
-
-/*******************************************************
-* function name: computeRawPercent
-* parameter: -
-* return: -
-* purpose: -
-*******************************************************/
-function computePeriodGrade(period) {
-  const weights = gradeWeights[period];
-  const categories = state.categoryGrades[period] || {};
-
-  let total = 0;
-
-  Object.keys(weights).forEach(cat => {
-    //const grade = categories[normalize(cat)];
-    const grade = categories[cat] ?? categories[normalize(cat)];
-    if (grade !== undefined) {
-      total += grade * weights[cat];
-    }
-  });
-
-  return total;
 }
 
 /*******************************************************
@@ -1359,63 +1572,6 @@ function computePeriodGrade(period) {
 * return: -
 * purpose: -
 *******************************************************/
-// working transmute need to update for export
-/*function transmute(rawScore, subjectType = "minor") {
-  const table = subjectType === "major" ? state.transmutationMajor : state.transmutationMinor;
-
-  //console.log("📥 RAW TABLE:", table?.slice(0, 10));
-  //console.log("📥 RAW INPUT:", rawScore);
-
-  if (!Array.isArray(table) || !table.length) {
-    console.warn("❌ Table is not array");
-    return rawScore;
-  }
-
-  // 🔥 CLEAN TABLE PROPERLY
-  const clean = [];
-
-  table.forEach((row, i) => {
-    if (!row || row.length < 2) return;
-
-    const rawStr = String(row[0]).trim();
-    const gradeStr = String(row[1]).trim();
-
-    if (rawStr === "" || gradeStr === "") {
-      console.warn("🚨 SKIPPING EMPTY ROW:", i, row);
-      return;
-    }
-
-    const raw = Number(rawStr);
-    const grade = Number(gradeStr);
-
-    if (!Number.isFinite(raw) || !Number.isFinite(grade)) {
-      console.warn("🚨 INVALID ROW:", i, row);
-      return;
-    }
-
-    clean.push({ raw, grade });
-  });
-
-  //console.log("✅ CLEAN TABLE:", clean.slice(0, 10));
-
-  if (!clean.length) {
-    console.error("❌ CLEAN TABLE EMPTY → API ISSUE");
-    return rawScore;
-  }
-
-  // 🔥 SORT DESCENDING
-  clean.sort((a, b) => b.raw - a.raw);
-
-  // 🔥 MATCH
-  for (const row of clean) {
-    if (rawScore >= row.raw) {
-      //console.log("🎯 MATCH:", row);
-      return row.grade;
-    }
-  }
-
-  return clean[clean.length - 1].grade;
-}*/
 function transmute(rawScore, subjectType = "minor") {
 
   let table = subjectType === "major" ? state.transmutationMajor : state.transmutationMinor;
@@ -1471,82 +1627,6 @@ function transmute(rawScore, subjectType = "minor") {
 }
 
 /*******************************************************
-* function name: computeCategoryGrade
-* parameter: 
-* return: -
-* purpose: -
-*******************************************************/
-/*function computeCategoryGrade(tasks, type = "minor") {
-  let totalScore = 0;
-  let totalMax = 0;
-
-  tasks.forEach(t => {
-    const rawScore = t.score;
-    const score = rawScore === "" || rawScore === null || rawScore === undefined
-      ? 0   // ✅ treat missing as ZERO
-      : parseFloat(rawScore);
-
-    const max = parseFloat(t.max);
-
-    if (!isNaN(max) && max > 0) {
-      totalScore += (isNaN(score) ? 0 : score); // safe fallback
-      totalMax += max;
-    }
-  });
-
-  //console.log("🧮 TOTALS:", { totalScore, totalMax });
-
-  const raw = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
-
-  const transmuted = transmute(raw, type);
-
-  /*console.log("✅ FINAL RAW CHECK:", {
-    category: tasks[0]?.category,
-    totalScore,
-    totalMax,
-    raw,
-    transmuted
-  });*/
-
-//console.log("TOTAL SCORE:", totalScore)
-//console.log("TABLE SAMPLE:", state.transmutationMinor.slice(0, 10))
-/*
-  return {
-    raw,
-    grade: transmuted
-  };
-}*/
-function computeCategoryGrade(tasks, type = "minor") {
-
-  let totalScore = 0;
-  let totalMax = 0;
-
-  tasks.forEach(t => {
-    const rawScore = t.score;
-
-    const score = rawScore === "" || rawScore === null || rawScore === undefined ? 0 : parseFloat(rawScore);
-
-    const max = parseFloat(t.max);
-
-    if (!isNaN(max) && max > 0) {
-      totalScore += (isNaN(score) ? 0 : score);
-      totalMax += max;
-    }
-  });
-
-  const raw = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
-
-  const transmuted = transmute(raw, type);
-
-  return {
-    raw,                 // % (e.g. 77.5)
-    grade: transmuted,   // transmuted (e.g. 88)
-    totalScore,          // e.g. 31
-    totalMax             // e.g. 40
-  };
-}
-
-/*******************************************************
 * function name: normalize
 * parameter: none
 * return: -
@@ -1559,90 +1639,374 @@ function normalize(str) {
 }
 
 /*******************************************************
-* function name: resetGradesUI
-* parameter: none
-* return: -
-* purpose: Clears all grade scores in state, resets final grade and status display, and re-renders the grade table.
-********************************************************/
-function resetGradesUI() {
-  state.grades.scores = {};
-
-  const finalEl = document.getElementById("finalGradeValue");
-  if (finalEl) finalEl.textContent = "0.00%";
-
-  const statusEl = document.getElementById("finalGradeStatus");
-  if (statusEl) {
-    statusEl.textContent = "—";
-    statusEl.className = "gradeStatus";
-  }
-
-  //renderGradeTable();
-}
-
-/*******************************************************
-* function name: resetGradeUI
-* parameter: none
+* function name: formatGradeDate
+* parameter: -
 * return: -
 * purpose: -
 *******************************************************/
-function resetGradeUI() {
+function formatGradeDate(dateStr) {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    });
+  } catch (e) {
+    return dateStr;
+  }
+}
 
-  // ✅ CLEAR STATE
-  state.gradeTasks = [];
-  state.categoryGrades = {
-    "MIDTERM PERIOD": {},
-    "FINAL PERIOD": {}
-  };
-  state.gradeCategoryState = {};
+/*******************************************************
+* function name: preloadStudentCourses
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+async function preloadStudentCourses(student) {
+  try {
+    const res = await apiGet({
+      action: "getStudentCourses",
+      studentId: student.studentId,
+      idToken: state.idToken
+    });
 
-  // ✅ CLEAR TABLE
-  const tbody = document.getElementById("gradeTableBody");
-  if (tbody) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align:center;color:#94a3b8;">
-          Loading...
-        </td>
-      </tr>
-    `;
+    if (res.status === "success") {
+      state.cachedCourses = (res.courses || []).map(c => c.trim());
+    } else {
+      state.cachedCourses = [];
+    }
+
+  } catch (e) {
+    console.error("Preload courses failed:", e);
+    state.cachedCourses = [];
+  }
+}
+
+/*******************************************************
+* function name: populateCourseDropdown
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+function populateCourseDropdown() {
+  const select = document.getElementById("newTaskCourseSection");
+  select.innerHTML = '<option value="">-- Select Course/Section --</option>';
+
+  const courses = state.cachedCourses || [];
+
+  courses.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    select.appendChild(opt);
+  });
+
+  if (!state.filters.courseSubject) {
+    state.filters.courseSubject = courses[0] || "";
   }
 
-  // ✅ CLEAR FINAL GRADE
+  //select.value = state.filters.courseSubject;
+  select.value = state.currentStudent.courseSubject;
+  //console.log("select.value = state.currentStudent.courseSubject: ", state.currentStudent.courseSubject);
+  select.onchange = function () {
+    state.filters.courseSubject = this.value;
+    loadTaskGrades(state.currentStudent.studentId);
+  };
+}
+
+/* OBSOLETE *?
+/*******************************************************
+* function name: recomputeGrades
+* parameter: none
+* return: -
+* purpose: Recalculates per-item percentages and final weighted grade from current score inputs, updates UI cells, and refreshes pass/fail status badge.
+********************************************************/
+/* function recomputeGrades() {
+  let final = 0;
+
+  state.grades.items.forEach(item => {
+
+    const score = Number(state.grades.scores[item.code] || 0);
+    const pct = item.max > 0 ? (score / item.max) * 100 : 0;
+    const weighted = pct * (item.weight / 100);
+    final += weighted;
+
+    const cell = document.getElementById("gradePct_" + item.code);
+    if (cell) {
+      cell.textContent = pct.toFixed(1) + "%";
+      // ✅ optional: color per row %
+      cell.style.color =
+        pct >= 75 ? "#1f7a3f" :
+          pct >= 50 ? "#b26a00" :
+            "#b42318";
+    }
+  });
+
+  // ===== FINAL VALUE =====
   const finalEl = document.getElementById("finalGradeValue");
   if (finalEl) {
-    finalEl.textContent = "-";
-    finalEl.style.color = "#64748b";
+    finalEl.textContent = final.toFixed(2) + "%";
   }
 
-  // ✅ CLEAR STATUS BADGE
-  const badge = document.getElementById("finalGradeStatus");
-  if (badge) {
-    badge.textContent = "-";
-    badge.classList.remove("passed", "failed", "incomplete");
-  }
+  // ===== STATUS BADGE =====
+  updateGradeStatus(final);
+}*/
 
-  // ✅ CLEAR STUDENT ID DISPLAY
-  const idEl = document.getElementById("gradeStudentId");
-  if (idEl) {
-    idEl.textContent = "-";
-  }
-}
-
+/* OBSOLETE */
 /*******************************************************
-* function name: isSessionValid
+* function name: updateGradeStatus
+* parameter: val (number)
+* return: -
+* purpose: Updates the final grade status badge text and style (passed/failed) based on computed percentage value.
+********************************************************/
+/*function updateGradeStatus(val) {
+  const el = document.getElementById("finalGradeStatus");
+  if (!el) return;
+
+  let txt = "—";
+  let cls = "gradeStatus";
+
+  if (val >= 75) {
+    txt = "PASSED";
+    cls += " pass";
+  }
+  else if (val > 0) {
+    txt = "FAILED";
+    cls += " fail";
+  }
+
+  el.textContent = txt;
+  el.className = cls;
+}*/
+
+/* OBSOLETE */
+/*******************************************************
+* function name: saveGrades
 * parameter: none
 * return: -
-* purpose: -
-*******************************************************/
-function isSessionValid() {
-  const token = localStorage.getItem("sf_id_token");
-  const loginTime = Number(localStorage.getItem("sf_login_time") || 0);
+* purpose: Validates grade weights, builds grade payload from current scores, sends it to the backend for saving, and shows user feedback.
+********************************************************/
+/*async function saveGrades() {
 
-  if (!token || !loginTime) return false;
+  showLoading("Please wait, saving grades...");
+  const student = state.currentStudent;
+  if (!student) {
+    hideLoading();
+    alert("No student loaded");
+    return;
+  }
 
-  return (Date.now() - loginTime) < SESSION_MAX_AGE_MS;
-}
+  const itemsPayload = state.grades.items.map(it => ({
+    code: it.code,
+    name: it.name,
+    max: it.max,
+    weight: it.weight,
+    score: Number(state.grades.scores[it.code] || 0)
+  }));
 
+  console.log("GRADES PAYLOAD: ", itemsPayload);
+
+  if (!validateWeights()) {
+    hideLoading();
+    return;
+  }
+
+  // call backend
+  const res = await apiPost(
+    "gradesSave",
+    {
+      studentId: student.studentId,
+      items: itemsPayload
+    }
+  );
+
+  if (res.status === "success") {
+    hideLoading();
+    alert("Grades saved");
+  } else {
+    hideLoading();
+    alert("Save failed: " + (res.message || "unknown"));
+  }
+}*/
+
+/* OBSOLETE */
+/*******************************************************
+* function name: loadGradesForStudent
+* parameter: studentId (string)
+* return: -
+* purpose: Loads saved grade scores for a student from the API, merges them into state, and refreshes the grade table and computed totals.
+********************************************************/
+/*async function loadGradesForStudent(studentId) {
+  if (!studentId) return;
+
+  const res = await apiGet({
+    action: "gradesLoad",
+    idToken: state.idToken,
+    studentId: studentId
+  });
+
+  if (res.status !== "success") {
+    console.warn("gradesLoad failed", res);
+    return;
+  }
+
+  // reset scores
+  state.grades.scores = {};
+
+  // merge scores into model
+  (res.items || []).forEach(it => {
+    state.grades.scores[it.code] = it.score;
+  });
+
+  // recompute
+  renderGradeTable();
+  recomputeGrades();
+}*/
+
+/* OBSOLETE */
+/*******************************************************
+* function name: validateWeights
+* parameter: none
+* return: boolean
+* purpose: Validates that total grade item weights sum to exactly 100 percent before allowing save.
+********************************************************/
+/*function validateWeights() {
+  const sum =
+    state.grades.items.reduce((s, i) => s + i.weight, 0);
+
+  if (sum !== 100) {
+    alert("Total weight must be 100%");
+    return false;
+  }
+  return true;
+}*/
+
+/* OBSOLETE */
+/*******************************************************
+* function name: addGradeItem
+* parameter: none
+* return: void
+* purpose: Adds a new grade item from input fields into the grade model and refreshes the grade table.
+********************************************************/
+/*function addGradeItem() {
+
+  const name = document.getElementById("newGradeName").value.trim();
+  const max = Number(document.getElementById("newGradeMax").value);
+  const weight = Number(document.getElementById("newGradeWeight").value);
+
+  if (!name || !max || !weight) {
+    alert("Complete fields required");
+    return;
+  }
+
+  const code = name.toUpperCase().replace(/\s+/g, "_");
+
+  state.grades.items.push({
+    code,
+    name,
+    max,
+    weight
+  });
+
+  // clear inputs
+  document.getElementById("newGradeName").value = "";
+  document.getElementById("newGradeMax").value = "";
+  document.getElementById("newGradeWeight").value = "";
+
+  //renderGradeTable();
+}*/
+
+/*******************************************************
+* function name: renderGradeTable
+* parameter: none
+* return: void
+* purpose: Builds and renders the grade table UI for the current student including inputs and computed percentage cells.
+********************************************************/
+/*function renderGradeTable(){
+  const student = state.currentStudent;
+  if (!student) return;
+
+  if (student){
+    let seatNo = "—";
+
+    if (state.seat && Array.isArray(state.seat.seats)) {
+      const found = state.seat.seats.find(s =>
+        String(s.studentEmail || "").toLowerCase() ===
+        String(student.email || "").toLowerCase()
+      );
+
+      if (found && found.seatNo) {
+        seatNo = found.seatNo;
+      }
+    }
+
+    document.getElementById("gradeSeatNo").textContent = seatNo;
+
+    document.getElementById("gradeStudentId").textContent =
+      student.studentId || "—";
+  }
+
+  const body = document.getElementById("gradeTableBody");
+  if (!body) return;
+
+  body.innerHTML = "";
+
+  state.grades.items.forEach(item => {
+    const tr = document.createElement("tr");
+
+    const scoreVal = state.grades.scores[item.code] ?? "";
+
+    tr.innerHTML = `
+      <td>${item.name}</td>
+      <td>${item.max}</td>
+      <td>${item.weight}%</td>
+      <td>
+        <input
+          class="gradeInput gradeScoreInput"
+          type="number"
+          min="0"
+          max="${item.max}"
+          value="${scoreVal}"
+          oninput="
+            state.grades.scores['${item.code}']=Number(this.value||0);
+            recomputeGrades();
+          ">
+      </td>
+      <td class="gradeReadonly" id="gradePct_${item.code}">—</td>
+    `;
+
+    body.appendChild(tr);
+  });
+
+  recomputeGrades();
+}*/
+
+/* OBSOLETE */
+/*******************************************************
+* function name: onGradeScoreChange
+* parameter: code (string), val (number|string)
+* return: void
+* purpose: Updates a single grade score in state when input changes and triggers recomputation.
+********************************************************/
+/*function onGradeScoreChange(code, val) {
+  const num = Number(val);
+  if (isNaN(num)) {
+    delete state.grades.scores[code];
+  } else {
+    state.grades.scores[code] = num;
+  }
+
+  recomputeGrades();
+}*/
+
+/* ======================================================
+   SEAT MAP SYSTEM
+====================================================== */
+/* ===========================
+   Load / Data
+=========================== */
 /*******************************************************
 * function name: loadSeatRoom
 * parameter: room (string)
@@ -1651,7 +2015,7 @@ function isSessionValid() {
 *******************************************************/
 async function loadSeatRoom(room) {
   const key = "seatmap_" + room;
-  // 🔥 1) Get first master students (with cellphone numbers)
+  // 1) Get first master students (with cellphone numbers)
   const masterRes = await apiGet({
     action: "seatmapMaster",
     idToken: state.idToken
@@ -1685,6 +2049,650 @@ async function loadSeatRoom(room) {
 }
 
 /*******************************************************
+* function name: loadSeatMapMaster
+* parameter: none
+* return: <void>
+* purpose: Loads master student list used for seat map matching and autofill.
+********************************************************/
+async function loadSeatMapMaster() {
+
+  document.getElementById('tabContentGrades')?.classList.add('hidden');
+  document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
+  try {
+    const res = await apiGet({
+      action: "seatmapMaster",
+      idToken: state.idToken
+    });
+
+    if (res.status !== "success") {
+      console.warn("seatmapMaster failed:", res.message);
+      return;
+    }
+
+    state.seat.masterStudents = res.students || [];
+
+  } catch (e) {
+    console.warn("loadSeatMapMaster error:", e.toString());
+  }
+}
+
+/*******************************************************
+* function name: addRoom
+* parameter: none
+* return: <void>
+* purpose: Creates a new room with default seats via admin API and loads it into the seat map view.
+********************************************************/
+async function addRoom() {
+
+  showLoading("Please wait, saving room...");
+  if (!state.me || state.me.role !== "admin") {
+    hideLoading();
+    toast("Admin only.");
+    return;
+  }
+
+  const room = (inpNewRoom ? (inpNewRoom.value || "").trim() : "");
+  if (!room) {
+    hideLoading();
+    toast("Room is required.");
+    return;
+  }
+
+  try {
+    const res = await apiPost(
+      { action: "seatmapRoomAddWithSeats", idToken: state.idToken },
+      { room, startSeatNo: 1001, totalSeats: 50 }
+    );
+
+    if (res.status !== "success") {
+      hideLoading();
+      toast(res.message || "Add room failed");
+      return;
+    }
+
+    if (inpNewRoom) inpNewRoom.value = "";
+    await loadRooms();
+
+    if (selSeatRoom) selSeatRoom.value = room;
+    await loadSeatRoom(room);
+
+    if (seatAddRoomWrap) seatAddRoomWrap.classList.add("hidden");
+
+    hideLoading();
+    toast("Room added! (50 seats created)");
+
+  } catch (e) {
+    hideLoading();
+    toast("Add room error: " + e.toString());
+  }
+}
+
+/*******************************************************
+* function name: loadRooms
+* parameter: none
+* return: <void>
+* purpose: Loads available seat map rooms from the API and populates the room selector dropdown.
+********************************************************/
+async function loadRooms() {
+
+  try {
+    const res = await apiGet({
+      action: "rooms",
+      idToken: state.idToken
+    });
+
+    if (res.status !== "success") {
+      console.warn("Rooms endpoint not ready:", res.message);
+      return;
+    }
+
+    fillSelect(selSeatRoom, res.rooms || []);
+  } catch (e) {
+    console.warn("loadRooms failed:", e.toString());
+  }
+}
+
+/*******************************************************
+* function name: deleteRoom
+* parameter: none
+* return: <void>
+* purpose: Deletes the selected room and all its seats via admin-only API call and refreshes seat UI.
+********************************************************/
+async function deleteRoom() {
+
+  if (!state.me || state.me.role !== "admin") {
+    toast("Admin only.");
+    return;
+  }
+
+  const room = selSeatRoom ? (selSeatRoom.value || "").trim() : "";
+  if (!room) {
+    toast("Select a room first.");
+    return;
+  }
+
+  showLoading("Please wait, deleting room...");
+  const ok = confirm(`Delete ROOM "${room}"?\n\nThis will remove ALL seats in this room.\nThis cannot be undone.`);
+  if (!ok) return;
+
+  try {
+    const res = await apiPost(
+      { action: "seatmapRoomDelete", idToken: state.idToken },
+      { room }
+    );
+
+    if (res.status !== "success") {
+      toast(res.message || "Delete room failed");
+      return;
+    }
+
+    // refresh dropdown + clear UI
+    await loadRooms();
+
+    if (seatRoomLabel) seatRoomLabel.textContent = "Room: -";
+    if (seatGrid) seatGrid.innerHTML = "";
+    state.seat.room = "";
+    state.seat.seats = [];
+
+    if (btnAddTable) btnAddTable.classList.add("hidden");
+    if (addTableWrap) addTableWrap.classList.add("hidden");
+
+    hideLoading();
+    toast(`Room deleted! Seats removed: ${res.deleted || 0}`);
+
+  } catch (e) {
+    hideLoading();
+    toast("Delete room error: " + e.toString());
+  }
+}
+
+/*******************************************************
+* function name: removeLastSeat
+* parameter: none
+* return: <void>
+* purpose: Removes the highest-numbered empty seat in the current room and reloads seat map.
+********************************************************/
+async function removeLastSeat() {
+
+  try {
+    showLoading("Please wait, removing seat...");
+    const room = (state.seat.room || "").trim();
+    if (!room) {
+      hideLoading();
+      alert("Please load a room first.");
+      return;
+    }
+
+    const seats = state.seat.seats || [];
+    if (seats.length === 0) {
+      hideLoading();
+      alert("No seats to remove.");
+      return;
+    }
+
+    // get max seatNo
+    let maxSeatNo = null;
+    seats.forEach(s => {
+      const n = parseInt(s?.seatNo, 10);
+      if (!isNaN(n)) {
+        if (maxSeatNo === null || n > maxSeatNo) maxSeatNo = n;
+      }
+    });
+
+    if (!maxSeatNo) {
+      hideLoading();
+      alert("No seats to remove.");
+      return;
+    }
+
+    // find seat object
+    const target = seats.find(x => String(x.seatNo) === String(maxSeatNo));
+    if (!target) {
+      hideLoading();
+      alert("Seat not found.");
+      return;
+    }
+
+    // ❌ cannot delete if seat is not empty
+    const hasStudent =
+      (target.studentEmail && target.studentEmail.trim() !== "") ||
+      (target.studentId && target.studentId.trim() !== "") ||
+      (target.studentName && target.studentName.trim() !== "");
+
+    if (hasStudent) {
+      hideLoading();
+      alert(`Cannot remove seat ${maxSeatNo}. Student is assigned. Please clear seat first.`);
+      return;
+    }
+
+    // delete from sheet
+    const res = await apiPost(
+      { action: "seatmapSeatDelete", idToken: state.idToken },
+      { room, seatNo: String(maxSeatNo) }
+    );
+
+    if (res.status !== "success") {
+      hideLoading();
+      alert(res.message || "Failed to remove seat.");
+      return;
+    }
+
+    // ✅ Reload from backend to reflect real max seat
+    await cacheDelete("seatmap_" + room);
+    await loadSeatRoom(room);
+
+    hideLoading();
+    alert(`Seat ${maxSeatNo} removed.`);
+
+  } catch (err) {
+    alert("Error removing seat: " + err.message);
+  }
+}
+
+/*******************************************************
+* function name: computeBestCols
+* parameter: perSide (number)
+* return: number
+* purpose: Computes ideal grid column count per side based on seat count with min/max limits.
+********************************************************/
+function computeBestCols(perSide) {
+
+  // auto columns depending on perSide count
+  // ex: 25 -> 5 cols, 36 -> 6 cols, 49 -> 7 cols
+  const ideal = Math.ceil(Math.sqrt(perSide));
+  return Math.max(5, Math.min(ideal, 10)); // min 5 cols, max 10 cols
+}
+
+/*******************************************************
+* function name: renderSeatGrid
+* parameter: none
+* return: void
+* purpose: Renders classroom-style seat grid layout with left/right sides, placeholders, and click behavior.
+********************************************************/
+function renderSeatGrid() {
+
+  if (!seatGrid) return;
+  seatGrid.innerHTML = "";
+
+  const seats = Array.isArray(state.seat.seats) ? state.seat.seats : [];
+
+  // Build seat map from backend seats
+  const map = new Map();
+  seats.forEach(s => {
+    if (!s || !s.seatNo) return;
+    const master = findStudentByEmail(s.studentEmail);
+
+    const phone =
+      master?.cellphoneNumber ||
+      master?.cellphone ||
+      master?.mobile ||
+      master?.mobileNumber ||
+      master?.contactNumber ||
+      "";
+
+    map.set(String(s.seatNo), {
+      seatNo: String(s.seatNo),
+      studentEmail: s.studentEmail || "",
+      studentId: s.studentId || "",
+      studentName: s.studentName || "",
+      cellphoneNumber: phone
+    });
+  });
+
+  // Find min/max seatNo from data (dynamic)
+  let minSeat = 999999;
+  let maxSeat = 0;
+
+  for (const s of seats) {
+    const n = parseInt(s?.seatNo, 10);
+    if (!isNaN(n)) {
+      minSeat = Math.min(minSeat, n);
+      maxSeat = Math.max(maxSeat, n);
+    }
+  }
+
+  // fallback if empty room
+  if (!isFinite(minSeat) || minSeat === 999999) minSeat = 1001;
+  if (!maxSeat || maxSeat < 1001) maxSeat = 1001;
+
+  // IMPORTANT: always start at 1001
+  if (minSeat > 1001) minSeat = 1001;
+
+  // total seats count
+  const totalSeats = (maxSeat - minSeat) + 1;
+
+  // fixed 5 columns per side
+  const cols = 5;
+  const seatsPerRow = cols * 2; // left 5 + right 5
+
+  // total rows needed
+  const totalRows = Math.ceil(totalSeats / seatsPerRow);
+
+  // Create FULL ordered list from minSeat..maxSeat
+  const ordered = [];
+  for (let i = minSeat; i <= maxSeat; i++) {
+    const key = String(i);
+    ordered.push(
+      map.get(key) || {
+        seatNo: key,
+        studentEmail: "",
+        studentId: "",
+        studentName: ""
+      }
+    );
+  }
+
+  // renderSeatCard
+  const renderSeatCard = (seat, idx) => {
+    const div = document.createElement("div");
+    div.className = "seat";
+
+    const hasStudent = (seat.studentEmail || "").trim() !== "";
+
+    div.setAttribute("data-tooltip", seat.studentName || seat.studentEmail || "Empty");
+
+    div.innerHTML = `
+      <div class="seatTopRow">
+        <div class="seatNo">${escapeHtml(seat.seatNo)}</div>
+        <div class="seatStatusDot ${hasStudent ? "on" : "off"}"></div>
+      </div>
+
+      <div class="seatMid">
+        ${hasStudent
+        ? `
+              <div class="seatAvatar">
+                <img class="seatPhoto"
+                     data-email="${escapeHtml(seat.studentEmail)}"
+                     alt="photo"
+                     src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
+                      <svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'>
+                        <rect width='100%' height='100%' fill='#f1f5f9'/>
+                        <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle'
+                          font-family='Arial' font-size='12' fill='#64748b'>...</text>
+                      </svg>
+                     `)}"
+                />
+              </div>
+
+              <div class="seatName">${escapeHtml((seat.studentName || seat.studentEmail).toUpperCase())}</div>
+              <div class="seatEmail muted">${escapeHtml(seat.studentEmail)}</div>
+            `
+        : `
+              <div class="seatAvatar emptyIcon">👤</div>
+              <div class="seatEmpty">Empty</div>
+            `
+      }
+      </div>
+    `;
+
+
+    div.onclick = async (e) => {
+      if (state.seat.editMode === true) {
+        openSeatEditModal(seat);
+        return;
+      }
+
+      const hasStudent = seat.studentEmail || seat.studentId || seat.studentName;
+
+      if (!hasStudent) {
+        toast("Seat is empty.");
+        return;
+      }
+
+      if (!isMobile()) {
+        if (lastSeatClicked && lastSeatClicked !== seat.seatNo) {
+          lastSeatClicked = null;
+        }
+
+        if (lastSeatClicked === seat.seatNo) {
+          closeSeatPreview();
+          await openStudentDetailsByEmail(seat.studentEmail);
+          lastSeatClicked = null;
+          return;
+        }
+
+        lastSeatClicked = seat.seatNo;
+        openSeatPreview(seat, e);
+
+        clearTimeout(seatPreviewTimer);
+        seatPreviewTimer = setTimeout(() => {
+          lastSeatClicked = null;
+        }, 350);
+
+        return;
+      }
+
+      openMobilePreview(seat);
+    };
+    return div;
+  };
+
+  // ---- BUILD LEFT/RIGHT SIDES BY ROWS (CLASSROOM STYLE) ----
+  // Each row consumes 10 seats:
+  // LEFT gets first 5 seats of that row
+  // RIGHT gets next 5 seats of that row
+  const leftRows = [];
+  const rightRows = [];
+
+  let ptr = 0;
+
+  for (let r = 0; r < totalRows; r++) {
+    const leftRow = [];
+    const rightRow = [];
+
+    for (let c = 0; c < cols; c++) {
+      if (ptr < ordered.length) leftRow.push(ordered[ptr++]);
+      else leftRow.push({ __placeholder: true });
+    }
+
+    for (let c = 0; c < cols; c++) {
+      if (ptr < ordered.length) rightRow.push(ordered[ptr++]);
+      else rightRow.push({ __placeholder: true });
+    }
+
+    leftRows.push(leftRow);
+    rightRows.push(rightRow);
+  }
+
+  // Reverse rows so bottom row is lowest seat numbers (1001..)
+  leftRows.reverse();
+  rightRows.reverse();
+
+  // flatten
+  const leftSeats = leftRows.flat();
+  const rightSeats = rightRows.flat();
+
+  // wrapper layout
+  const wrap = document.createElement("div");
+  wrap.className = "seatGridClassroom";
+
+  const left = document.createElement("div");
+  left.className = "seatSide";
+  left.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+
+  const aisle = document.createElement("div");
+  aisle.className = "seatAisle";
+
+  const right = document.createElement("div");
+  right.className = "seatSide";
+  right.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+
+  // placeholders renderer
+  const renderPlaceholder = () => {
+    const div = document.createElement("div");
+    div.className = "seat seatPlaceholder";
+    div.innerHTML = "";
+    return div;
+  };
+
+  leftSeats.forEach((s, i) => {
+    if (s && s.__placeholder) left.appendChild(renderPlaceholder());
+    else left.appendChild(renderSeatCard(s, i));
+  });
+
+  rightSeats.forEach((s, i) => {
+    if (s && s.__placeholder) right.appendChild(renderPlaceholder());
+    else right.appendChild(renderSeatCard(s, i));
+  });
+
+  wrap.appendChild(left);
+  wrap.appendChild(aisle);
+  wrap.appendChild(right);
+
+  seatGrid.appendChild(wrap);
+
+  // load photos after render
+  loadSeatPhotosInGrid();
+}
+
+/*******************************************************
+* function name: openSeatEditModal
+* parameter: seat (object)
+* return: void
+* purpose: Opens the seat edit modal, populates form fields with selected seat data, and stores the editing reference in state.
+********************************************************/
+function openSeatEditModal(seat) {
+
+  if (!seatEditModal) return;
+
+  setSeatEditLocked(false); // ✅ unlock on open
+
+  // Show room label
+  if (seatEditRoomLabel) seatEditRoomLabel.textContent = `Room: ${state.seat.room || "-"}`;
+
+  // Fill inputs
+  if (editSeatNo) editSeatNo.value = seat.seatNo || "";
+  if (editStudentName) editStudentName.value = seat.studentName || "";
+  if (editStudentEmail) editStudentEmail.value = seat.studentEmail || "";
+  if (editStudentId) editStudentId.value = seat.studentId || "";
+
+  // Store currently editing seat reference
+  state.seat.editingSeat = { ...seat };
+
+  seatEditModal.classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: setSeatEditLocked
+* parameter: isLocked (boolean)
+* return: void
+* purpose: Locks or unlocks the seat edit modal by enabling or disabling related buttons and input fields.
+********************************************************/
+function setSeatEditLocked(isLocked) {
+
+  seatEditLock = isLocked;
+
+  // disable buttons
+  if (btnSeatEditSave) btnSeatEditSave.disabled = isLocked;
+  if (btnSeatEditDelete) btnSeatEditDelete.disabled = isLocked;
+  if (btnSeatEditCancel) btnSeatEditCancel.disabled = isLocked;
+  if (btnCloseSeatEdit) btnCloseSeatEdit.disabled = isLocked;
+
+  // disable inputs
+  if (editSeatNo) editSeatNo.disabled = isLocked;
+  if (editStudentId) editStudentId.disabled = isLocked;
+  if (editStudentName) editStudentName.disabled = isLocked;
+  if (editStudentEmail) editStudentEmail.disabled = isLocked;
+}
+
+/*******************************************************
+* function name: closeSeatEditModal
+* parameter: force (boolean)
+* return: void
+* purpose: Closes the seat edit modal and clears editing state, unless locked and not forced.
+********************************************************/
+function closeSeatEditModal(force = false) {
+
+  if (!seatEditModal) return;
+
+  // allow forced close
+  if (seatEditLock && !force) return;
+
+  seatEditLock = false; // 🔥 important
+  seatEditModal.classList.add("hidden");
+  state.seat.editingSeat = null;
+}
+
+/*******************************************************
+* function name: updateSeatEditUI
+* parameter: none
+* return: void
+* purpose: Updates seat map edit mode UI controls and button visibility based on admin role and edit mode state.
+********************************************************/
+function updateSeatEditUI() {
+
+  const isAdmin = state.me && state.me.role === "admin";
+  const on = !!state.seat.editMode;
+
+  // 1) Edit Mode button label + color
+  if (btnSeatEditToggle && isAdmin) {
+    if (on) {
+      btnSeatEditToggle.textContent = "Edit Mode: ON";
+      btnSeatEditToggle.classList.remove("btnDanger");
+      btnSeatEditToggle.classList.add("btnPrimary");
+    } else {
+      btnSeatEditToggle.textContent = "Edit Mode: OFF";
+      btnSeatEditToggle.classList.remove("btnPrimary");
+      btnSeatEditToggle.classList.add("btnDanger");
+    }
+  }
+
+  // 2) Fix 25-B: Add Room disabled/hidden when Edit Mode ON
+  if (btnSeatAddRoom) {
+    if (on) btnSeatAddRoom.classList.add("hidden");
+    else btnSeatAddRoom.classList.remove("hidden");
+  }
+
+  // 3) Keep Add Table ALWAYS visible (your choice B)
+  // ❌ Do nothing here
+
+  // 4) If editing is turned OFF, close the edit modal (clean)
+  if (!on) {
+    closeSeatEditModal();
+  }
+
+  if (btnRemoveSeat) {
+    const isAdmin = state.me && state.me.role === "admin";
+    if (isAdmin && state.seat.editMode === true) btnRemoveSeat.classList.remove("hidden");
+    else btnRemoveSeat.classList.add("hidden");
+  }
+
+  updateDeleteRoomButtonVisibility();
+}
+
+/*******************************************************
+* function name: addSeatEmpty
+* parameter: none
+* return: <void>
+* purpose: Quickly creates an empty seat entry using the current seat number input.
+********************************************************/
+async function addSeatEmpty() {
+
+  if (!state.seat.room) {
+    toast("Select a room first.");
+    return;
+  }
+
+  const seatNo = (inpSeatNo ? (inpSeatNo.value || "").trim() : "");
+  if (!seatNo) {
+    toast("Seat No is required to add empty seat.");
+    return;
+  }
+
+  if (inpSeatEmail) inpSeatEmail.value = "";
+  if (inpSeatId) inpSeatId.value = "";
+  if (inpSeatName) inpSeatName.value = "";
+
+  await saveSeat();
+}
+
+/* ======================================================
+   LEARNER DEVELOPMENT (Radar Chart System)
+====================================================== */
+/* ===========================
+   Load / Data
+=========================== */
+/*******************************************************
 * function name: loadLearnerDev
 * parameter: studentId (string)
 * return: -
@@ -1716,677 +2724,6 @@ async function loadLearnerDev(studentId) {
 }
 
 /*******************************************************
-* function name: resetApp
-* parameter: none
-* return: -
-* purpose: Clears all IndexedDB caches and evidence storage, resets major state containers, shows reset notification, and navigates UI back to config screen.
-*******************************************************/
-async function resetApp() {
-  await cacheClearAll();
-  await deleteEvidenceDB();
-  state.selected = null;
-  state.list.items = [];
-  state.list.total = 0;
-  state.seat = { room: "", editMode: false, seats: [], masterStudents: [], editingSeat: null };
-  toast("Cache cleared. Logging out.");
-  //showScreen(screenConfig);
-  forceLogout();
-}
-
-/*******************************************************
-* function name: getPhotoCached
- parameter: email (string)
-* return: dataUrl <string|null>
-* purpose: Retrieves a student photo as data URL from local cache if available, otherwise downloads from API, caches it, and returns the encoded image.
-*******************************************************/
-async function getPhotoCached(email) {
-  if (!email) return null;
-  const key = "photo_" + email.toLowerCase();
-  // 1) try cache
-  const cached = await cacheGet(key);
-  if (cached) return cached;
-  // 2) fetch from API
-  const res = await apiGet({
-    action: "photo",
-    idToken: state.idToken,
-    email: email
-  });
-
-  if (res.status !== "success") return null;
-  const dataUrl = `data:${res.mimeType || "image/jpeg"};base64,${res.base64 || ""}`;
-
-  // 3) save cache
-  await cacheSet(key, dataUrl);
-  return dataUrl;
-}
-
-btnClosePdf.onclick = closePdfModal;
-
-// click outside to close
-pdfModal.addEventListener("click", (e) => {
-  if (e.target === pdfModal) closePdfModal();
-});
-
-/*******************************************************
-* function name: idbOpen
-* parameter: none
-* return: -
-* purpose: Opens (and creates if needed) the IndexedDB database for evidence files and ensures the required object store exists.
-*******************************************************/
-function idbOpen() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: "id" });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/*******************************************************
-* function name: idbPutEvidenceFile
-* parameter: item (object)
-* return: -
-* purpose: Stores an evidence file record (blob + metadata) into the IndexedDB evidence store.
-*******************************************************/
-async function idbPutEvidenceFile(item) {
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, "readwrite");
-    tx.objectStore(IDB_STORE).put(item);
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-/*******************************************************
-* function name: idbGetEvidenceFile
-* parameter: id (string)
-* return: -
-* purpose: Retrieves a stored evidence file record from IndexedDB by its offline id.
-*******************************************************/
-async function idbGetEvidenceFile(id) {
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, "readonly");
-    const req = tx.objectStore(IDB_STORE).get(id);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/*******************************************************
-* function name: idbDeleteEvidenceFile
-* parameter: id (string)
-* return: -
-* purpose: Deletes an evidence file record from IndexedDB using its offline id.
-*******************************************************/
-async function idbDeleteEvidenceFile(id) {
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, "readwrite");
-    tx.objectStore(IDB_STORE).delete(id);
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-/*******************************************************
-* function name: closePdfModal
-* parameter: none
-* return: -
-* purpose: Closes the PDF preview modal and clears the iframe source to release the loaded document.
-*******************************************************/
-function closePdfModal() {
-  pdfFrame.src = "";
-  pdfModal.classList.add("hidden");
-}
-
-/*******************************************************
-* function name: getPendingQueue
-* parameter: none
-* return: -
-* purpose: Reads and parses the pending offline sync queue from localStorage.
-********************************************************/
-function getPendingQueue() {
-  return JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || "[]");
-}
-
-/*******************************************************
-* function name: setPendingQueue
-* parameter: arr (array)
-* return: -
-* purpose: Saves the pending offline sync queue array into localStorage.
-********************************************************/
-function setPendingQueue(arr) {
-  localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(arr));
-}
-
-/* ===========================
-   cache
-=========================== */
-/*******************************************************
-* function name: openCacheDB
-* parameter: none
-* return: -
-* purpose: Opens (and initializes if needed) the IndexedDB key-value cache database used for generic app caching.
-********************************************************/
-function openCacheDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains("kv")) {
-        db.createObjectStore("kv");
-        // key-value store
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/*******************************************************
-* function name: openscreenExport
-* parameter: 
-* return: -
-* purpose: 
-********************************************************/
-function openscreenExport() {
-  document.getElementById("screenExport").classList.remove("hidden");
-}
-
-/*******************************************************
-* function name: closescreenExport
-* parameter: 
-* return: -
-* purpose: 
-********************************************************/
-function closescreenExport() {
-  document.getElementById("screenExport").classList.add("hidden");
-  showScreen(screenMenu);
-}
-
-/*******************************************************
-* function name: cacheSet
-* parameter: key (string), value (any)
-* return: -
-* purpose: Stores a value in the IndexedDB key-value cache under the given key.
-********************************************************/
-async function cacheSet(key, value) {
-  const db = await openCacheDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("kv", "readwrite");
-    const store = tx.objectStore("kv");
-    store.put(value, key);
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-/*******************************************************
-* function name: cacheGet
-* parameter: key (string)
-* return: -
-* purpose: Retrieves a cached value from IndexedDB key-value store by key.
-********************************************************/
-async function cacheGet(key) {
-  const db = await openCacheDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("kv", "readonly");
-    const store = tx.objectStore("kv");
-    const req = store.get(key);
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/*******************************************************
-* function name: cacheDelete
-* parameter: key (string)
-* return: -
-* purpose: Removes a specific cached entry from the IndexedDB key-value store.
-********************************************************/
-async function cacheDelete(key) {
-  const db = await openCacheDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("kv", "readwrite");
-    const store = tx.objectStore("kv");
-    store.delete(key);
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-/*******************************************************
-* function name: cacheClearAll
-* parameter: none
-* return: -
-* purpose: Clears all entries from the IndexedDB key-value cache store.
-********************************************************/
-async function cacheClearAll() {
-  const db = await openCacheDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("kv", "readwrite");
-    const store = tx.objectStore("kv");
-    store.clear();
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-/*******************************************************
-* function name: showScreen
-* parameter: el (HTMLElement)
-* return: -
-* purpose: Switches visible UI screen by hiding all registered screens and showing the target element, updates related UI badges and buttons, tracks current screen state, and saves session snapshot.
-********************************************************/
-function showScreen(el) {
-  const screens = [
-    screenConfig,
-    screenMenu,
-    screenFilters,
-    screenList,
-    screenDetails,
-    screenSeatMap,
-    screenExport
-  ];
-
-  // hide grades
-  document.getElementById('tabContentGrades')?.classList.add('hidden');
-  document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
-
-  screens.forEach(s => s && s.classList.add("hidden"));
-  if (el) el.classList.remove("hidden");
-
-  // ✅ update Delete Room button visibility ONLY when seat map is shown
-  if (el === screenSeatMap) {
-    updateDeleteRoomButtonVisibility();
-  }
-
-  // ✅ FIX: hide Online badge when logged out (Setup/Login screen)
-  if (el === screenConfig) {
-    hideNetBadge();
-  } else {
-    showNetBadge();
-  }
-
-  // ✅ NEW: Track current screen for refresh restore
-  if (el === screenMenu) state.currentScreen = "menu";
-  else if (el === screenFilters) state.currentScreen = "filters";
-  else if (el === screenList) state.currentScreen = "list";
-  else if (el === screenDetails) state.currentScreen = "details";
-  else if (el === screenSeatMap) state.currentScreen = "seatmap";
-  else if (el === screenExport) state.currentScreen = "export"
-  //else if (el === screenConfig) state.currentScreen = "config";
-  //else state.currentScreen = "config";
-  else state.currentScreen = "menu";
-
-  // ✅ Save session every time screen changes
-  saveSession();
-}
-
-if (btnCloseSeatPreview && seatPreviewFloat) {
-  btnCloseSeatPreview.addEventListener("click", e => {
-    e.preventDefault();
-    e.stopPropagation();
-    closeSeatPreview();
-  });
-
-  seatPreviewFloat.addEventListener("click", e => {
-    e.stopPropagation();
-  });
-}
-
-document.addEventListener("click", e => {
-  if (!e.target.closest(".seat") &&
-    !e.target.closest("#seatPreviewFloat") &&
-    !e.target.closest(".seatPreviewMobile")) {
-    closeSeatPreview();
-  }
-});
-
-/*******************************************************
-* function name: isMobile
-* parameter: none
-* return: -
-* purpose: Detects whether the current viewport width is within mobile breakpoint threshold.
-********************************************************/
-function isMobile() {
-  return window.innerWidth <= 768;
-}
-
-/*******************************************************
-* function name: clearEvidenceFileInput
-* parameter: none
-* return: -
-* purpose: Resets the evidence file input element so the same file can be selected again or to clear pending selection.
-********************************************************/
-function clearEvidenceFileInput() {
-
-  //const inp = document.getElementById("inpEvidence");
-  //if (inp) inp.value = "";
-  if (inpEvidenceFile) inpEvidenceFile.value = "";
-}
-
-/*******************************************************
-* function name: queueEvidenceUploadOffline
-* parameter: file (File), student (object)
-* return: -
-* purpose: Stores an evidence file and its metadata into IndexedDB and adds a corresponding job into the offline sync queue for later upload when connectivity is restored.
-********************************************************/
-async function queueEvidenceUploadOffline(file, student) {
-
-  const offlineId = crypto.randomUUID();
-
-  // Save file blob to IndexedDB
-  await idbPutEvidenceFile({
-    id: offlineId,
-    fileBlob: file,
-    fileName: file.name,
-    mimeType: file.type || "application/octet-stream",
-    email: student.email,
-    timestamp: student.timestamp,
-    studentId: student.studentId,
-    createdAt: new Date().toISOString()
-  });
-
-  // Add metadata to queue (small data only)
-  const q = getPendingQueue();
-  q.push({
-    type: "uploadEvidence",
-    offlineId,
-    email: student.email,
-    timestamp: student.timestamp,
-    studentId: student.studentId,
-    fileName: file.name,
-    mimeType: file.type || "application/octet-stream",
-    createdAt: new Date().toISOString()
-  });
-  setPendingQueue(q);
-  renderPendingUI();
-
-  clearEvidenceFileInput();
-  alert("Offline: Evidence saved to Pending Sync. It will upload when online.");
-}
-
-/*******************************************************
-* function name: isPdfFile
-* parameter: name (string), mime (string)
-* return: boolean
-* purpose: Determines whether a file should be treated as a PDF based on filename extension or MIME type.
-********************************************************/
-function isPdfFile(name = "", mime = "") {
-
-  const n = String(name).toLowerCase();
-  const m = String(mime).toLowerCase();
-  return n.endsWith(".pdf") || m.includes("pdf");
-}
-
-/*******************************************************
-* function name: isImageFile
-* parameter: name (string), mime (string)
-* return: boolean
-* purpose: Determines whether a file is an image based on MIME type prefix or common image file extensions.
-********************************************************/
-function isImageFile(name = "", mime = "") {
-
-  const n = String(name).toLowerCase();
-  const m = String(mime).toLowerCase();
-  return m.startsWith("image/") || n.match(/\.(png|jpg|jpeg|gif|webp)$/);
-}
-
-/*******************************************************
-* function name: handleUploadEvidence
-* parameter: file (File)
-* return: -
-* purpose: Handles evidence upload flow by validating input, routing to offline queue when offline, or uploading immediately via API when online, then refreshing the evidence list UI.
-********************************************************/
-async function handleUploadEvidence(file) {
-
-  try {
-    if (!file) {
-      alert("Please choose a file.");
-      return;
-    }
-
-    const student = {
-      email: state.selected.email,
-      timestamp: state.selected.timestamp,
-      studentId: state.selected.studentId
-    };
-
-    // ✅ OFFLINE → store to IndexedDB
-    if (!navigator.onLine) {
-      await queueEvidenceUploadOffline(file, student);
-      return;
-    }
-
-    if (!student.studentId || !student.email) {
-      throw new Error("Missing studentId/email in evidence upload payload");
-    }
-
-    // ✅ ONLINE → upload now
-    const base64 = await blobToBase64(file);
-
-    const payload = {
-      ...student,
-      fileName: file.name,
-      mimeType: file.type || "application/octet-stream",
-      base64
-    };
-
-    const res = await apiPost("uploadEvidence", payload);
-
-    if (res.status !== "success") {
-      throw new Error(res.message || "Upload failed");
-    }
-
-    alert("Evidence uploaded successfully!");
-    clearEvidenceFileInput();
-    await loadEvidenceList(); // ✅ add
-
-  } catch (err) {
-    alert("Upload error: " + err);
-  }
-}
-
-/*******************************************************
-* function name: deleteEvidenceDB
-* parameter: none
-* return: -
-* purpose: Deletes the entire IndexedDB database used for offline evidence storage and resolves with success status.
-********************************************************/
-function deleteEvidenceDB() {
-
-  return new Promise((resolve) => {
-    const req = indexedDB.deleteDatabase(IDB_DB_NAME);
-    req.onsuccess = () => resolve(true);
-    req.onerror = () => resolve(false);
-    req.onblocked = () => resolve(false);
-  });
-}
-
-/*******************************************************
-* function name: syncPendingQueue
-* parameter: opts (object)
-* return: -
-* purpose: Processes and synchronizes all pending offline queue jobs (updates, seat map saves, and chunked evidence uploads) to the server, tracking progress and keeping failed jobs in the queue.
-********************************************************/
-async function syncPendingQueue(opts = {}) {
-
-  if (!navigator.onLine) return;
-
-  const onlyKey = opts.onlyKey || null;
-
-  let q = getPendingQueue();
-  if (!q.length) {
-    renderPendingUI();
-    return;
-  }
-
-  const remaining = [];
-
-  for (let i = 0; i < q.length; i++) {
-    const item = q[i];
-    const key = getQueueItemKey(item, i);
-
-    // If only syncing one key, skip others
-    if (onlyKey && key !== onlyKey) {
-      remaining.push(item);
-      continue;
-    }
-
-    try {
-      pendingProgress.set(key, {
-        status: "syncing",
-        percent: 10,
-        message: "Preparing..."
-      });
-      renderPendingUI();
-
-      // UPDATE RECORD
-      if (item.type === "updateRecord") {
-        pendingProgress.set(key, { status: "syncing", percent: 40, message: "Uploading update..." });
-        renderPendingUI();
-
-        const res = await apiPost("update", item.payload);
-
-        if (res.status !== "success") throw new Error(res.message || "Update failed");
-      }
-
-      // SEATMAP SAVE
-      if (item.type === "seatmapSave") {
-        pendingProgress.set(key, { status: "syncing", percent: 40, message: "Saving seat..." });
-        renderPendingUI();
-
-        const res = await apiPost("seatmapSave", item.payload);
-        if (res.status !== "success") throw new Error(res.message || "Seat save failed");
-      }
-
-
-      // EVIDENCE UPLOAD (CHUNKED)
-      if (item.type === "uploadEvidence") {
-        pendingProgress.set(key, { status: "syncing", percent: 20, message: "Reading offline file..." });
-        renderPendingUI();
-
-        const stored = await idbGetEvidenceFile(item.offlineId);
-        if (!stored || !stored.fileBlob) throw new Error("Missing offline file");
-
-        const blob = stored.fileBlob;
-
-        // ✅ chunk settings
-        const CHUNK_SIZE = 200 * 1024; // 200KB safer for Apps Script
-        const totalChunks = Math.ceil(blob.size / CHUNK_SIZE);
-
-        // unique upload id
-        const uploadId = "UP_" + Date.now() + "_" + Math.random().toString(16).slice(2);
-
-        // upload chunks
-        for (let c = 0; c < totalChunks; c++) {
-          const start = c * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, blob.size);
-          const chunkBlob = blob.slice(start, end);
-
-          let chunkBase64 = await blobToBase64(chunkBlob);
-          //chunkBase64 = chunkBase64.split(",")[1] || chunkBase64; // remove data:* prefix
-
-          const percent = Math.floor((c / totalChunks) * 70) + 20;
-          pendingProgress.set(key, {
-            status: "syncing",
-            percent,
-            message: `Uploading chunk ${c + 1}/${totalChunks}...`
-          });
-          renderPendingUI();
-
-          const chunkPayload = {
-            uploadId,
-            chunkIndex: c,
-            totalChunks,
-            email: stored.email,
-            timestamp: stored.timestamp,
-            studentId: stored.studentId,
-            fileName: stored.fileName,
-            mimeType: stored.mimeType,
-            chunkBase64
-          };
-
-          const cres = await apiPost("uploadEvidenceChunk", chunkPayload);
-
-          if (cres.status !== "success") throw new Error(cres.message || "Chunk upload failed");
-        }
-
-        // finalize
-        pendingProgress.set(key, {
-          status: "syncing",
-          percent: 95,
-          message: "Finalizing file..."
-        });
-        renderPendingUI();
-
-        const finalizePayload = {
-          uploadId,
-          totalChunks,
-          email: stored.email,
-          timestamp: stored.timestamp,
-          studentId: stored.studentId,
-          fileName: stored.fileName,
-          mimeType: stored.mimeType
-        };
-
-        const fres = await apiPost("uploadEvidenceFinalize", finalizePayload);
-
-        if (fres.status !== "success") throw new Error(fres.message || "Finalize failed");
-
-        // delete offline file only if finalize success
-        await idbDeleteEvidenceFile(item.offlineId);
-
-        // ✅ REFRESH UI after successful upload
-        if (state.selected && state.selected.studentId === stored.studentId) {
-          await loadEvidenceList();
-        }
-      } // ✅ THIS closing brace
-
-      // Success
-      pendingProgress.set(key, {
-        status: "done",
-        percent: 100,
-        message: "Synced ✔"
-      });
-      renderPendingUI();
-
-      // small delay para makita progress
-      await new Promise(r => setTimeout(r, 250));
-
-    } catch (err) {
-      console.log("Sync failed:", item, err);
-
-      pendingProgress.set(key, {
-        status: "error",
-        percent: 100,
-        message: "Failed: " + err.message
-      });
-
-      remaining.push(item);
-      renderPendingUI();
-    }
-  }
-
-  setPendingQueue(remaining);
-
-  // Cleanup progress for removed jobs
-  if (remaining.length === 0) {
-    pendingProgress.clear();
-  }
-
-  renderPendingUI();
-}
-
-/*******************************************************
 * function name: renderLearnerDevChart
 * parameter: none
 * return: -
@@ -2394,6 +2731,7 @@ async function syncPendingQueue(opts = {}) {
 ********************************************************/
 function renderLearnerDevChart() {
 
+  showLoading("Loading GRADES... Please wait!");
   const labels = state.learnerDev.categories || [];
   const data = labels.map(c => state.learnerDev.scores[c] || 0);
 
@@ -2491,219 +2829,162 @@ function renderLearnerDevChart() {
       }
     }
   });
+
+  hideLoading();
 }
 
 /*******************************************************
-* function name: blobToBase64
-* parameter: blob (Blob)
-* return: -
-* purpose: Converts a Blob/File object into a base64 string without the data URL prefix using FileReader.
+* function name: seedLearnerDevDefaults
+* parameter: none
+* return: void
+* purpose: Initializes learner development categories and zero scores when not yet defined.
 ********************************************************/
-function blobToBase64(blob) {
+function seedLearnerDevDefaults() {
 
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+  if (state.learnerDev.categories.length) return;
 
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      // result is usually: "data:application/pdf;base64,AAA..."
-      const pureBase64 = result.includes(",") ? result.split(",")[1] : result;
-      resolve(pureBase64);
-    };
+  const defaults = [
+    "Physical",
+    "Cognitive",
+    "Language & Communication",
+    "Psychosocial & Emotional",
+    "Social",
+    "Moral & Values"
+  ];
 
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  state.learnerDev.categories = defaults;
+  defaults.forEach(c => state.learnerDev.scores[c] = 0);
+
+  renderLearnerDevChart();
 }
 
 /*******************************************************
-* function name: splitBlobIntoChunks
-* parameter: blob (Blob), chunkSize (number)
-* return: Blob[]
-* purpose: Splits a Blob into multiple smaller Blob chunks of the specified size for safer incremental upload.
+* function name: addLearnerDev
+* parameter: none
+* return: void
+* purpose: Adds or updates a learner development category score from input fields and refreshes the chart.
 ********************************************************/
-function splitBlobIntoChunks(blob, chunkSize = 300 * 1024) {
-
-  const chunks = [];
-  let offset = 0;
-
-  while (offset < blob.size) {
-    chunks.push(blob.slice(offset, offset + chunkSize));
-    offset += chunkSize;
+function addLearnerDev() {
+  const cat = document.getElementById("ldCategory").value.trim();
+  const score = Number(document.getElementById("ldScore").value || 0);
+  if (!cat) return;
+  if (!state.learnerDev.categories.includes(cat)) {
+    state.learnerDev.categories.push(cat);
   }
-  return chunks;
+  state.learnerDev.scores[cat] = score;
+  renderLearnerDevChart();
 }
 
 /*******************************************************
-* function name: blobToBase64NoPrefix
-* parameter: blob (Blob)
-* return: -
-* purpose: Converts a Blob to base64 and ensures any data URL prefix is removed, returning only the raw base64 payload.********************************************************/
-async function blobToBase64NoPrefix(blob) {
-
-  const b64 = await blobToBase64(blob);
-  // remove: data:xxx;base64,
-  return b64.split(",")[1] || "";
-}
-
-/*******************************************************
-* function name: base64ToChunks
-* parameter: base64 (string), chunkSize (number)
-* return: -
-* purpose: Splits a long base64 string into fixed-size string chunks for chunked upload APIs.
-********************************************************/
-function base64ToChunks(base64, chunkSize = 200000) {
-
-  const chunks = [];
-  for (let i = 0; i < base64.length; i += chunkSize) {
-    chunks.push(base64.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
-/*******************************************************
-* function name: recomputeGrades
+* function name: saveLearnerDev
 * parameter: none
 * return: -
-* purpose: Recalculates per-item percentages and final weighted grade from current score inputs, updates UI cells, and refreshes pass/fail status badge.
+* purpose: Saves learner development category scores for the current student to the backend API.
 ********************************************************/
-function recomputeGrades() {
-  let final = 0;
+async function saveLearnerDev() {
+  try {
+    showLoading("Please wait, saving...");
+    const student = state.currentStudent;
 
-  state.grades.items.forEach(item => {
+    const items = state.learnerDev.categories.map(c => ({
+      category: c,
+      score: state.learnerDev.scores[c] || 0
+    }));
 
-    const score = Number(state.grades.scores[item.code] || 0);
-    const pct = item.max > 0 ? (score / item.max) * 100 : 0;
-    const weighted = pct * (item.weight / 100);
-    final += weighted;
-
-    const cell = document.getElementById("gradePct_" + item.code);
-    if (cell) {
-      cell.textContent = pct.toFixed(1) + "%";
-      // ✅ optional: color per row %
-      cell.style.color =
-        pct >= 75 ? "#1f7a3f" :
-          pct >= 50 ? "#b26a00" :
-            "#b42318";
-    }
-  });
-
-  // ===== FINAL VALUE =====
-  const finalEl = document.getElementById("finalGradeValue");
-  if (finalEl) {
-    finalEl.textContent = final.toFixed(2) + "%";
-  }
-
-  // ===== STATUS BADGE =====
-  updateGradeStatus(final);
-}
-
-/*******************************************************
-* function name: updateGradeStatus
-* parameter: val (number)
-* return: -
-* purpose: Updates the final grade status badge text and style (passed/failed) based on computed percentage value.
-********************************************************/
-function updateGradeStatus(val) {
-  const el = document.getElementById("finalGradeStatus");
-  if (!el) return;
-
-  let txt = "—";
-  let cls = "gradeStatus";
-
-  if (val >= 75) {
-    txt = "PASSED";
-    cls += " pass";
-  }
-  else if (val > 0) {
-    txt = "FAILED";
-    cls += " fail";
-  }
-
-  el.textContent = txt;
-  el.className = cls;
-}
-
-/*******************************************************
-* function name: saveGrades
-* parameter: none
-* return: -
-* purpose: Validates grade weights, builds grade payload from current scores, sends it to the backend for saving, and shows user feedback.
-********************************************************/
-async function saveGrades() {
-
-  showLoading("Please wait, saving grades...");
-  const student = state.currentStudent;
-  if (!student) {
-    hideLoading();
-    alert("No student loaded");
-    return;
-  }
-
-  const itemsPayload = state.grades.items.map(it => ({
-    code: it.code,
-    name: it.name,
-    max: it.max,
-    weight: it.weight,
-    score: Number(state.grades.scores[it.code] || 0)
-  }));
-
-  console.log("GRADES PAYLOAD: ", itemsPayload);
-
-  if (!validateWeights()) {
-    hideLoading();
-    return;
-  }
-
-  // call backend
-  const res = await apiPost(
-    "gradesSave",
-    {
+    await apiPost("learnerDevSave", {
       studentId: student.studentId,
-      items: itemsPayload
-    }
-  );
+      items
+    });
 
-  if (res.status === "success") {
     hideLoading();
-    alert("Grades saved");
-  } else {
+    alert("Saved");
+  } catch (err) {
     hideLoading();
-    alert("Save failed: " + (res.message || "unknown"));
+    toast("Save error: " + err.toString());
   }
 }
 
+/* ======================================================
+   EVIDENCE SYSTEM (Upload + Cache + Offline)
+====================================================== */
+/* ===========================
+   Photo / Evidence
+=========================== */
 /*******************************************************
-* function name: loadGradesForStudent
-* parameter: studentId (string)
-* return: -
-* purpose: Loads saved grade scores for a student from the API, merges them into state, and refreshes the grade table and computed totals.
-********************************************************/
-async function loadGradesForStudent(studentId) {
-  if (!studentId) return;
+* function name: getPhotoCached
+ parameter: email (string)
+* return: dataUrl <string|null>
+* purpose: Retrieves a student photo as data URL from local cache if available, otherwise downloads from API, caches it, and returns the encoded image.
+*******************************************************/
+async function getPhotoCached(email) {
+  if (!email) return null;
+  const key = "photo_" + email.toLowerCase();
 
+  // 1) try cache
+  const cached = await cacheGet(key);
+  if (cached) return cached;
+
+  // 2) fetch from API
   const res = await apiGet({
-    action: "gradesLoad",
+    action: "photo",
     idToken: state.idToken,
-    studentId: studentId
+    email: email
   });
 
-  if (res.status !== "success") {
-    console.warn("gradesLoad failed", res);
-    return;
-  }
+  if (res.status !== "success") return null;
+  const dataUrl = `data:${res.mimeType || "image/jpeg"};base64,${res.base64 || ""}`;
 
-  // reset scores
-  state.grades.scores = {};
+  // 3) save cache
+  await cacheSet(key, dataUrl);
+  return dataUrl;
+}
 
-  // merge scores into model
-  (res.items || []).forEach(it => {
-    state.grades.scores[it.code] = it.score;
+/*******************************************************
+* function name: idbPutEvidenceFile
+* parameter: item (object)
+* return: -
+* purpose: Stores an evidence file record (blob + metadata) into the IndexedDB evidence store.
+*******************************************************/
+async function idbPutEvidenceFile(item) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(item);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
   });
+}
 
-  // recompute
-  renderGradeTable();
-  recomputeGrades();
+/*******************************************************
+* function name: idbGetEvidenceFile
+* parameter: id (string)
+* return: -
+* purpose: Retrieves a stored evidence file record from IndexedDB by its offline id.
+*******************************************************/
+async function idbGetEvidenceFile(id) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const req = tx.objectStore(IDB_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/*******************************************************
+* function name: idbDeleteEvidenceFile
+* parameter: id (string)
+* return: -
+* purpose: Deletes an evidence file record from IndexedDB using its offline id.
+*******************************************************/
+async function idbDeleteEvidenceFile(id) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).delete(id);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 /*******************************************************
@@ -2761,1203 +3042,442 @@ async function uploadEvidenceChunked(payload, progressCb) {
 }
 
 /*******************************************************
-* function name: escapeHtml
-* parameter: str (string)
-* return: string
-* purpose: Escapes special HTML characters in a string to prevent HTML injection when rendering dynamic text in the UI.
+* function name: handleUploadEvidence
+* parameter: file (File)
+* return: -
+* purpose: Handles evidence upload flow by validating input, routing to offline queue when offline, or uploading immediately via API when online, then refreshing the evidence list UI.
 ********************************************************/
-function escapeHtml(str) {
-
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-/*******************************************************
-* function name: toast
-* parameter: msg (any)
-* return: void
-* purpose: Displays a simple user notification using alert with basic error protection.
-********************************************************/
-function toast(msg) {
+async function handleUploadEvidence(file) {
 
   try {
-    alert(String(msg));
-  } catch (e) {
-    console.error("toast failed:", e);
-  }
-}
-
-/*******************************************************
-* function name: openSeatEditModal
-* parameter: seat (object)
-* return: void
-* purpose: Opens the seat edit modal, populates form fields with selected seat data, and stores the editing reference in state.
-********************************************************/
-function openSeatEditModal(seat) {
-
-  if (!seatEditModal) return;
-
-  setSeatEditLocked(false); // ✅ unlock on open
-
-  // Show room label
-  if (seatEditRoomLabel) seatEditRoomLabel.textContent = `Room: ${state.seat.room || "-"}`;
-
-  // Fill inputs
-  if (editSeatNo) editSeatNo.value = seat.seatNo || "";
-  if (editStudentName) editStudentName.value = seat.studentName || "";
-  if (editStudentEmail) editStudentEmail.value = seat.studentEmail || "";
-  if (editStudentId) editStudentId.value = seat.studentId || "";
-
-  // Store currently editing seat reference
-  state.seat.editingSeat = { ...seat };
-
-  seatEditModal.classList.remove("hidden");
-}
-
-/*******************************************************
-* function name: setSeatEditLocked
-* parameter: isLocked (boolean)
-* return: void
-* purpose: Locks or unlocks the seat edit modal by enabling or disabling related buttons and input fields.
-********************************************************/
-function setSeatEditLocked(isLocked) {
-
-  seatEditLock = isLocked;
-
-  // disable buttons
-  if (btnSeatEditSave) btnSeatEditSave.disabled = isLocked;
-  if (btnSeatEditDelete) btnSeatEditDelete.disabled = isLocked;
-  if (btnSeatEditCancel) btnSeatEditCancel.disabled = isLocked;
-  if (btnCloseSeatEdit) btnCloseSeatEdit.disabled = isLocked;
-
-  // disable inputs
-  if (editSeatNo) editSeatNo.disabled = isLocked;
-  if (editStudentId) editStudentId.disabled = isLocked;
-  if (editStudentName) editStudentName.disabled = isLocked;
-  if (editStudentEmail) editStudentEmail.disabled = isLocked;
-}
-
-
-/*******************************************************
-* function name: closeSeatEditModal
-* parameter: force (boolean)
-* return: void
-* purpose: Closes the seat edit modal and clears editing state, unless locked and not forced.
-********************************************************/
-function closeSeatEditModal(force = false) {
-
-  if (!seatEditModal) return;
-
-  // allow forced close
-  if (seatEditLock && !force) return;
-
-  seatEditLock = false; // 🔥 important
-  seatEditModal.classList.add("hidden");
-  state.seat.editingSeat = null;
-}
-
-/*******************************************************
-* function name: fillSelect
-* parameter: selectEl (HTMLSelectElement), items (array)
-* return: void
-* purpose: Populates a select dropdown element with a blank option plus provided item values.
-********************************************************/
-function fillSelect(selectEl, items) {
-
-  if (!selectEl) return;
-
-  selectEl.innerHTML = "";
-
-  const blank = document.createElement("option");
-  blank.value = "";
-  blank.textContent = "-- Select --";
-  selectEl.appendChild(blank);
-
-  (items || []).forEach(v => {
-    const opt = document.createElement("option");
-    opt.value = v === "(Blank)" ? "" : v;
-    opt.textContent = v;
-    selectEl.appendChild(opt);
-  });
-}
-
-/*******************************************************
-* function name: updateSeatEditUI
-* parameter: none
-* return: void
-* purpose: Updates seat map edit mode UI controls and button visibility based on admin role and edit mode state.
-********************************************************/
-function updateSeatEditUI() {
-
-  const isAdmin = state.me && state.me.role === "admin";
-  const on = !!state.seat.editMode;
-
-  // 1) Edit Mode button label + color
-  if (btnSeatEditToggle && isAdmin) {
-    if (on) {
-      btnSeatEditToggle.textContent = "Edit Mode: ON";
-      btnSeatEditToggle.classList.remove("btnDanger");
-      btnSeatEditToggle.classList.add("btnPrimary");
-    } else {
-      btnSeatEditToggle.textContent = "Edit Mode: OFF";
-      btnSeatEditToggle.classList.remove("btnPrimary");
-      btnSeatEditToggle.classList.add("btnDanger");
+    if (!file) {
+      alert("Please choose a file.");
+      return;
     }
+
+    const student = {
+      email: state.selected.email,
+      timestamp: state.selected.timestamp,
+      studentId: state.selected.studentId
+    };
+
+    // ✅ OFFLINE → store to IndexedDB
+    if (!navigator.onLine) {
+      await queueEvidenceUploadOffline(file, student);
+      return;
+    }
+
+    if (!student.studentId || !student.email) {
+      throw new Error("Missing studentId/email in evidence upload payload");
+    }
+
+    // ✅ ONLINE → upload now
+    const base64 = await blobToBase64(file);
+
+    const payload = {
+      ...student,
+      fileName: file.name,
+      mimeType: file.type || "application/octet-stream",
+      base64
+    };
+
+    const res = await apiPost("uploadEvidence", payload);
+
+    if (res.status !== "success") {
+      throw new Error(res.message || "Upload failed");
+    }
+
+    alert("Evidence uploaded successfully!");
+    clearEvidenceFileInput();
+    await loadEvidenceList(); // ✅ add
+
+  } catch (err) {
+    alert("Upload error: " + err);
   }
-
-  // 2) Fix 25-B: Add Room disabled/hidden when Edit Mode ON
-  if (btnSeatAddRoom) {
-    if (on) btnSeatAddRoom.classList.add("hidden");
-    else btnSeatAddRoom.classList.remove("hidden");
-  }
-
-  // 3) Keep Add Table ALWAYS visible (your choice B)
-  // ❌ Do nothing here
-
-  // 4) If editing is turned OFF, close the edit modal (clean)
-  if (!on) {
-    closeSeatEditModal();
-  }
-
-  if (btnRemoveSeat) {
-    const isAdmin = state.me && state.me.role === "admin";
-    if (isAdmin && state.seat.editMode === true) btnRemoveSeat.classList.remove("hidden");
-    else btnRemoveSeat.classList.add("hidden");
-  }
-
-  updateDeleteRoomButtonVisibility();
 }
 
+/* ======================================================
+   OFFLINE / CACHE / INDEXEDDB
+====================================================== */
+/* ===========================
+   Storage + Cache
+=========================== */
 /*******************************************************
-* function name: validateWeights
-* parameter: none
-* return: boolean
-* purpose: Validates that total grade item weights sum to exactly 100 percent before allowing save.
+* function name: cacheSet
+* parameter: key (string), value (any)
+* return: -
+* purpose: Stores a value in the IndexedDB key-value cache under the given key.
 ********************************************************/
-function validateWeights() {
-  const sum =
-    state.grades.items.reduce((s, i) => s + i.weight, 0);
-
-  if (sum !== 100) {
-    alert("Total weight must be 100%");
-    return false;
-  }
-  return true;
-}
-
-/*******************************************************
-* function name: addGradeItem
-* parameter: none
-* return: void
-* purpose: Adds a new grade item from input fields into the grade model and refreshes the grade table.
-********************************************************/
-function addGradeItem() {
-
-  const name = document.getElementById("newGradeName").value.trim();
-  const max = Number(document.getElementById("newGradeMax").value);
-  const weight = Number(document.getElementById("newGradeWeight").value);
-
-  if (!name || !max || !weight) {
-    alert("Complete fields required");
-    return;
-  }
-
-  const code = name.toUpperCase().replace(/\s+/g, "_");
-
-  state.grades.items.push({
-    code,
-    name,
-    max,
-    weight
+async function cacheSet(key, value) {
+  const db = await openCacheDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("kv", "readwrite");
+    const store = tx.objectStore("kv");
+    store.put(value, key);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
   });
-
-  // clear inputs
-  document.getElementById("newGradeName").value = "";
-  document.getElementById("newGradeMax").value = "";
-  document.getElementById("newGradeWeight").value = "";
-
-  //renderGradeTable();
 }
 
 /*******************************************************
-* function name: renderGradeTable
-* parameter: none
-* return: void
-* purpose: Builds and renders the grade table UI for the current student including inputs and computed percentage cells.
+* function name: cacheGet
+* parameter: key (string)
+* return: -
+* purpose: Retrieves a cached value from IndexedDB key-value store by key.
 ********************************************************/
-/*function renderGradeTable(){
-  const student = state.currentStudent;
-  if (!student) return;
+async function cacheGet(key) {
+  const db = await openCacheDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("kv", "readonly");
+    const store = tx.objectStore("kv");
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
 
-  if (student){
-    let seatNo = "—";
+/*******************************************************
+* function name: cacheDelete
+* parameter: key (string)
+* return: -
+* purpose: Removes a specific cached entry from the IndexedDB key-value store.
+********************************************************/
+async function cacheDelete(key) {
+  const db = await openCacheDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("kv", "readwrite");
+    const store = tx.objectStore("kv");
+    store.delete(key);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
 
-    if (state.seat && Array.isArray(state.seat.seats)) {
-      const found = state.seat.seats.find(s =>
-        String(s.studentEmail || "").toLowerCase() ===
-        String(student.email || "").toLowerCase()
-      );
+/*******************************************************
+* function name: cacheClearAll
+* parameter: none
+* return: -
+* purpose: Clears all entries from the IndexedDB key-value cache store.
+********************************************************/
+async function cacheClearAll() {
+  const db = await openCacheDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("kv", "readwrite");
+    const store = tx.objectStore("kv");
+    store.clear();
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
 
-      if (found && found.seatNo) {
-        seatNo = found.seatNo;
+/*******************************************************
+* function name: deleteEvidenceDB
+* parameter: none
+* return: -
+* purpose: Deletes the entire IndexedDB database used for offline evidence storage and resolves with success status.
+********************************************************/
+function deleteEvidenceDB() {
+
+  return new Promise((resolve) => {
+    const req = indexedDB.deleteDatabase(IDB_DB_NAME);
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => resolve(false);
+    req.onblocked = () => resolve(false);
+  });
+}
+
+/*******************************************************
+* function name: openCacheDB
+* parameter: none
+* return: -
+* purpose: Opens (and initializes if needed) the IndexedDB key-value cache database used for generic app caching.
+********************************************************/
+function openCacheDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains("kv")) {
+        db.createObjectStore("kv");
+        // key-value store
       }
-    }
-
-    document.getElementById("gradeSeatNo").textContent = seatNo;
-
-    document.getElementById("gradeStudentId").textContent =
-      student.studentId || "—";
-  }
-
-  const body = document.getElementById("gradeTableBody");
-  if (!body) return;
-
-  body.innerHTML = "";
-
-  state.grades.items.forEach(item => {
-    const tr = document.createElement("tr");
-
-    const scoreVal = state.grades.scores[item.code] ?? "";
-
-    tr.innerHTML = `
-      <td>${item.name}</td>
-      <td>${item.max}</td>
-      <td>${item.weight}%</td>
-      <td>
-        <input
-          class="gradeInput gradeScoreInput"
-          type="number"
-          min="0"
-          max="${item.max}"
-          value="${scoreVal}"
-          oninput="
-            state.grades.scores['${item.code}']=Number(this.value||0);
-            recomputeGrades();
-          ">
-      </td>
-      <td class="gradeReadonly" id="gradePct_${item.code}">—</td>
-    `;
-
-    body.appendChild(tr);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
-
-  recomputeGrades();
-}*/
-
-/*******************************************************
-* function name: onGradeScoreChange
-* parameter: code (string), val (number|string)
-* return: void
-* purpose: Updates a single grade score in state when input changes and triggers recomputation.
-********************************************************/
-function onGradeScoreChange(code, val) {
-  const num = Number(val);
-  if (isNaN(num)) {
-    delete state.grades.scores[code];
-  } else {
-    state.grades.scores[code] = num;
-  }
-
-  recomputeGrades();
-}
-
-/*******************************************************
-* function name: openModal
-* parameter: modalEl (HTMLElement)
-* return: void
-* purpose: Shows a modal element by removing its hidden class.
-********************************************************/
-function openModal(modalEl) {
-  if (!modalEl) return;
-  modalEl.classList.remove("hidden");
-}
-
-/*******************************************************
-* function name: closeModal
-* parameter: modalEl (HTMLElement)
-* return: void
-* purpose: Hides a modal element by adding its hidden class.
-********************************************************/
-function closeModal(modalEl) {
-  if (!modalEl) return;
-  modalEl.classList.add("hidden");
-}
-
-/*******************************************************
-* function name: attachModalBackdropClose
-* parameter: modalEl (HTMLElement)
-* return: void
-* purpose: Attaches a backdrop click handler to a modal so clicking outside content closes it.
-********************************************************/
-function attachModalBackdropClose(modalEl) {
-  if (!modalEl) return;
-  modalEl.onclick = (e) => {
-    if (e.target === modalEl) closeModal(modalEl);
-  };
-}
-
-/*******************************************************
-* function name: resetAppData
-* parameter: none
-* return: void
-* purpose: Clears setup, session, and pending sync data from localStorage after confirmation and reloads the app.
-********************************************************/
-function resetAppData() {
-
-  const ok = confirm(
-    "RESET APP?\n\nThis will clear:\n- Session\n- Pending Sync Queue\n- Cached setup\n\nYou will need to login again."
-  );
-  if (!ok) return;
-
-  // clear local storage
-  localStorage.removeItem("sf_apiUrl");
-  localStorage.removeItem("sf_clientId");
-  localStorage.removeItem(LS_SESSION);
-  localStorage.removeItem(LS_PENDING_UPDATES);
-
-  // optional: clear everything
-  // localStorage.clear();
-
-  alert("Reset done. Reloading app...");
-  location.reload();
-}
-
-/*******************************************************
-* function name: refreshDebugInfo
-* parameter: none
-* return: void
-* purpose: Updates debug info UI fields with current API URL, pending counts, and seat map stats.
-********************************************************/
-function refreshDebugInfo() {
-  if (dbgApiUrl) dbgApiUrl.textContent = state.apiUrl || "-";
-  if (dbgPending) dbgPending.textContent = String(getPendingCount());
-  if (dbgRoom) dbgRoom.textContent = state.seat.room || "-";
-  if (dbgSeats) dbgSeats.textContent = String((state.seat.seats || []).length);
-}
-
-/*******************************************************
-* function name: norm
-* parameter: s (string)
-* return: string
-* purpose: Normalizes a string for comparisons by trimming and converting to lowercase.
-********************************************************/
-function norm(s) {
-
-  return String(s || "").trim().toLowerCase();
-}
-
-/*******************************************************
-* function name: findStudentById
-* parameter: id (string)
-* return: object|null
-* purpose: Finds a student in master student list by normalized studentId.
-********************************************************/
-function findStudentById(id) {
-
-  const target = norm(id);
-  if (!target) return null;
-
-  return (state.seat.masterStudents || []).find(x =>
-    norm(x.studentId) === target
-  ) || null;
-}
-
-/*******************************************************
-* function name: findStudentByEmail
-* parameter: email (string)
-* return: object|null
-* purpose: Finds a student in master student list by normalized email address.
-********************************************************/
-function findStudentByEmail(email) {
-
-  const target = norm(email);
-  if (!target) return null;
-
-  return (state.seat.masterStudents || []).find(x =>
-    norm(x.studentEmail) === target
-  ) || null;
-}
-
-/*******************************************************
-* function name: findStudentByName
-* parameter: name (string)
-* return: object|null
-* purpose: Finds a student by name using exact match first, then partial match fallback.
-********************************************************/
-function findStudentByName(name) {
-
-  const target = norm(name);
-  if (!target) return null;
-
-  // exact match first
-  let exact = (state.seat.masterStudents || []).find(x =>
-    norm(x.studentName) === target
-  );
-  if (exact) return exact;
-
-  // fallback: contains match
-  return (state.seat.masterStudents || []).find(x =>
-    norm(x.studentName).includes(target)
-  ) || null;
-}
-
-/*******************************************************
-* function name: updateDeleteRoomButtonVisibility
-* parameter: none
-* return: void
-* purpose: Shows or hides the delete room button based on admin role and edit mode status.
-********************************************************/
-function updateDeleteRoomButtonVisibility() {
-
-  const btn = document.getElementById("btnDeleteRoom");
-  if (!btn) return;
-
-  const isAdmin = (state.me && state.me.role === "admin");
-  const editModeOff = (state.seat.editMode === false);
-
-  if (isAdmin && editModeOff) {
-    btn.classList.remove("hidden");
-  } else {
-    btn.classList.add("hidden");
-  }
-}
-
-/*******************************************************
-* function name: buildUrl
-* parameter: params (object)
-* return: string
-* purpose: Builds a request URL by combining base API URL with provided query parameters.
-********************************************************/
-function buildUrl(params = {}) {
-
-  const base = (state.apiUrl || "").trim();
-  if (!base) throw new Error("API URL is not set. Please Setup first.");
-
-  const url = new URL(base);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  return url.toString();
 }
 
 /* ===========================
-   OFFLINE QUEUE
+   IndexedDB
 =========================== */
 /*******************************************************
-* function name: loadPendingUpdates
+* function name: idbOpen
 * parameter: none
-* return: array
-* purpose: Loads pending remark/update jobs from localStorage with safe JSON parsing.
-********************************************************/
-function loadPendingUpdates() {
-
-  try {
-    return JSON.parse(localStorage.getItem(LS_PENDING_UPDATES) || "[]");
-  } catch (e) {
-    return [];
-  }
+* return: -
+* purpose: Opens (and creates if needed) the IndexedDB database for evidence files and ensures the required object store exists.
+*******************************************************/
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
 
-/*******************************************************
-* function name: savePendingUpdates
-* parameter: items (array)
-* return: void
-* purpose: Saves pending remark/update jobs array into localStorage.
-********************************************************/
-function savePendingUpdates(items) {
-
-  localStorage.setItem(LS_PENDING_UPDATES, JSON.stringify(items || []));
-}
-
-/*******************************************************
-* function name: getPendingCount
-* parameter: none
-* return: number
-* purpose: Returns total count of all pending offline jobs including updates and uploads.
-********************************************************/
-function getPendingCount() {
-
-  const a = loadPendingUpdates().length;
-  const b = getPendingQueue().length;
-  return a + b;
-}
-
-/*******************************************************
-* function name: updateSyncBadge
-* parameter: none
-* return: void
-* purpose: Updates the pending sync badge text and visibility based on pending job counts.
-********************************************************/
-function updateSyncBadge() {
-
-  if (!syncBadge) return;
-
-  const a = loadPendingUpdates().length;
-  const b = getPendingQueue().length;
-  const total = a + b;
-
-  if (total > 0) {
-    syncBadge.textContent = `Pending Sync: ${total} (remarks:${a}, uploads:${b})`;
-    syncBadge.classList.remove("hidden");
-  } else {
-    syncBadge.textContent = "Pending Sync: 0";
-    syncBadge.classList.add("hidden");
-  }
-}
-
+/* ======================================================
+   AUTH / SESSION
+====================================================== */
 /* ===========================
-   ONLINE / OFFLINE BADGE (Fix 22)
+   Session
+=========================== */
+/* ===========================
+   GOOGLE LOGIN (GSI)
 =========================== */
 /*******************************************************
-* function name: setNetBadge
-* parameter: status (string)
+* function name: waitForGoogleThenRun
+* parameter: fn (function)
 * return: void
-* purpose: Updates the online/offline status badge text and style.
+* purpose: Waits until Google Identity Services library is available before executing the provided function.
 ********************************************************/
-function setNetBadge(status) {
+function waitForGoogleThenRun(fn) {
 
-  if (!netBadge) return;
-
-  if (status === "online") {
-    netBadge.classList.remove("offline");
-    netBadge.textContent = "● Online";
-  } else if (status === "offline") {
-    netBadge.classList.add("offline");
-    netBadge.textContent = "● Offline";
-  } else {
-    netBadge.classList.remove("offline");
-    netBadge.textContent = "● Checking...";
-  }
-}
-
-/*******************************************************
-* function name: getQueueItemKey
-* parameter: item (object), idx (number)
-* return: string
-* purpose: Generates a stable display key for a pending queue item based on its type and identifiers.
-********************************************************/
-function getQueueItemKey(item, idx) {
-
-  // stable key
-  if (item.type === "uploadEvidence") return "evidence:" + (item.offlineId || idx);
-  if (item.type === "updateRecord") return "update:" + (item.createdAt || idx);
-  if (item.type === "seatmapSave") return "seatmap:" + (item.createdAt || idx);
-  return "job:" + idx;
-}
-
-/*******************************************************
-* function name: renderPendingUI
-* parameter: none
-* return: void
-* purpose: Renders the pending sync panel list with progress bars, metadata, and retry/delete controls.
-********************************************************/
-function renderPendingUI() {
-
-  if (!pendingPanel || !pendingList || !pendingCountText) return;
-
-  const q = getPendingQueue();
-
-  // Hide panel if no pending jobs
-  if (!q.length) {
-    pendingPanel.classList.add("hidden");
-    pendingList.innerHTML = "";
-    pendingCountText.textContent = "";
-    return;
-  }
-
-  pendingPanel.classList.remove("hidden");
-  pendingCountText.textContent = `(${q.length} waiting)`;
-  pendingList.innerHTML = "";
-
-  // ✅ declare once
-  const isOnline = navigator.onLine;
-
-  q.forEach((item, idx) => {
-    const key = getQueueItemKey(item, idx);
-
-    // Default progress info
-    let info = pendingProgress.get(key) || {
-      status: "waiting",
-      percent: 0,
-      message: "Waiting..."
-    };
-
-    // ✅ If OFFLINE, force waiting message (avoid "Failed to fetch")
-    if (!isOnline) {
-      info = {
-        status: "waiting",
-        percent: 0,
-        message: "Waiting for online..."
-      };
-    }
-
-    const title =
-      item.type === "uploadEvidence"
-        ? `Evidence Upload: ${item.fileName || "file"}`
-        : item.type === "updateRecord"
-          ? `Save Remarks / Done`
-          : item.type === "seatmapSave"
-            ? `Seat Map Save`
-            : `Pending Job`;
-
-    const meta =
-      item.type === "uploadEvidence"
-        ? `${item.email || "-"} • ${item.studentId || "-"}`
-        : item.type === "updateRecord"
-          ? `${item.payload?.email || "-"} • ${item.payload?.studentId || "-"}`
-          : item.type === "seatmapSave"
-            ? `${item.payload?.room || "-"} • Seat ${item.payload?.seatNo || "-"}`
-            : "";
-
-    const div = document.createElement("div");
-    div.className = "pendingItem";
-
-    div.innerHTML = `
-      <div class="pendingTopRow">
-        <div>
-          <div class="pendingTitle">${escapeHtml(title)}</div>
-          <div class="pendingMeta">${escapeHtml(meta)}</div>
-        </div>
-
-        <div class="pendingBtns">
-          <button class="btnPrimary"
-                  data-action="retry"
-                  data-key="${escapeHtml(key)}"
-                  ${isOnline ? "" : "disabled"}>
-            Retry
-          </button>
-
-          <button class="btnDanger"
-                  data-action="delete"
-                  data-key="${escapeHtml(key)}">
-            Delete
-          </button>
-        </div>
-      </div>
-
-      <div class="progressWrap">
-        <div class="progressBar">
-          <div class="progressFill" style="width:${info.percent || 0}%"></div>
-        </div>
-        <div class="progressText">${escapeHtml(info.message || "")}</div>
-      </div>
-    `;
-
-    pendingList.appendChild(div);
-  });
-
-  // Re-attach button events every render
-  pendingList.querySelectorAll("button[data-action]").forEach(btn => {
-    btn.onclick = async () => {
-      const action = btn.getAttribute("data-action");
-      const key = btn.getAttribute("data-key");
-
-      if (action === "retry") {
-        await retrySinglePending(key);
-      }
-
-      if (action === "delete") {
-        deleteSinglePending(key);
-      }
-    };
-  });
-}
-
-/*******************************************************
-* function name: seedLearnerDevDefaults
-* parameter: none
-* return: void
-* purpose: Initializes learner development categories and zero scores when not yet defined.
-********************************************************/
-function seedLearnerDevDefaults() {
-
-  if (state.learnerDev.categories.length) return;
-
-  const defaults = [
-    "Physical",
-    "Cognitive",
-    "Language & Communication",
-    "Psychosocial & Emotional",
-    "Social",
-    "Moral & Values"
-  ];
-
-  state.learnerDev.categories = defaults;
-  defaults.forEach(c => state.learnerDev.scores[c] = 0);
-
-  renderLearnerDevChart();
-}
-
-
-/*******************************************************
-* function name: addLearnerDev
-* parameter: none
-* return: void
-* purpose: Adds or updates a learner development category score from input fields and refreshes the chart.
-********************************************************/
-function addLearnerDev() {
-  const cat = document.getElementById("ldCategory").value.trim();
-  const score = Number(document.getElementById("ldScore").value || 0);
-  if (!cat) return;
-  if (!state.learnerDev.categories.includes(cat)) {
-    state.learnerDev.categories.push(cat);
-  }
-  state.learnerDev.scores[cat] = score;
-  renderLearnerDevChart();
-}
-
-/*******************************************************
-* function name: saveLearnerDev
-* parameter: none
-* return: Promise<void>
-* purpose: Saves learner development category scores for the current student to the backend API.
-********************************************************/
-async function saveLearnerDev() {
   try {
-    showLoading("Please wait, saving...");
-    const student = state.currentStudent;
+    if (window.google && google.accounts && google.accounts.id) {
+      fn();
+      return;
+    }
+  } catch (e) { }
+  setTimeout(() => waitForGoogleThenRun(fn), 150);
+}
 
-    const items = state.learnerDev.categories.map(c => ({
-      category: c,
-      score: state.learnerDev.scores[c] || 0
-    }));
+/*******************************************************
+* function name: renderGoogleLoginButton
+* parameter: none
+* return: void
+* purpose: Renders the Google Sign-In button and initializes Google Identity Services login flow.
+********************************************************/
+function renderGoogleLoginButton() {
 
-    await apiPost("learnerDevSave", {
-      studentId: student.studentId,
-      items
+  if (!state.clientId || !gsiButtonWrap) return;
+
+  gsiButtonWrap.innerHTML = "";
+
+  waitForGoogleThenRun(() => {
+    google.accounts.id.initialize({
+      client_id: state.clientId,
+      callback: onGoogleCredential
     });
 
+    google.accounts.id.renderButton(
+      gsiButtonWrap,
+      { theme: "outline", size: "large", text: "signin_with" }
+    );
+  });
+}
+
+/*******************************************************
+* function name: onGoogleCredential
+* parameter: resp (object)
+* return: <void>
+* purpose: Handles Google login credential response, validates user via API, initializes user state, and loads initial app data.
+********************************************************/
+async function onGoogleCredential(resp) {
+
+  try {
+    showLoading("Loading Google Sign-In...");
+    state.idToken = resp.credential;
+
+    // ✅ PERSISTENT LOGIN SAVE (1 week session)
+    const now = Date.now();
+
+    // update badge immediately
+    refreshNetBadgeNow();
+
+    const me = await apiGet({
+      action: "me",
+      idToken: state.idToken
+    });
+
+    // ✅ HARD BLOCK if not allowlisted
+    if (!me || me.status !== "success") {
+      forceLogout(me?.message || "Access denied. Your email is not allowlisted.");
+      return;
+    }
+
+    // ✅ store user
+    state.me = me;
+    applyRoleUI();
+
+    localStorage.setItem("sf_id_token", state.idToken);
+    localStorage.setItem("sf_user_email", me.email || "");
+    document.body.classList.remove("student-mode");
+
+    if (state.me?.role === "student") {
+      document.body.classList.add("student-mode");
+      try {
+
+        // ✅ SHOW BADGE
+        const displayName = (me.name || "").trim() || me.email;
+        if (userBadge) {
+          userBadge.textContent = `${displayName} (${me.role})`;
+          userBadge.classList.remove("hidden");
+        }
+
+        // ✅ SHOW SAFE TOP BUTTONS
+        if (btnHelp) btnHelp.classList.remove("hidden");
+        if (btnAbout) btnAbout.classList.remove("hidden");
+        if (btnSupport) btnSupport.classList.remove("hidden");
+        if (btnChangelog) btnChangelog.classList.remove("hidden");
+        if (btnResetApp) btnResetApp.classList.remove("hidden");
+        if (btnLogout) btnLogout.classList.remove("hidden");
+
+        // ❌ KEEP ADMIN TOOLS HIDDEN
+        if (seatAdminTools) seatAdminTools.classList.add("hidden");
+        if (btnSeatAddRoom) btnSeatAddRoom.classList.add("hidden");
+        if (btnSeatEditToggle) btnSeatEditToggle.classList.add("hidden");
+
+        // ❌ KEEP RECORD BUTTONS HIDDEN
+        if (btnPrevRecord) btnPrevRecord.classList.add("hidden");
+        if (btnNextRecord) btnNextRecord.classList.add("hidden");
+        if (btnBackToList) btnBackToList.classList.add("hidden");
+
+        // ❌ KEEP RECORD LIST PANEL HIDDEN
+        const recordNav = document.querySelector(".recordNav");
+        if (recordNav) recordNav.classList.add("hidden");
+
+        // student flow
+        //showScreen(screenDetails);
+        await openStudentDetailsByEmail(state.me.email);
+        saveSession();
+
+        // ❌ KEEP MENU CARDS HIDDEN
+        if (menuStudentInfo) menuStudentInfo.classList.add("hidden");
+        if (menuSeatMapInfo) menuSeatMapInfo.classList.add("hidden");
+        if (menuExport) menuExport.classList.add("hidden");
+        if (btnOpenSeatMap) btnOpenSeatMap.classList.add("hidden");
+        if (btnGoList) btnGoList.classList.add("hidden");
+
+        const gradeAdminTools = document.getElementById("gradeAdminTools");
+        if (gradeAdminTools) gradeAdminTools.classList.add("hidden");
+
+        const gradeAdminButtons = document.getElementById("gradeAdminButtons");
+        if (gradeAdminButtons) gradeAdminButtons.classList.add("hidden");
+
+        const ldAdminControls = document.getElementById("ldAdminControls");
+        if (ldAdminControls) ldAdminControls.classList.add("hidden");
+
+        //if (dPhoto) dPhoto.classList.add("hidden");
+
+      } catch (e) {
+        alert(e.stack);
+      }
+      return;
+    } else {
+      document.body.classList.remove("student-mode");
+      if (menuStudentInfo) menuStudentInfo.classList.remove("hidden");
+      if (menuSeatMapInfo) menuSeatMapInfo.classList.remove("hidden");
+      if (menuExport) menuExport.classList.remove("hidden");
+      if (btnOpenSeatMap) btnOpenSeatMap.classList.remove("hidden");
+      if (btnGoList) btnGoList.classList.remove("hidden");
+
+      if (btnPrevRecord) btnPrevRecord.classList.remove("hidden");
+      if (btnNextRecord) btnNextRecord.classList.remove("hidden");
+      if (btnBackToList) btnBackToList.classList.remove("hidden");
+
+      const recordNav = document.querySelector(".recordNav");
+      if (recordNav) recordNav.classList.remove("hidden");
+
+      const gradeAdminTools = document.getElementById("gradeAdminTools");
+      if (gradeAdminTools) gradeAdminTools.classList.remove("hidden");
+
+      const gradeAdminButtons = document.getElementById("gradeAdminButtons");
+      if (gradeAdminButtons) gradeAdminButtons.classList.remove("hidden");
+
+      const ldAdminControls = document.getElementById("ldAdminControls");
+      if (ldAdminControls) ldAdminControls.classList.remove("hidden");
+
+      //if (dPhoto) dPhoto.classList.remove("hidden");
+    }
+
+    localStorage.setItem("sf_login_time", Date.now());
+
+    showLoading();
+
+    const displayName = (me.name || "").trim() || me.email;
+    if (userBadge) {
+      userBadge.textContent = `${displayName} (${me.role})`;
+      userBadge.classList.remove("hidden");
+    }
+
+    // show buttons
+    if (btnHelp) btnHelp.classList.remove("hidden");
+    if (btnAbout) btnAbout.classList.remove("hidden");
+    if (btnSupport) btnSupport.classList.remove("hidden");
+    if (btnChangelog) btnChangelog.classList.remove("hidden");
+    if (btnResetApp) btnResetApp.classList.remove("hidden");
+    if (btnLogout) btnLogout.classList.remove("hidden");
+
+    // admin tools
+    if (seatAdminTools) {
+      if (state.me.role === "admin") seatAdminTools.classList.remove("hidden");
+      else seatAdminTools.classList.add("hidden");
+    }
+
+    if (btnSeatAddRoom && btnSeatEditToggle) {
+      if (state.me.role === "admin") {
+        btnSeatAddRoom.classList.remove("hidden");
+        btnSeatEditToggle.classList.remove("hidden");
+      } else {
+        btnSeatAddRoom.classList.add("hidden");
+        btnSeatEditToggle.classList.add("hidden");
+      }
+    }
+
+    // proceed app
+    await loadRooms();
+    await loadInitialFilters();
+    await loadSeatMapMaster();
+
+    showScreen(screenMenu);
+    updateSeatEditUI();
+    showNetBadge();
+    saveSession();
     hideLoading();
-    alert("Saved");
+
   } catch (err) {
     hideLoading();
-    toast("Save error: " + err.toString());
+    forceLogout("Login error: " + err.toString());
   }
 }
 
-/*******************************************************
-* function name: clearRemarksBox
-* parameter: none
-* return: void
-* purpose: Clears the remarks textarea input field in the details view.
-********************************************************/
-function clearRemarksBox() {
-
-  const el = document.getElementById("dRemarks");
-  if (el) el.value = "";
-}
-
-/*******************************************************
-* function name: deleteSinglePending
-* parameter: key (string)
-* return: void
-* purpose: Removes a specific pending queue item and its offline file (if any) after user confirmation.
-********************************************************/
-function deleteSinglePending(key) {
-
-  const q = getPendingQueue();
-
-  const idx = q.findIndex((item, i) => getQueueItemKey(item, i) === key);
-  if (idx < 0) return;
-
-  const item = q[idx];
-
-  const ok = confirm("Delete this pending item?\n\nThis will remove it from queue.");
-  if (!ok) return;
-
-  // If evidence, also delete file from IndexedDB
-  if (item.type === "uploadEvidence" && item.offlineId) {
-    idbDeleteEvidenceFile(item.offlineId).catch(() => { });
-  }
-
-  q.splice(idx, 1);
-  setPendingQueue(q);
-
-  pendingProgress.delete(key);
-  renderPendingUI();
-}
-
-/*******************************************************
-* function name: retrySinglePending
-* parameter: key (string)
-* return: Promise<void>
-* purpose: Retries syncing a single pending queue item when online.
-********************************************************/
-async function retrySinglePending(key) {
-
-  if (!navigator.onLine) {
-    alert("You are offline. Cannot retry now.");
-    return;
-  }
-
-  const q = getPendingQueue();
-  const idx = q.findIndex((item, i) => getQueueItemKey(item, i) === key);
-  if (idx < 0) return;
-
-  // Try sync only that one item
-  await syncPendingQueue({ onlyKey: key });
-}
-
-/*******************************************************
-* function name: refreshNetBadgeNow
-* parameter: none
-* return: void
-* purpose: Immediately refreshes network status badge based on current navigator online state.
-********************************************************/
-function refreshNetBadgeNow() {
-
-  setNetBadge(navigator.onLine ? "online" : "offline");
-}
-
-/*******************************************************
-* function name: startNetWatcherOnce
-* parameter: none
-* return: void
-* purpose: Starts one-time network status watchers and triggers automatic sync when connection is restored.
-********************************************************/
-function startNetWatcherOnce() {
-
-  if (netWatcherStarted) return;
-  netWatcherStarted = true;
-
-  refreshNetBadgeNow();
-
-  if (navigator.onLine) {
-    syncPendingQueue();
-  }
-
-  window.addEventListener("online", async () => {
-    setNetBadge("online");
-    await syncPendingUpdates(); // remarks/done
-    await syncPendingQueue();   // evidence + seatmapSave + updateRecord
-  });
-
-  window.addEventListener("offline", () => {
-    setNetBadge("offline");
-  });
-}
-
-/*******************************************************
-* function name: showNetBadge
-* parameter: none
-* return: void
-* purpose: Makes the network status badge visible.
-********************************************************/
-function showNetBadge() {
-
-  if (!netBadge) return;
-  netBadge.classList.remove("hidden");
-}
-
-/*******************************************************
-* function name: hideNetBadge
-* parameter: none
-* return: void
-* purpose: Hides the network status badge element.
-********************************************************/
-function hideNetBadge() {
-
-  if (!netBadge) return;
-  netBadge.classList.add("hidden");
-}
-
+/* ======================================================
+   RECORDS SYSTEM (Student Records API)
+====================================================== */
 /* ===========================
-   LOCAL STORAGE (Setup)
+   ******
 =========================== */
-/*******************************************************
-* function name: saveSetup
-* parameter: apiUrl (string), clientId (string)
-* return: void
-* purpose: Stores API configuration values into localStorage.
-********************************************************/
-function saveSetup(apiUrl, clientId) {
 
-  localStorage.setItem("sf_apiUrl", apiUrl);
-  localStorage.setItem("sf_clientId", clientId);
-}
 
-/*******************************************************
-* function name: loadSetup
-* parameter: none
-* return: object
-* purpose: Loads fixed API configuration into state and localStorage and returns it.
-********************************************************/
-function loadSetup() {
-
-  state.apiUrl = FIXED_API_URL;
-  state.clientId = FIXED_CLIENT_ID;
-
-  // optional: also store (for compatibility)
-  localStorage.setItem("sf_apiUrl", state.apiUrl);
-  localStorage.setItem("sf_clientId", state.clientId);
-
-  return {
-    apiUrl: state.apiUrl,
-    clientId: state.clientId
-  };
-}
-
-/*******************************************************
-* function name: clearSetup
-* parameter: none
-* return: void
-* purpose: Removes stored API configuration values from localStorage.
-********************************************************/
-function clearSetup() {
-
-  localStorage.removeItem("sf_apiUrl");
-  localStorage.removeItem("sf_clientId");
-}
-
+/* ======================================================
+   HISTORY / AUDIT LOG
+====================================================== */
 /* ===========================
-   SESSION SAVE/RESTORE (Stay logged in on refresh)
+   ******
 =========================== */
-/*******************************************************
-* function name: saveSession
-* parameter: none
-* return: void
-* purpose: Saves current app session state snapshot into localStorage for restore after refresh.
-********************************************************/
-function saveSession() {
-  try {
-    const data = {
-      apiUrl: state.apiUrl || "",
-      clientId: state.clientId || "",
-      idToken: state.idToken || "",
-      filters: state.filters || {},
-      ui: state.ui || {},
-      list: {
-        page: state.list.page || 1,
-        pageSize: state.list.pageSize || 20
-      },
-      selectedEmail: state.selected?.email || "",
-      selectedIdx: state.selected?.idxInList ?? 0,
-      lastScreenBeforeDetails: lastScreenBeforeDetails || "",
-      currentScreen: state.currentScreen || "menu"
-    };
-    localStorage.setItem(LS_SESSION, JSON.stringify(data));
-  } catch (e) { }
-}
 
-/*******************************************************
-* function name: loadSession
-* parameter: none
-* return: object
-* purpose: Loads previously saved session snapshot from localStorage.
-********************************************************/
-function loadSession() {
 
-  try {
-    return JSON.parse(localStorage.getItem(LS_SESSION) || "{}");
-  } catch (e) {
-    return {};
-  }
-}
-
-/*******************************************************
-* function name: clearSession
-* parameter: none
-* return: void
-* purpose: Removes saved session snapshot from localStorage.
-********************************************************/
-function clearSession() {
-
-  localStorage.removeItem(LS_SESSION);
-}
-
+/* ======================================================
+   EXPORT SYSTEM
+====================================================== */
 /* ===========================
-   DRIVE FILE ID EXTRACT
+   DOM
 =========================== */
-/*******************************************************
-* function name: extractDriveFileId
-* parameter: url (string)
-* return: string
-* purpose: Extracts a Google Drive file ID from multiple possible share URL formats.
-********************************************************/
-function extractDriveFileId(url) {
-
-  if (!url) return "";
-
-  const str = String(url);
-
-  // /d/FILEID/
-  let m = str.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
-  if (m && m[1]) return m[1];
-
-  // id=FILEID
-  m = str.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
-  if (m && m[1]) return m[1];
-
-  // open?id=FILEID
-  m = str.match(/open\?id=([a-zA-Z0-9_-]{10,})/);
-  if (m && m[1]) return m[1];
-
-  // fallback any long id
-  m = str.match(/[-\w]{25,}/);
-  if (m && m[0]) return m[0];
-
-  return "";
-}
-
-let modalZoom = {
-  scale: 1,
-  x: 0,
-  y: 0,
-  dragging: false,
-  startX: 0,
-  startY: 0
-};
-
-/*******************************************************
-* function name: applyModalTransform
-* parameter: none
-* return: void
-* purpose: Applies current zoom and pan transform values to the modal image element.
-********************************************************/
-function applyModalTransform() {
-
-  const img = document.getElementById("modalPhoto");
-  if (!img) return;
-  img.style.transform = `translate(${modalZoom.x}px, ${modalZoom.y}px) scale(${modalZoom.scale})`;
-}
-
-/*******************************************************
-* function name: resetModalZoom
-* parameter: none
-* return: void
-* purpose: Resets modal image zoom and pan values to defaults and reapplies transform.
-********************************************************/
-function resetModalZoom() {
-
-  modalZoom.scale = 1;
-  modalZoom.x = 0;
-  modalZoom.y = 0;
-  applyModalTransform();
-}
-
-/*******************************************************
-* function name: openEvidenceFile
-* parameter: url (string)
-* return: void
-* purpose: Opens an evidence file by routing PDFs to PDF modal and images to image modal viewer.
-********************************************************/
-function openEvidenceFile(url) {
-
-  if (!url) {
-    toast("No file available.");
-    return;
-  }
-
-  // PDF → open new tab
-  if (isPdfUrl(url)) {
-    //window.open(url, "_blank", "noopener,noreferrer");
-    openPdfModal(url);
-    return;
-  }
-
-  // IMAGE → open modal
-  openImageModalFromUrl(url);
-}
-
-/*******************************************************
-* function name: isPdfUrl
-* parameter: url (string)
-* return: boolean
-* purpose: Checks whether a URL likely points to a PDF file.
-********************************************************/
-function isPdfUrl(url = "") {
-
-  return String(url).toLowerCase().includes(".pdf");
-}
-
-/*******************************************************
-* function name: isImageUrl
-* parameter: url (string)
-* return: boolean
-* purpose: Checks whether a URL likely points to a supported image file.
-********************************************************/
-function isImageUrl(url = "") {
-
-  return String(url).toLowerCase().match(/\.(png|jpg|jpeg|gif|webp)(\?|$)/);
-}
-
-/*******************************************************
-* function name: openImageModalFromUrl
-* parameter: url (string)
-* return: void
-* purpose: Opens image preview modal using either base64 data URL or converted Google Drive direct link.
-********************************************************/
-function openImageModalFromUrl(url) {
-
-  if (!url) {
-    toast("No file available.");
-    return;
-  }
-
-  let fixed = String(url).trim();
-
-  // If already BASE64 data URL
-  if (fixed.startsWith("data:image/")) {
-    if (modalPhoto) modalPhoto.src = fixed;
-    if (photoModal) photoModal.classList.remove("hidden");
-    return;
-  }
-
-  // Convert drive link to direct view
-  const fileId = extractDriveFileId(fixed);
-  if (fileId) {
-    fixed = "https://drive.google.com/uc?export=view&id=" + fileId;
-  }
-
-  if (modalPhoto) modalPhoto.src = fixed;
-  if (photoModal) photoModal.classList.remove("hidden");
-}
-
-/*******************************************************
-* function name: openPdfModal
-* parameter: previewUrl (string)
-* return: void
-* purpose: Opens the PDF preview modal and loads the given URL into the iframe viewer.
-********************************************************/
-function openPdfModal(previewUrl) {
-
-  if (!pdfModal || !pdfFrame) return;
-  pdfFrame.src = previewUrl;
-  pdfModal.classList.remove("hidden");
-}
-
-const btnFullscreenPhoto = document.getElementById("btnFullscreenPhoto");
-
-if (btnFullscreenPhoto) {
-  btnFullscreenPhoto.onclick = (ev) => {
-    ev.preventDefault();
-    if (!modalPhoto || !modalPhoto.src) return;
-    window.open(modalPhoto.src, "_blank");
-  };
-}
-
-/*******************************************************
-* function name: getStudentsForExport
-* parameter: 
-* return: 
-* purpose: 
-********************************************************/
-/*function getStudentsForExport(scope, section, studentId) {
-  let list = state.list.items || [];
-
-  if (scope === "section") {
-    return list.filter(s => s.section === section);
-  }
-
-  if (scope === "student") {
-    return list.filter(s => s.studentId === studentId);
-  }
-
-  return list;
-}*/
-
 /*******************************************************
 * function name: runExport
 * parameter: 
@@ -3965,26 +3485,85 @@ if (btnFullscreenPhoto) {
 * purpose: 
 ********************************************************/
 async function runExport() {
+
   state.subjectType = document.getElementById("subjectType")?.value || "minor";
 
   const type = document.getElementById("exportType").value;
   const scope = document.getElementById("exportScope").value;
-  const section = document.getElementById("exportCourse").value;
-  const student = document.getElementById("exportStudent").value;
+  let section = (exportCourse?.value || state.filters.courseSubject || "").trim().toUpperCase();
+
+  //let section = document.getElementById("exportCourse").value;
+  let student = document.getElementById("exportStudent").value;
+
+  let subjectType = 50
+
+  // ✅ CLEAR when ALL is selected
+  if (scope === "all") {
+    section = "";
+    student = "";
+  }
+
+  // ✅ CLEAR section when SINGLE STUDENT
+  if (scope === "student") {
+    section = "";
+  }
+
+  // ✅ Base check
+  if (state.subjectType === "major") {
+    subjectType = 60;
+  }
 
   const students = await getStudentsForExport(scope, section, student);
-  //console.log("students: ", students);
 
   if (!students.length) {
     alert("No students found.");
     return;
   }
 
+  console.log("type: ", type);
   if (type === "excel") {
+    showLoading("Exporting Excel. Please wait...");
     await exportExcel(students);
-  } else {
+    hideLoading();
+  } else if (type === "pdf") {
+    //alert("under construction!");
+    showLoading("Exporting PDF. Please wait...");
     await exportPDF(students);
+    hideLoading();
+  } else if (type === "csv") {
+    //alert("under construction!");
+    showLoading("Exporting CSV. Please wait...");
+    exportCSV(students, subjectType);
+    hideLoading();
   }
+}
+
+/*******************************************************
+* function name: openscreenExport
+* parameter: 
+* return: -
+* purpose: 
+********************************************************/
+async function openscreenExport() {
+  document.getElementById("screenExport").classList.remove("hidden");
+
+  // ensure dropdown is loaded
+  await loadInitialFilters();
+
+  if (exportCourse) {
+    exportCourse.value = state.filters.courseSubject || "";
+  }
+}
+
+/*******************************************************
+* function name: closescreenExport
+* parameter: 
+* return: -
+* purpose: 
+********************************************************/
+function closescreenExport() {
+  document.getElementById("screenExport").classList.add("hidden");
+  showScreen(screenMenu);
 }
 
 /*******************************************************
@@ -3995,7 +3574,7 @@ async function runExport() {
 ********************************************************/
 async function getStudentsForExport(scope, section, name) {
 
-  //console.log("getStudentsForExport called");
+  //const course = (exportCourse?.value || state.filters.courseSubject || "").trim().toUpperCase();
 
   const res = await apiGet({
     action: "exportGrades",
@@ -4003,16 +3582,16 @@ async function getStudentsForExport(scope, section, name) {
     // ✅ EXACT PARAM ALIGNMENT
     schoolYear: state.filters.schoolYear || "",
     term: state.filters.term || "",
-    courseSubject: state.filters.courseSubject || "",
+    courseSubject: section || "",
 
     // 🔥 IMPORTANT: send BOTH for safety
     program: state.filters.program || "",
-    section: section || "",
+    section: state.filters.block || "",
 
     idToken: state.idToken
   });
 
-  console.log("res: ", res);
+  //console.log("res: ", res);
 
   // ✅ HANDLE ERROR PROPERLY
   if (!res || res.status !== "success") {
@@ -4022,20 +3601,34 @@ async function getStudentsForExport(scope, section, name) {
 
   let list = res.items || [];
 
-  console.log("list: ", list);
+  // 🔥 NORMALIZE ALL DATA FIRST (VERY IMPORTANT)
+  list = list.map(s => ({
+    ...s,
+    _course: String(s.courseSubject || s["course(subject)"] || "").trim().toUpperCase(),
+    _name: String(s["lastname,firstnamem.i."] || "").trim().toUpperCase()
+  }));
+
+  //console.log("list: ", list);
 
   // ===== FILTERING =====
   // 🔹 PER STUDENT
   if (scope === "student" && name) {
-    list = list.filter(s => String(s["lastname,firstnamem.i."]).trim().toUpperCase() === String(name).trim().toUpperCase());
+    const target = String(name).trim().toUpperCase();
+
+    list = list.filter(s => s._name === target);
   }
-  console.log("name: ", name);
+
   // 🔹 PER SECTION / COURSE
   if (scope === "section" && section) {
-    list = list.filter(s => String(s["course(subject)"] || "").trim().toUpperCase() === String(section).trim().toUpperCase());
+    const target = String(section).trim().toUpperCase();
+
+    list = list.filter(s => {
+      const courseVal = String(s.courseSubject || s["course(subject)"] || s.coursesubject || "").trim().toUpperCase();
+
+      return courseVal === target;
+    });
   }
-  console.log("section: ", section);
-  console.log("list: ", list);
+
   return list;
 }
 
@@ -4119,8 +3712,7 @@ function getMaxScores(students, period, category) {
 // VERSION 2
 async function exportExcel(students) {
 
-  showLoading("Exporting. Please wait...");
-  console.log("Exporting. Please wait...")
+  console.log("Exporting Excel. Please wait...");
   if (typeof XLSX === "undefined") {
     hideLoading();
     alert("XLSX not loaded");
@@ -5184,8 +4776,1336 @@ async function exportExcel(students) {
   XLSX.utils.book_append_sheet(wb, transSheet, "Transmutation");
 
   XLSX.writeFile(wb, "Final_Report.xlsx", { cellFormula: true });
-  console.log("Saving. Please wait...")
-  hideLoading();
+  console.log("Excel saving done.");
+}
+
+/*******************************************************
+* function name: exportPDF
+* parameter: 
+* return: 
+* purpose: Generate PDF EXACTLY SAME as Excel output
+* method: Excel → HTML → PDF (preserves merges/layout)
+********************************************************/
+/*******************************************************
+ * FINAL exportPDF (PIXEL-STABLE + SAFE)
+ * 
+ * FLOW:
+ * 1. GENERATE  → build Excel sheet (reuse logic)
+ * 2. CONVERT   → sheet → HTML
+ * 3. CLEAN     → apply Excel-like styling
+ * 4. RENDER    → HTML → PDF (A4 landscape)
+ *******************************************************/
+async function exportPDF(students) {
+
+  console.log("Exporting PDF. Please wait...");
+
+  try {
+
+    /*******************************************************
+     * 1. GENERATE (REUSE YOUR EXACT EXCEL LOGIC)
+     *******************************************************/
+    if (typeof XLSX === "undefined") {
+      alert("XLSX not loaded");
+      hideLoading();
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([]);
+
+    // 🔥 IMPORTANT: this must contain ALL your Excel logic
+    await buildExcelSheet(ws, students);
+
+    // ✅ SAFETY CHECK (prevents 'Sheet has no data')
+    if (!ws["!ref"]) {
+      console.error("Sheet has no data!");
+      alert("Failed: Excel sheet is empty.");
+      hideLoading();
+      return;
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, "Grades");
+
+
+    /*******************************************************
+     * 2. CONVERT (SHEET → HTML)
+     *******************************************************/
+    const rawHTML = XLSX.utils.sheet_to_html(ws);
+
+
+    /*******************************************************
+     * 3. CLEAN (MAKE IT LOOK LIKE EXCEL)
+     *******************************************************/
+    const styledHTML = `
+    <html>
+    <head>
+    <style>
+
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+      }
+
+      .wrapper {
+        width: 1600px; /* 🔥 prevents compression */
+      }
+
+      table {
+        border-collapse: collapse;
+        table-layout: fixed; /* 🔥 CRITICAL: no overlap */
+        width: 1600px;
+        font-size: 8px;
+      }
+
+      td, th {
+        border: 1px solid #000; /* ✅ borders */
+        padding: 2px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+
+      thead td {
+        background: #A6A6A6;
+        color: #fff;
+        font-weight: bold;
+      }
+
+      /* NAME ALIGN LEFT */
+      td:nth-child(2),
+      td:nth-child(3) {
+        text-align: left;
+      }
+
+      /* COLUMN WIDTH CONTROL */
+      td {
+        min-width: 40px;
+      }
+
+      td:nth-child(2) { min-width: 120px; }
+      td:nth-child(3) { min-width: 160px; }
+
+    </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        ${rawHTML}
+      </div>
+    </body>
+    </html>
+    `;
+
+
+    /*******************************************************
+     * 4. RENDER (HTML → PDF)
+     *******************************************************/
+    if (!window.jspdf || !window.html2canvas) {
+      alert("Missing jsPDF or html2canvas");
+      hideLoading();
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "pt",
+      format: "a4"
+    });
+
+    await doc.html(styledHTML, {
+      x: 10,
+      y: 10,
+      width: 820,              // ✅ fits A4
+      windowWidth: 1600,       // ✅ match wrapper
+      html2canvas: {
+        scale: 0.6,            // ✅ prevents overlap
+        useCORS: true
+      },
+      callback: function (doc) {
+        doc.save("Final_Report.pdf");
+        console.log("PDF saving done.");
+      }
+    });
+
+  } catch (err) {
+
+    /*******************************************************
+     * ERROR HANDLING
+     *******************************************************/
+    console.error("PDF Export Error:", err);
+    alert("PDF failed");
+  }
+}
+
+/*******************************************************
+* function name: buildExcelSheet
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function buildExcelSheet(ws, students) {
+  // 👉 COPY EVERYTHING inside exportExcel
+  // EXCEPT:
+  // ❌ remove XLSX.writeFile(...)
+  // ❌ remove loading UI
+  // ✔ keep all headers, merges, styles, formulas
+
+  if (typeof XLSX === "undefined") {
+    hideLoading();
+    alert("XLSX not loaded");
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  //const ws = XLSX.utils.aoa_to_sheet([]);
+
+  // ================= CONFIG =================
+  const categories = [
+    "AUGUSTINIAN VALUE",
+    "CLASS PARTICIPATION",
+    "QUIZ",
+    "MIDTERM EXAM"
+  ];
+
+  const START_COL = 3; // Column D
+
+  // ================= HELPERS =================
+  const normalizePeriod = p =>
+    String(p || "").toUpperCase().includes("FINAL") ? "FINAL PERIOD" : "MIDTERM PERIOD";
+
+  const normalizeCategory = (c, period) => {
+    c = String(c || "").toUpperCase();
+
+    if (c.includes("AUG")) return "AUGUSTINIAN VALUE";
+    if (c.includes("QUIZ")) return "QUIZ";
+    if (c.includes("PARTICIPATION")) return "CLASS PARTICIPATION";
+
+    if (c.includes("EXAM"))
+      return period === "FINAL PERIOD" ? "FINAL EXAM" : "MIDTERM EXAM";
+
+    return c;
+  };
+
+  const colLetter = n => {
+    let s = "";
+    while (n >= 0) {
+      s = String.fromCharCode((n % 26) + 65) + s;
+      n = Math.floor(n / 26) - 1;
+    }
+    return s;
+  };
+
+  const getMaxScores = (students, period, category) => {
+    let max = 0;
+
+    students.forEach(s => {
+      const count = (s.grades || []).filter(t => {
+        const p = normalizePeriod(t.period);
+        const c = normalizeCategory(t.category, p);
+        return p === period && c === category;
+      }).length;
+
+      if (count > max) max = count;
+    });
+
+    return max;
+  };
+
+  // ================= HEADER BUILD =================
+  let headerPeriod = ["NAME", "", ""];
+  let headerCategory = ["Subject", ""];
+  let headerLabels = ["", ""];
+  let maxRow = ["LAST NAME", "FIRST NAME"];
+
+  let colIndex = START_COL;
+
+  // ===== MIDTERM =====
+  let midStart = colIndex;
+
+  categories.forEach(cat => {
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+    const span = max + 3;
+
+    // Period
+    headerPeriod.push(...Array(span).fill(""));
+
+    // Category
+    headerCategory.push(cat, ...Array(span - 1).fill(""));
+
+    // Labels
+    headerLabels.push(...Array(max).fill("Score"));
+
+    const weight = gradeWeights?.["MIDTERM PERIOD"]?.[cat] || 0;
+
+    headerLabels.push("Per", "Trans", `${weight * 100}%`);
+    maxRow.push(...Array(span).fill(""));
+
+    colIndex += span;
+  });
+
+  let midEnd = colIndex - 1;
+
+  // MIDTERM GRADE
+  headerPeriod.push("");
+  headerCategory.push("MIDTERM PERIOD GRADE");
+  headerLabels.push("");
+  maxRow.push("");
+  colIndex++;
+
+  // spacer
+  headerPeriod.push("");
+  headerCategory.push("");
+  headerLabels.push("");
+  maxRow.push("");
+  colIndex++;
+
+  // ===== FINAL =====
+  let finalStart = colIndex;
+
+  categories.forEach(cat => {
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+    const span = max + 3;
+
+    headerPeriod.push(...Array(span).fill(""));
+    headerCategory.push(realCat, ...Array(span - 1).fill(""));
+    headerLabels.push(...Array(max).fill("Score"));
+
+    const weight = gradeWeights?.["FINAL PERIOD"]?.[realCat] || 0;
+
+    headerLabels.push("Per", "Trans", `${weight * 100}%`);
+    maxRow.push(...Array(span).fill(""));
+
+    colIndex += span;
+  });
+
+  let finalEnd = colIndex - 1;
+
+  // FINAL GRADE
+  headerPeriod.push("");
+  headerCategory.push("FINAL PERIOD GRADES");
+  headerLabels.push("");
+  maxRow.push("");
+  colIndex++;
+
+  // spacer
+  headerPeriod.push("");
+  headerCategory.push("");
+  headerLabels.push("");
+  maxRow.push("");
+  colIndex++;
+
+  // ===== SUMMARY =====
+  const colMG = colIndex++;
+  const colMG50 = colIndex++;
+  const colFG = colIndex++;
+  const colFG50 = colIndex++;
+  const colFINAL = colIndex++;
+
+  headerLabels.push("", "", "", "", "FINAL GRADE");
+  maxRow.push("MG", "", "", "", "");
+
+  // ================= WRITE HEADERS =================
+  XLSX.utils.sheet_add_aoa(ws, [headerPeriod], { origin: { r: 1, c: 1 } });
+  XLSX.utils.sheet_add_aoa(ws, [headerCategory], { origin: { r: 2, c: 1 } });
+  XLSX.utils.sheet_add_aoa(ws, [headerLabels], { origin: { r: 3, c: 1 } });
+  XLSX.utils.sheet_add_aoa(ws, [maxRow], { origin: { r: 4, c: 1 } });
+
+  // ================= MERGES =================
+  ws["!merges"] = [];
+
+  // PERIOD
+  ws["!merges"].push(
+    { s: { r: 1, c: 1 }, e: { r: 1, c: 2 } },
+    { s: { r: 1, c: midStart }, e: { r: 1, c: midEnd + 1 } },
+    { s: { r: 1, c: finalStart }, e: { r: 1, c: finalEnd + 1 } }
+  );
+
+  let catCol = START_COL;
+
+  // ===== MIDTERM CATEGORY =====
+  categories.forEach(cat => {
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+    const span = max + 3;
+
+    ws["!merges"].push({
+      s: { r: 2, c: catCol },
+      e: { r: 2, c: catCol + span - 1 }
+    });
+
+    catCol += span;
+  });
+
+  // skip MIDTERM GRADE + spacer
+  catCol += 2;
+
+  // ===== FINAL CATEGORY =====
+  categories.forEach(cat => {
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+    const span = max + 3;
+
+    ws["!merges"].push({
+      s: { r: 2, c: catCol },
+      e: { r: 2, c: catCol + span - 1 }
+    });
+
+    catCol += span;
+  });
+
+  let transColPtr = START_COL;
+
+  // ===== MIDTERM =====
+  categories.forEach(cat => {
+
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+
+    const transCol = transColPtr + max + 1;
+    const percentCol = transColPtr + max + 2;
+
+    ws["!merges"].push({
+      s: { r: 3, c: transCol },
+      e: { r: 4, c: transCol }
+    });
+
+    ws["!merges"].push({
+      s: { r: 3, c: percentCol },
+      e: { r: 4, c: percentCol }
+    });
+
+    transColPtr += max + 3;
+  });
+
+  // skip MIDTERM GRADE + spacer
+  transColPtr += 2;
+
+  // ===== FINAL =====
+  categories.forEach(cat => {
+
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+
+    const transCol = transColPtr + max + 1;
+    const percentCol = transColPtr + max + 2;
+
+    ws["!merges"].push({
+      s: { r: 3, c: transCol },
+      e: { r: 4, c: transCol }
+    });
+
+    ws["!merges"].push({
+      s: { r: 3, c: percentCol },
+      e: { r: 4, c: percentCol }
+    });
+
+    transColPtr += max + 3;
+  });
+
+  // MIDTERM GRADE MERGE
+  ws["!merges"].push({
+    s: { r: 2, c: midEnd + 1 },
+    e: { r: 4, c: midEnd + 1 }
+  });
+
+  // FINAL GRADE MERGE
+  ws["!merges"].push({
+    s: { r: 2, c: finalEnd + 1 },
+    e: { r: 4, c: finalEnd + 1 }
+  });
+
+  // SUMMARY
+  ws["!merges"].push({
+    s: { r: 1, c: colMG },
+    e: { r: 1, c: colFINAL }
+  });
+
+  // Midterm Period
+  ws["!merges"].push({
+    s: { r: 2, c: colMG },
+    e: { r: 3, c: colMG + 1 }
+  });
+
+  // Final Period
+  ws["!merges"].push({
+    s: { r: 2, c: colFG },
+    e: { r: 3, c: colFG + 1 }
+  });
+
+  // FINAL GRADE
+  ws["!merges"].push({
+    s: { r: 2, c: colFINAL },
+    e: { r: 4, c: colFINAL }
+  });
+
+  // ================= LABELS =================
+  ws[XLSX.utils.encode_cell({ r: 1, c: midStart })] = { t: "s", v: "MIDTERM PERIOD" };
+  ws[XLSX.utils.encode_cell({ r: 1, c: finalStart })] = { t: "s", v: "FINAL PERIOD" };
+  ws[XLSX.utils.encode_cell({ r: 1, c: colMG })] = { t: "s", v: "SUMMARY OF GRADES" };
+
+  // ===== CENTER MIDTERM / FINAL GRADE HEADERS =====
+
+  // MIDTERM PERIOD GRADE
+  const midRef = XLSX.utils.encode_cell({ r: 2, c: midEnd + 1 });
+  if (ws[midRef]) {
+    ws[midRef].s = {
+      ...(ws[midRef].s || {}),
+      alignment: { horizontal: "center", vertical: "center" },
+      font: { bold: true }
+    };
+  }
+
+  // FINAL PERIOD GRADE
+  const finalRef = XLSX.utils.encode_cell({ r: 2, c: finalEnd + 1 });
+  if (ws[finalRef]) {
+    ws[finalRef].s = {
+      ...(ws[finalRef].s || {}),
+      alignment: { horizontal: "center", vertical: "center" },
+      font: { bold: true }
+    };
+  }
+
+  // ================= DATA =================
+  // ✅ SORT FIRST (PLACE HERE)
+  students.sort((a, b) => {
+    const [lastA = "", firstA = ""] =
+      (a["lastname,firstnamem.i."] || "").toUpperCase().split(",");
+
+    const [lastB = "", firstB = ""] =
+      (b["lastname,firstnamem.i."] || "").toUpperCase().split(",");
+
+    if (lastA < lastB) return -1;
+    if (lastA > lastB) return 1;
+
+    if (firstA < firstB) return -1;
+    if (firstA > firstB) return 1;
+
+    return 0;
+  });
+
+  let rowIndex = 5;
+  let allMaxValues = [];
+
+  students.forEach(s => {
+
+    const tasks = s.grades || [];
+    const [last, first] = (s["lastname,firstnamem.i."] || "").toUpperCase().split(",");
+
+    let row = ["", last || "", first || ""];
+    let rowMax = [];
+    let col = START_COL;
+    let midWeights = [];
+    let finalWeights = [];
+
+    const rowNum = rowIndex + 1;
+
+    // ===== MIDTERM =====
+    categories.forEach(cat => {
+
+      const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+
+      const list = tasks.filter(t => {
+        const p = normalizePeriod(t.period);
+        const c = normalizeCategory(t.category, p);
+        return p === "MIDTERM PERIOD" && c === cat;
+      });
+
+      const start = col;
+
+      for (let i = 0; i < max; i++) {
+        row.push(list[i]?.score ?? "");
+        rowMax.push(list[i]?.max ?? "");
+        col++;
+      }
+
+      const end = col - 1;
+
+      const sum = `SUM(${colLetter(start)}${rowNum}:${colLetter(end)}${rowNum})`;
+      const maxSum = `SUM(${colLetter(start)}5:${colLetter(end)}5)`;
+
+      // %
+      row.push({ f: `IFERROR((${sum}/${maxSum})*100,0)` }); rowMax.push("");
+      col++;
+
+      // trans
+      const totalCol = colLetter(col - 1);
+      const lookup = state.subjectType === "major"
+        ? `LOOKUP(${totalCol}${rowNum},Transmutation!B4:B104,Transmutation!C4:C104)`
+        : `LOOKUP(${totalCol}${rowNum},Transmutation!F4:F104,Transmutation!G4:G104)`;
+
+      row.push({ f: `IFERROR(${lookup},0)` }); rowMax.push("");
+      col++;
+
+      // weighted
+      const weight = gradeWeights?.["MIDTERM PERIOD"]?.[cat] || 0;
+      row.push({ f: `${colLetter(col - 1)}${rowNum}*${weight}` }); rowMax.push("");
+
+      midWeights.push(`${colLetter(col)}${rowNum}`);
+      col++;
+    });
+
+    // MIDTERM GRADE
+    row.push({ f: `SUM(${midWeights.join(",")})` }); rowMax.push("");
+    const midCol = colLetter(col++);
+    row.push(""); rowMax.push(""); col++;
+
+    // ===== FINAL =====
+    categories.forEach(cat => {
+
+      const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+      const max = getMaxScores(students, "FINAL PERIOD", realCat);
+
+      const list = tasks.filter(t => {
+        const p = normalizePeriod(t.period);
+        const c = normalizeCategory(t.category, p);
+        return p === "FINAL PERIOD" && c === realCat;
+      });
+
+      const start = col;
+
+      for (let i = 0; i < max; i++) {
+        row.push(list[i]?.score ?? "");
+        rowMax.push(list[i]?.max ?? "");
+        col++;
+      }
+
+      const end = col - 1;
+
+      const sum = `SUM(${colLetter(start)}${rowNum}:${colLetter(end)}${rowNum})`;
+      const maxSum = `SUM(${colLetter(start)}5:${colLetter(end)}5)`;
+
+      // %
+      row.push({ f: `IFERROR((${sum}/${maxSum})*100,0)` }); rowMax.push("");
+      col++;
+
+      // trans
+      const totalCol = colLetter(col - 1);
+      const lookup = state.subjectType === "major"
+        ? `LOOKUP(${totalCol}${rowNum},Transmutation!B4:B104,Transmutation!C4:C104)`
+        : `LOOKUP(${totalCol}${rowNum},Transmutation!F4:F104,Transmutation!G4:G104)`;
+
+      row.push({ f: `IFERROR(${lookup},0)` }); rowMax.push("");
+      col++;
+
+      // weighted
+      const weight = gradeWeights?.["FINAL PERIOD"]?.[realCat] || 0;
+      row.push({ f: `${colLetter(col - 1)}${rowNum}*${weight}` }); rowMax.push("");
+
+      finalWeights.push(`${colLetter(col)}${rowNum}`);
+      col++;
+    });
+
+    // FINAL GRADE
+    row.push({ f: `SUM(${finalWeights.join(",")})` }); rowMax.push("");
+    const finalCol = colLetter(col++);
+
+    // ===== SUMMARY =====
+    row.push(""); rowMax.push(""); col++;
+
+    row.push({ f: `${midCol}${rowNum}` }); rowMax.push(""); col++;
+    row.push({ f: `${midCol}${rowNum}*0.5` }); rowMax.push(""); col++;
+    row.push({ f: `${finalCol}${rowNum}` }); rowMax.push(""); col++;
+    row.push({ f: `${finalCol}${rowNum}*0.5` }); rowMax.push(""); col++;
+    row.push({ f: `(${midCol}${rowNum}*0.5)+(${finalCol}${rowNum}*0.5)` }); rowMax.push("");
+
+    // collect max row
+    rowMax.forEach((v, i) => {
+      if (!allMaxValues[i]) allMaxValues[i] = v || "";
+    });
+
+    XLSX.utils.sheet_add_aoa(ws, [row], { origin: rowIndex++ });
+
+  });
+
+  // ================= MAX ROW =================
+  XLSX.utils.sheet_add_aoa(ws, [allMaxValues], { origin: { r: 4, c: 3 } });
+
+  let fixCol = START_COL;
+
+  // ===== MIDTERM =====
+  categories.forEach(cat => {
+
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+
+    const start = fixCol;
+    const end = fixCol + max - 1;
+    const perCol = end + 1;
+
+    if (max > 0) {
+      const ref = XLSX.utils.encode_cell({ r: 4, c: perCol });
+
+      ws[ref] = {
+        t: "n",
+        f: `SUM(${colLetter(start)}5:${colLetter(end)}5)`
+      };
+    }
+
+    fixCol += max + 3;
+  });
+
+  // spacer (IMPORTANT — matches your layout)
+  fixCol++;
+  fixCol++;
+
+  // ===== FINAL =====
+  categories.forEach(cat => {
+
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+
+    const start = fixCol;
+    const end = fixCol + max - 1;
+    const perCol = end + 1;
+
+    if (max > 0) {
+      const ref = XLSX.utils.encode_cell({ r: 4, c: perCol });
+
+      ws[ref] = {
+        t: "n",
+        f: `SUM(${colLetter(start)}5:${colLetter(end)}5)`
+      };
+    }
+
+    fixCol += max + 3;
+  });
+
+  ws[XLSX.utils.encode_cell({ r: 2, c: colMG })] = { t: "s", v: "Midterm Period" };
+  ws[XLSX.utils.encode_cell({ r: 2, c: colFG })] = { t: "s", v: "Final Period" };
+  ws[XLSX.utils.encode_cell({ r: 2, c: colFG50 + 1 })] = { t: "s", v: "FINAL GRADE" };
+  ws[XLSX.utils.encode_cell({ r: 4, c: colMG })] = { t: "s", v: "MG" };
+  ws[XLSX.utils.encode_cell({ r: 4, c: colMG50 })] = { t: "s", v: "50%" };
+  ws[XLSX.utils.encode_cell({ r: 4, c: colFG })] = { t: "s", v: "FG" };
+  ws[XLSX.utils.encode_cell({ r: 4, c: colFG50 })] = { t: "s", v: "50%" };
+
+  // ================= STYLES =================
+
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+
+  // ===== IDENTIFY IMPORTANT COLUMNS =====
+  let ptr = START_COL;
+
+  // MIDTERM BLOCKS
+  categories.forEach(cat => {
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+    ptr += max + 3;
+  });
+
+  const midGradeCol = ptr;
+  ptr++;
+
+  const spacer1 = ptr;
+  ptr++;
+
+  // FINAL BLOCKS
+  categories.forEach(cat => {
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+    ptr += max + 3;
+  });
+
+  const finalGradeCol = ptr;
+  ptr++;
+
+  const spacer2 = ptr;
+
+  const summaryFinalCol = colFINAL;
+
+  // ================= MAIN LOOP =================
+
+  let paintPtr = START_COL;
+
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    let C = range.s.c;
+
+    // ===== LOOP THROUGH ALL COLUMNS =====
+    while (C <= range.e.c) {
+
+      const ref = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!ws[ref]) {
+        C++;
+        continue;
+      }
+
+      const isHeader = R >= 1 && R <= 4;
+      const isName = (C === 1 || C === 2);
+      const isColA = (C === 0);
+      const isSpacer = (C === spacer1 || C === spacer2);
+
+      let style = {
+        alignment: { horizontal: isName ? "left" : "center", vertical: "center", }
+      };
+
+      // ===== MIDTERM + FINAL BLOCK COLORING =====
+      let ptr = START_COL;
+
+      const applyCategoryColors = (period) => {
+        categories.forEach(cat => {
+
+          const realCat = (period === "FINAL PERIOD" && cat === "MIDTERM EXAM") ? "FINAL EXAM" : cat;
+
+          const max = getMaxScores(students, period, realCat);
+
+          // 🔵 SCORE (BLUE)
+          /*for (let i = 0; i < max; i++) {
+            if (C === ptr + i && !isHeader) {
+              style.fill = {
+                patternType: "solid",
+                fgColor: { rgb: "BDD7EE" }
+              };
+            }
+          }*/
+
+          // 🟡 PERCENT
+          if (C === ptr + max && !isHeader) {
+            style.fill = { patternType: "solid", fgColor: { rgb: "B7DEE8" } };
+          }
+
+          // 🔴 TRANSMUTATION
+          if (C === ptr + max + 1 && !isHeader) {
+            style.fill = { patternType: "solid", fgColor: { rgb: "B7DEE8" } };
+          }
+
+          // 🟣 WEIGHTED
+          if (C === ptr + max + 2 && !isHeader) {
+            style.fill = { patternType: "solid", fgColor: { rgb: "FFFF00" } };
+          }
+
+          ptr += max + 3;
+        });
+      };
+
+      // APPLY BOTH PERIODS
+      applyCategoryColors("MIDTERM PERIOD");
+
+      // MIDTERM GRADE
+      /*const midGradeCol = ptr;
+      if (C === midGradeCol && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FBD5B5" } };
+        style.font = { bold: true };
+      }*/
+      // MIDTERM PERIOD GRADE
+      const midRef = XLSX.utils.encode_cell({ r: 2, c: midEnd + 1 });
+      if (ws[midRef]) {
+        ws[midRef].s = {
+          ...(ws[midRef].s || {}),
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          font: { bold: true }
+        };
+      }
+
+      const midGradeCol = ptr;
+      if (C === midGradeCol && !isHeader) {
+        style.fill = {
+          patternType: "solid",
+          fgColor: { rgb: "FBD5B5" }
+        };
+        style.font = { bold: true };
+      }
+
+      ptr += 2; // grade + spacer
+
+      applyCategoryColors("FINAL PERIOD");
+
+      // FINAL GRADE
+      /*const finalGradeCol = ptr;
+      if (C === finalGradeCol && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FBD5B5" } };
+        style.font = { bold: true };
+      }*/
+      // FINAL PERIOD GRADE
+      const finalRef = XLSX.utils.encode_cell({ r: 2, c: finalEnd + 1 });
+      if (ws[finalRef]) {
+        ws[finalRef].s = {
+          ...(ws[finalRef].s || {}),
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          font: { bold: true }
+        };
+      }
+
+      const finalGradeCol = ptr;
+      if (C === finalGradeCol && !isHeader) {
+        style.fill = {
+          patternType: "solid",
+          fgColor: { rgb: "FBD5B5" }
+        };
+        style.font = { bold: true };
+      }
+
+      ptr += 2;
+
+      // SUMMARY FINAL GRADE (WRAP)
+      const summaryRef = XLSX.utils.encode_cell({ r: 2, c: colFINAL });
+      if (ws[summaryRef]) {
+        ws[summaryRef].s = {
+          ...(ws[summaryRef].s || {}),
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          font: { bold: true }
+        };
+      }
+
+      // ===== HEADER STYLE =====
+      /*if (isHeader && !isSpacer) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "A5A5A5" } };
+        style.font = { bold: true };
+      }*/
+      if (!isSpacer) {
+
+        const isRow1 = R === 1;
+        const isRow2 = R === 2;
+        const isRow5 = R === 4; // ✅ Per VALUE row
+
+        const cellValue = ws[ref]?.v || "";
+        const isWeight = String(cellValue).includes("%");
+
+        const isGradeCol = C === midGradeCol || C === finalGradeCol;
+
+        const isSummaryMain = C === colMG || C === colFG || C === colFINAL;
+
+        // ===== DETECT PER COLUMN =====
+        let isPerValue = false;
+        let ptrCheck = START_COL;
+
+        // MIDTERM
+        categories.forEach(cat => {
+          const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+          const perCol = ptrCheck + max;
+
+          if (C === perCol && isRow5) {
+            isPerValue = true;
+          }
+
+          ptrCheck += max + 3;
+        });
+
+        ptrCheck += 2;
+
+        // FINAL
+        categories.forEach(cat => {
+          const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+          const max = getMaxScores(students, "FINAL PERIOD", realCat);
+          const perCol = ptrCheck + max;
+
+          if (C === perCol && isRow5) {
+            isPerValue = true;
+          }
+
+          ptrCheck += max + 3;
+        });
+
+        // ===== HEADER COLOR =====
+        if (isHeader) {
+          style.fill = { patternType: "solid", fgColor: { rgb: "A5A5A5" } };
+        }
+
+        // ===== FINAL BOLD RULE =====
+        if (isRow1 || isRow2 || isWeight || isGradeCol || isSummaryMain || isPerValue) {
+          style.font = { bold: true };
+        } else {
+          style.font = { bold: false };
+        }
+      }
+
+      // ===== BORDERS =====
+      if (!isColA && !isSpacer) {
+        style.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+      }
+
+      if (isName) {
+        style.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+      }
+
+      // ===== SUMMARY COLORS and BOLD STYLES=====
+      // MIDTERM PERIO GRADE + FINAL PERIOD GRADE
+      if ((C === midGradeCol || C === finalGradeCol) && !isHeader) {
+        style.font = { ...(style.font || {}), bold: true, sz: 12 };
+      }
+
+      // MG
+      if (C === colMG && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FCD5B4" } };
+      }
+
+      // 50% (mid)
+      if (C === colMG50 && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FFFF00" } };
+      }
+
+      // FG
+      if (C === colFG && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FCD5B4" } };
+      }
+
+      // 50% (final)
+      if (C === colFG50 && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "FFFF00" } };
+      }
+
+      // FINAL GRADE
+      if (C === colFINAL && !isHeader) {
+        style.fill = { patternType: "solid", fgColor: { rgb: "B1A0C7" } };
+        style.font = { ...(style.font || {}), bold: true, sz: 13 };
+      }
+
+      ws[ref].s = style;
+
+      C++;
+    }
+  }
+
+  // ================= 🔥 FIX SUMMARY (PLACE HERE) =================
+  for (let R = 1; R <= range.e.r; R++) {
+    for (let C = colMG; C <= colFINAL; C++) {
+
+      const ref = XLSX.utils.encode_cell({ r: R, c: C });
+
+      // ✅ ensure cell exists
+      if (!ws[ref]) {
+        ws[ref] = { t: "s", v: "" };
+      }
+
+      ws[ref].s = {
+        ...(ws[ref].s || {}),
+        border: {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" }
+        }
+      };
+    }
+  }
+
+  // ===== NUMBER FORMATTING =====
+  const range2 = XLSX.utils.decode_range(ws["!ref"]);
+
+  for (let R = 5; R <= range2.e.r; R++) {
+    for (let C = START_COL; C <= range2.e.c; C++) {
+
+      const ref = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!ws[ref]) continue;
+
+      // DEFAULT → NO DECIMALS
+      ws[ref].z = "0";
+
+    }
+  }
+
+  // ===== APPLY 1 DECIMAL PLACES =====
+  let formatCol = START_COL;
+
+  // ===== MIDTERM =====
+  categories.forEach(cat => {
+
+    const max = getMaxScores(students, "MIDTERM PERIOD", cat);
+
+    // move to next block
+    formatCol += max + 3;
+  });
+
+  // MIDTERM GRADE COLUMN
+  const midGradeColIndex = formatCol;
+
+  // apply 1 decimal
+  for (let R = 5; R <= range.e.r; R++) {
+    const ref = XLSX.utils.encode_cell({ r: R, c: midGradeColIndex });
+    if (ws[ref]) ws[ref].z = "0.0";
+  }
+
+  formatCol++;
+
+  // spacer
+  formatCol++;
+
+  // ===== FINAL =====
+  categories.forEach(cat => {
+
+    const realCat = cat === "MIDTERM EXAM" ? "FINAL EXAM" : cat;
+    const max = getMaxScores(students, "FINAL PERIOD", realCat);
+
+    formatCol += max + 3;
+  });
+
+  // FINAL PERIOD GRADE COLUMN
+  const finalGradeColIndex = formatCol;
+
+  // apply 1 decimal
+  for (let R = 5; R <= range.e.r; R++) {
+    const ref = XLSX.utils.encode_cell({ r: R, c: finalGradeColIndex });
+    if (ws[ref]) ws[ref].z = "0.0";
+  }
+
+  formatCol++;
+
+  // spacer before summary
+  formatCol++;
+
+  // ===== FINAL GRADE (SUMMARY) =====
+  const finalColIndex = formatCol + 4; // MG,50,FG,50 → FINAL
+
+  for (let R = 5; R <= range.e.r; R++) {
+    const ref = XLSX.utils.encode_cell({ r: R, c: finalColIndex });
+    if (ws[ref]) ws[ref].z = "0.0";
+  }
+
+  // ===== COLUN SIZING =====
+  //const range = XLSX.utils.decode_range(ws["!ref"]);
+
+  ws["!cols"] = [];
+
+  // loop all columns
+  for (let C = 0; C <= range.e.c; C++) {
+
+    let width = 5.38; // default
+
+    if (C === 0 || C === spacer2) {
+      width = 1.5;
+    }
+
+    // NAME columns
+    if (C === 1) {
+      width = 14.63;
+    } else if (C === 2) {
+      width = 29.38;
+    }
+
+    // SPACER columns
+    if (C === spacer1) {
+      width = 6.38;
+    }
+
+    // FINAL GRADE columns (important)
+    if (C === midGradeCol || C === finalGradeCol || C === colFINAL) {
+      width = 5.38;
+    }
+
+    ws["!cols"][C] = { wch: width };
+  }
+
+  // ================= LEGEND (FINAL - DYNAMIC) =================
+  const finalRange = XLSX.utils.decode_range(ws["!ref"]);
+
+  const legendCol = finalRange.e.c + 2;
+  const labelCol = legendCol + 1;
+  const valueCol = legendCol + 2;
+
+  const startRow = 6;
+
+  ws[XLSX.utils.encode_cell({ r: startRow, c: legendCol })] = {
+    t: "s",
+    v: "Legend"
+  };
+
+  const legendData = [
+    ["MG-", "Midterm Grade"],
+    ["FPG-", "Final Period Grade"],
+    ["Per", "Percentile"],
+    ["Trans-", "Transmutation"]
+  ];
+
+  legendData.forEach((row, i) => {
+    const r = startRow + 1 + i;
+
+    ws[XLSX.utils.encode_cell({ r, c: labelCol })] = { t: "s", v: row[0] };
+    ws[XLSX.utils.encode_cell({ r, c: valueCol })] = { t: "s", v: row[1] };
+  });
+
+  legendData.forEach((row, i) => {
+    const r = startRow + 1 + i;
+
+    const labelRef = XLSX.utils.encode_cell({ r, c: labelCol });
+    const valueRef = XLSX.utils.encode_cell({ r, c: valueCol });
+
+    const isMain = row[0] === "MG-" || row[0] === "FPG-";
+
+    // LABEL (BD)
+    if (ws[labelRef]) {
+      ws[labelRef].s = {
+        alignment: { horizontal: "left" },
+        font: { bold: isMain }
+      };
+    }
+
+    // VALUE (BE)
+    if (ws[valueRef]) {
+      ws[valueRef].s = {
+        alignment: { horizontal: "left" }
+      };
+    }
+  });
+
+  const newEndCol = valueCol;
+  const newEndRow = startRow + legendData.length + 1;
+
+  const updatedRange = XLSX.utils.decode_range(ws["!ref"]);
+
+  updatedRange.e.c = Math.max(updatedRange.e.c, newEndCol);
+  updatedRange.e.r = Math.max(updatedRange.e.r, newEndRow);
+
+  ws["!ref"] = XLSX.utils.encode_range(updatedRange);
+
+  ws["!cols"][legendCol] = { wch: 12 };
+  ws["!cols"][labelCol] = { wch: 10 };
+  ws["!cols"][valueCol] = { wch: 28 };
+
+  // ================= COLUMN GROUPING =================
+  // ensure !cols exists
+  if (!ws["!cols"]) ws["!cols"] = [];
+
+  // ===== MIDTERM GROUP =====
+  for (let c = midStart; c <= midEnd + 1; c++) {
+    if (!ws["!cols"][c]) ws["!cols"][c] = {};
+    ws["!cols"][c].level = 1;
+  }
+
+  // ===== FINAL GROUP =====
+  for (let c = finalStart; c <= finalEnd + 1; c++) {
+    if (!ws["!cols"][c]) ws["!cols"][c] = {};
+    ws["!cols"][c].level = 1;
+  }
+
+  // ===== SUMMARY GROUP =====
+  for (let c = colMG; c <= colFINAL; c++) {
+    if (!ws["!cols"][c]) ws["!cols"][c] = {};
+    ws["!cols"][c].level = 1;
+  }
+
+  // ================= TRANSMUTATION =================
+  const transSheet = XLSX.utils.aoa_to_sheet([]);
+
+  // ✅ COMPLETE TRANSMUTATION TABLE (MAJOR + MINOR)
+  const major = {
+    0: 65, 1: 65, 2: 65, 3: 65, 4: 65, 5: 65, 6: 65, 7: 65, 8: 65, 9: 65, 10: 65,
+    11: 65, 12: 65, 13: 65, 14: 65, 15: 65, 16: 65, 17: 65, 18: 65, 19: 65, 20: 65,
+    21: 66, 22: 66, 23: 66, 24: 66, 25: 67, 26: 67, 27: 67, 28: 67, 29: 68, 30: 68,
+    31: 68, 32: 68, 33: 69, 34: 69, 35: 69, 36: 69, 37: 70, 38: 70, 39: 70, 40: 70,
+    41: 71, 42: 71, 43: 71, 44: 71, 45: 72, 46: 72, 47: 72, 48: 72, 49: 72, 50: 73,
+    51: 73, 52: 73, 53: 73, 54: 73, 55: 74, 56: 74, 57: 74, 58: 74, 59: 74, 60: 75,
+    61: 76, 62: 76, 63: 77, 64: 77, 65: 78, 66: 78, 67: 79, 68: 79, 69: 80, 70: 80,
+    71: 81, 72: 81, 73: 82, 74: 82, 75: 83, 76: 83, 77: 84, 78: 84, 79: 85, 80: 85,
+    81: 86, 82: 86, 83: 87, 84: 87, 85: 88, 86: 88, 87: 89, 88: 89, 89: 90, 90: 90,
+    91: 91, 92: 91, 93: 92, 94: 92, 95: 93, 96: 93, 97: 94, 98: 94, 99: 95, 100: 95
+  };
+
+  const minor = {
+    0: 65, 1: 65, 2: 65, 3: 65, 4: 65, 5: 65, 6: 65, 7: 65, 8: 65, 9: 65, 10: 65,
+    11: 65, 12: 65, 13: 65, 14: 65, 15: 65, 16: 66, 17: 66, 18: 66, 19: 67, 20: 67,
+    21: 67, 22: 68, 23: 68, 24: 68, 25: 68, 26: 69, 27: 69, 28: 69, 29: 69, 30: 70,
+    31: 70, 32: 70, 33: 70, 34: 71, 35: 71, 36: 71, 37: 71, 38: 72, 39: 72, 40: 72,
+    41: 72, 42: 73, 43: 73, 44: 73, 45: 73, 46: 74, 47: 74, 48: 74, 49: 74, 50: 75,
+    51: 76, 52: 76, 53: 77, 54: 77, 55: 78, 56: 78, 57: 79, 58: 79, 59: 80, 60: 80,
+    61: 81, 62: 81, 63: 82, 64: 82, 65: 83, 66: 83, 67: 84, 68: 84, 69: 85, 70: 85,
+    71: 86, 72: 86, 73: 86, 74: 87, 75: 87, 76: 87, 77: 88, 78: 88, 79: 88, 80: 89,
+    81: 89, 82: 89, 83: 90, 84: 90, 85: 90, 86: 91, 87: 91, 88: 91, 89: 92, 90: 92,
+    91: 92, 92: 93, 93: 93, 94: 93, 95: 94, 96: 94, 97: 94, 98: 95, 99: 95, 100: 95
+  };
+
+  const transData = [["", "BASE 60 (Major Subject)", "", "", "", "BASE 50 (Minor Subject)"],
+  ["", "RAW SCORE", "RATE", "", "", "RAW SCORE", "RATE"]];
+
+  for (let i = 0; i <= 100; i++) {
+    transData.push(["", i, major[i], "", "", i, minor[i]]);
+  }
+
+  XLSX.utils.sheet_add_aoa(transSheet, transData);
+
+  // ================= SAVE =================
+  XLSX.utils.book_append_sheet(wb, ws, "Grades");
+  XLSX.utils.book_append_sheet(wb, transSheet, "Transmutation");
+}
+
+/*******************************************************
+* function name: exportCSV
+* parameter: 
+* return: 
+* purpose: Export grading data into LONG CSV format
+********************************************************/
+function exportCSV(students, base = 60) {
+
+  console.log("Exporting CSV file. Please wait...");
+
+  if (!students || students.length === 0) {
+    alert("No data");
+    return;
+  }
+
+  console.log("students: ", students);
+
+  let rows = [];
+
+  // 🔷 SORT STUDENTS (A → Z by LAST NAME, then FIRST NAME)
+  students.sort((a, b) => {
+
+    const fullA = (a["lastname,firstnamem.i."] || "").toUpperCase();
+    const fullB = (b["lastname,firstnamem.i."] || "").toUpperCase();
+
+    const [lastA = "", firstA = ""] = fullA.split(",");
+    const [lastB = "", firstB = ""] = fullB.split(",");
+
+    // Compare last name first
+    if (lastA < lastB) return -1;
+    if (lastA > lastB) return 1;
+
+    // If same last name, compare first name
+    if (firstA < firstB) return -1;
+    if (firstA > firstB) return 1;
+
+    return 0;
+  });
+
+  // 🔷 METADATA (VERY IMPORTANT) 
+  rows.push([`BASE=${base}`]);
+
+  // 🔷 HEADER 
+  rows.push([
+    "StudentID",
+    "LastName",
+    "FirstName",
+    "Course/Subject",
+    "Period",
+    "Category",
+    "Item",
+    "Score",
+    "MaxScore"
+  ]);
+
+  // 🔷 DATA (FLAT FORMAT) 
+  students.forEach(s => {
+
+    const full = (s["lastname,firstnamem.i."] || "").toUpperCase();
+    const [last, first] = full.split(",");
+
+    (s.grades || []).forEach((g, index) => {
+
+      rows.push([
+        s.studentidnumber || "",
+        last || "",
+        first || "",
+        g.courseSubject || "",
+        g.period || "",
+        g.category || "",
+        index + 1,
+        g.score ?? "",
+        g.max ?? ""
+      ]);
+
+    });
+
+  });
+
+  // 🔷 CSV STRING 
+  const csvContent = rows.map(r => r.join(",")).join("\n");
+
+  // 🔷 DOWNLOAD 
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+  link.download = "grades_data.csv";
+  link.click();
+
+  console.log("CSV saving done.");
 }
 
 /*******************************************************
@@ -5209,13 +6129,21 @@ function updateExportUI() {
 * purpose: 
 ********************************************************/
 async function initExportForm() {
-  const students = await getStudentsForExport("section");
 
-  window.currentStudents = students; // store globally
+  const res = await apiGet({
+    action: "exportGrades",
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || "",
+    idToken: state.idToken
+  });
 
-  loadCourses(students);
-  loadStudents(students);
-  //console.log("students: ", students);
+  if (res?.status === "success") {
+    ALL_STUDENTS = res.items || [];
+
+    // ✅ load BOTH immediately
+    loadCourses(ALL_STUDENTS);
+    loadStudents(ALL_STUDENTS);
+  }
 }
 
 /*******************************************************
@@ -5227,16 +6155,21 @@ async function initExportForm() {
 function loadCourses(students) {
   const select = document.getElementById("exportCourse");
 
-  const uniqueCourses = [...new Set(students.map(s => s["course(subject)"]).filter(Boolean))];
-
-  // clear first
+  // clear
   select.innerHTML = `<option value="">Select Course</option>`;
 
-  uniqueCourses.forEach(c => { select.innerHTML += `<option value="${c}">${c}</option>`; });
+  const courses = [...new Set(students.map(s => s["course(subject)"]).filter(Boolean))].sort();
+
+  courses.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    select.appendChild(opt);
+  });
 }
 
 /*******************************************************
-* function name: loadCourses
+* function name: loadStudents
 * parameter: 
 * return: 
 * purpose: 
@@ -5244,124 +6177,34 @@ function loadCourses(students) {
 function loadStudents(students) {
   const select = document.getElementById("exportStudent");
 
-  // clear first
   select.innerHTML = `<option value="">Select Student</option>`;
 
-  // OPTIONAL: filter by selected course
+  let filtered = students; // ✅ ALWAYS DEFINED
+
+  const scope = document.getElementById("exportScope")?.value;
   const selectedCourse = document.getElementById("exportCourse")?.value;
 
-  let filtered = students;
-
-  if (selectedCourse) {
-    filtered = students.filter(s => s["course(subject)"] === selectedCourse);
+  // ✅ ONLY filter when NOT single student
+  if (scope !== "student" && selectedCourse) {
+    filtered = students.filter(s =>
+      String(s["course(subject)"]).trim().toUpperCase() ===
+      String(selectedCourse).trim().toUpperCase()
+    );
   }
 
+  // ✅ sort
   filtered.sort((a, b) => {
-    const [lastA = "", firstA = ""] =
-      (a["lastname,firstnamem.i."] || "").toUpperCase().split(",");
-
-    const [lastB = "", firstB = ""] =
-      (b["lastname,firstnamem.i."] || "").toUpperCase().split(",");
-
-    // sort by LAST NAME
-    if (lastA < lastB) return -1;
-    if (lastA > lastB) return 1;
-
-    // if same last → FIRST NAME
-    if (firstA < firstB) return -1;
-    if (firstA > firstB) return 1;
-
-    return 0;
+    const nameA = (a["lastname,firstnamem.i."] || "").toUpperCase();
+    const nameB = (b["lastname,firstnamem.i."] || "").toUpperCase();
+    return nameA.localeCompare(nameB);
   });
 
   filtered.forEach(s => {
-    const name = s["lastname,firstnamem.i."].toUpperCase();
-    select.innerHTML += `<option value="${name}">${name}</option>`;
+    const opt = document.createElement("option");
+    opt.value = s["lastname,firstnamem.i."];
+    opt.textContent = s["lastname,firstnamem.i."];
+    select.appendChild(opt);
   });
-}
-
-/*******************************************************
-* function name: computeStudentGrades
-* parameter: 
-* return: 
-* purpose: 
-********************************************************/
-/*function computeStudentGrades(tasks) {
-  
-    const result = {
-      midterm: {},
-      final: {}
-    };
-  
-    const grouped = {};
-  
-    tasks.forEach(t => {
-      const rawPeriod = normalize(t.period || "MIDTERM");
-      const period = rawPeriod.includes("FINAL") ? "FINAL PERIOD" : "MIDTERM PERIOD";
-      let category = normalize(t.category);
-  
-      if (category.includes("AUG")) category = "AUGUSTINIAN VALUE";
-      if (category === "EXAM" && period === "MIDTERM PERIOD") category = "MIDTERM EXAM";
-      if (category === "EXAM" && period === "FINAL PERIOD") category = "FINAL EXAM";
-  
-      if (!grouped[period]) grouped[period] = {};
-      if (!grouped[period][category]) grouped[period][category] = [];
-  
-      grouped[period][category].push(t);
-    });
-  
-    ["MIDTERM PERIOD", "FINAL PERIOD"].forEach(period => {
-  
-      const p = normalize(period);
-      result[p] = {};
-  
-      const categories = grouped[p] || {};
-  
-      Object.keys(categories).forEach(cat => {
-        const { grade } = computeCategoryGrade(categories[cat], state.subjectType);
-        result[p][cat] = grade;
-      });
-    });
-  
-    return result;
-  }*/
-function computeStudentGrades(tasks) {
-
-  const result = {};
-
-  if (!Array.isArray(tasks)) return result;
-
-  const grouped = {};
-
-  tasks.forEach(t => {
-    if (!t) return;
-
-    const rawPeriod = normalize(t.period || "MIDTERM");
-    const period = rawPeriod.includes("FINAL") ? "FINAL PERIOD" : "MIDTERM PERIOD";
-
-    let category = normalize(t.category || "");
-
-    // normalize category
-    if (category.includes("AUG")) category = "AUGUSTINIAN VALUE";
-    if (category === "EXAM" && period === "MIDTERM PERIOD") category = "MIDTERM EXAM";
-    if (category === "EXAM" && period === "FINAL PERIOD") category = "FINAL EXAM";
-
-    if (!grouped[period]) grouped[period] = {};
-    if (!grouped[period][category]) grouped[period][category] = [];
-
-    grouped[period][category].push(t);
-  });
-
-  Object.keys(grouped).forEach(period => {
-    result[period] = {};
-
-    Object.keys(grouped[period]).forEach(cat => {
-      const { grade } = computeCategoryGrade(grouped[period][cat], state.subjectType);
-      result[period][cat] = grade;
-    });
-  });
-
-  return result;
 }
 
 /*******************************************************
@@ -5541,6 +6384,1356 @@ function extractCategory(tasks, period, category) {
     percent,
     trans,
     weighted
+  };
+}
+
+/* ======================================================
+   APP SYSTEM / CORE STATE MANAGEMENT
+====================================================== */
+/* ===========================
+   Global State
+=========================== */
+
+
+/* ===========================
+   App Reset
+=========================== */
+/*******************************************************
+* function name: resetApp
+* parameter: none
+* return: -
+* purpose: Clears all IndexedDB caches and evidence storage, resets major state containers, shows reset notification, and navigates UI back to config screen.
+*******************************************************/
+async function resetApp() {
+  await cacheClearAll();
+  await deleteEvidenceDB();
+  state.selected = null;
+  state.list.items = [];
+  state.list.total = 0;
+  state.seat = { room: "", editMode: false, seats: [], masterStudents: [], editingSeat: null };
+  toast("Cache cleared. Logging out.");
+  //showScreen(screenConfig);
+  forceLogout();
+}
+
+/* ===========================
+   UI HELPERS
+=========================== */
+
+
+
+/* OBSOLETE *?
+/*******************************************************
+* function name: isSessionValid
+* parameter: none
+* return: -
+* purpose: -
+*******************************************************/
+/*function isSessionValid() {
+  const token = localStorage.getItem("sf_id_token");
+  const loginTime = Number(localStorage.getItem("sf_login_time") || 0);
+
+  if (!token || !loginTime) return false;
+
+  return (Date.now() - loginTime) < SESSION_MAX_AGE_MS;
+}*/
+
+/*******************************************************
+* function name: escapeHtml
+* parameter: str (string)
+* return: string
+* purpose: Escapes special HTML characters in a string to prevent HTML injection when rendering dynamic text in the UI.
+********************************************************/
+function escapeHtml(str) {
+
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+/*******************************************************
+* function name: toast
+* parameter: msg (any)
+* return: void
+* purpose: Displays a simple user notification using alert with basic error protection.
+********************************************************/
+function toast(msg) {
+
+  try {
+    alert(String(msg));
+  } catch (e) {
+    console.error("toast failed:", e);
+  }
+}
+
+/*******************************************************
+* function name: fillSelect
+* parameter: selectEl (HTMLSelectElement), items (array)
+* return: void
+* purpose: Populates a select dropdown element with a blank option plus provided item values.
+********************************************************/
+function fillSelect(selectEl, items) {
+
+  if (!selectEl) return;
+
+  selectEl.innerHTML = "";
+
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "-- Select --";
+  selectEl.appendChild(blank);
+
+  (items || []).forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v === "(Blank)" ? "" : v;
+    opt.textContent = v;
+    selectEl.appendChild(opt);
+  });
+}
+
+btnClosePdf.onclick = closePdfModal;
+
+// click outside to close
+pdfModal.addEventListener("click", (e) => {
+  if (e.target === pdfModal) closePdfModal();
+});
+
+/*******************************************************
+* function name: closePdfModal
+* parameter: none
+* return: -
+* purpose: Closes the PDF preview modal and clears the iframe source to release the loaded document.
+*******************************************************/
+function closePdfModal() {
+  pdfFrame.src = "";
+  pdfModal.classList.add("hidden");
+}
+
+/*******************************************************
+* function name: getPendingQueue
+* parameter: none
+* return: -
+* purpose: Reads and parses the pending offline sync queue from localStorage.
+********************************************************/
+function getPendingQueue() {
+  return JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || "[]");
+}
+
+/*******************************************************
+* function name: setPendingQueue
+* parameter: arr (array)
+* return: -
+* purpose: Saves the pending offline sync queue array into localStorage.
+********************************************************/
+function setPendingQueue(arr) {
+  localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(arr));
+}
+
+/*******************************************************
+* function name: showScreen
+* parameter: el (HTMLElement)
+* return: -
+* purpose: Switches visible UI screen by hiding all registered screens and showing the target element, updates related UI badges and buttons, tracks current screen state, and saves session snapshot.
+********************************************************/
+function showScreen(el) {
+  const screens = [
+    screenConfig,
+    screenMenu,
+    screenFilters,
+    screenList,
+    screenDetails,
+    screenSeatMap,
+    screenExport
+  ];
+
+  // hide grades
+  document.getElementById('tabContentGrades')?.classList.add('hidden');
+  document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
+
+  screens.forEach(s => s && s.classList.add("hidden"));
+  if (el) el.classList.remove("hidden");
+
+  // ✅ update Delete Room button visibility ONLY when seat map is shown
+  if (el === screenSeatMap) {
+    updateDeleteRoomButtonVisibility();
+  }
+
+  // ✅ FIX: hide Online badge when logged out (Setup/Login screen)
+  if (el === screenConfig) {
+    hideNetBadge();
+  } else {
+    showNetBadge();
+  }
+
+  // ✅ NEW: Track current screen for refresh restore
+  if (el === screenMenu) state.currentScreen = "menu";
+  else if (el === screenFilters) state.currentScreen = "filters";
+  else if (el === screenList) state.currentScreen = "list";
+  else if (el === screenDetails) state.currentScreen = "details";
+  else if (el === screenSeatMap) state.currentScreen = "seatmap";
+  else if (el === screenExport) state.currentScreen = "export"
+  //else if (el === screenConfig) state.currentScreen = "config";
+  //else state.currentScreen = "config";
+  else state.currentScreen = "menu";
+
+  // ✅ Save session every time screen changes
+  saveSession();
+}
+
+if (btnCloseSeatPreview && seatPreviewFloat) {
+  btnCloseSeatPreview.addEventListener("click", e => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeSeatPreview();
+  });
+
+  seatPreviewFloat.addEventListener("click", e => {
+    e.stopPropagation();
+  });
+}
+
+document.addEventListener("click", e => {
+  if (!e.target.closest(".seat") &&
+    !e.target.closest("#seatPreviewFloat") &&
+    !e.target.closest(".seatPreviewMobile")) {
+    closeSeatPreview();
+  }
+});
+
+/*******************************************************
+* function name: isMobile
+* parameter: none
+* return: -
+* purpose: Detects whether the current viewport width is within mobile breakpoint threshold.
+********************************************************/
+function isMobile() {
+  return window.innerWidth <= 768;
+}
+
+/*******************************************************
+* function name: clearEvidenceFileInput
+* parameter: none
+* return: -
+* purpose: Resets the evidence file input element so the same file can be selected again or to clear pending selection.
+********************************************************/
+function clearEvidenceFileInput() {
+
+  //const inp = document.getElementById("inpEvidence");
+  //if (inp) inp.value = "";
+  if (inpEvidenceFile) inpEvidenceFile.value = "";
+}
+
+/*******************************************************
+* function name: queueEvidenceUploadOffline
+* parameter: file (File), student (object)
+* return: -
+* purpose: Stores an evidence file and its metadata into IndexedDB and adds a corresponding job into the offline sync queue for later upload when connectivity is restored.
+********************************************************/
+async function queueEvidenceUploadOffline(file, student) {
+
+  const offlineId = crypto.randomUUID();
+
+  // Save file blob to IndexedDB
+  await idbPutEvidenceFile({
+    id: offlineId,
+    fileBlob: file,
+    fileName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    email: student.email,
+    timestamp: student.timestamp,
+    studentId: student.studentId,
+    createdAt: new Date().toISOString()
+  });
+
+  // Add metadata to queue (small data only)
+  const q = getPendingQueue();
+  q.push({
+    type: "uploadEvidence",
+    offlineId,
+    email: student.email,
+    timestamp: student.timestamp,
+    studentId: student.studentId,
+    fileName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    createdAt: new Date().toISOString()
+  });
+  setPendingQueue(q);
+  renderPendingUI();
+
+  clearEvidenceFileInput();
+  alert("Offline: Evidence saved to Pending Sync. It will upload when online.");
+}
+
+/*******************************************************
+* function name: isPdfFile
+* parameter: name (string), mime (string)
+* return: boolean
+* purpose: Determines whether a file should be treated as a PDF based on filename extension or MIME type.
+********************************************************/
+function isPdfFile(name = "", mime = "") {
+
+  const n = String(name).toLowerCase();
+  const m = String(mime).toLowerCase();
+  return n.endsWith(".pdf") || m.includes("pdf");
+}
+
+/*******************************************************
+* function name: isImageFile
+* parameter: name (string), mime (string)
+* return: boolean
+* purpose: Determines whether a file is an image based on MIME type prefix or common image file extensions.
+********************************************************/
+function isImageFile(name = "", mime = "") {
+
+  const n = String(name).toLowerCase();
+  const m = String(mime).toLowerCase();
+  return m.startsWith("image/") || n.match(/\.(png|jpg|jpeg|gif|webp)$/);
+}
+
+/*******************************************************
+* function name: syncPendingQueue
+* parameter: opts (object)
+* return: -
+* purpose: Processes and synchronizes all pending offline queue jobs (updates, seat map saves, and chunked evidence uploads) to the server, tracking progress and keeping failed jobs in the queue.
+********************************************************/
+async function syncPendingQueue(opts = {}) {
+
+  if (!navigator.onLine) return;
+
+  const onlyKey = opts.onlyKey || null;
+
+  let q = getPendingQueue();
+  if (!q.length) {
+    renderPendingUI();
+    return;
+  }
+
+  const remaining = [];
+
+  for (let i = 0; i < q.length; i++) {
+    const item = q[i];
+    const key = getQueueItemKey(item, i);
+
+    // If only syncing one key, skip others
+    if (onlyKey && key !== onlyKey) {
+      remaining.push(item);
+      continue;
+    }
+
+    try {
+      pendingProgress.set(key, {
+        status: "syncing",
+        percent: 10,
+        message: "Preparing..."
+      });
+      renderPendingUI();
+
+      // UPDATE RECORD
+      if (item.type === "updateRecord") {
+        pendingProgress.set(key, { status: "syncing", percent: 40, message: "Uploading update..." });
+        renderPendingUI();
+
+        const res = await apiPost("update", item.payload);
+
+        if (res.status !== "success") throw new Error(res.message || "Update failed");
+      }
+
+      // SEATMAP SAVE
+      if (item.type === "seatmapSave") {
+        pendingProgress.set(key, { status: "syncing", percent: 40, message: "Saving seat..." });
+        renderPendingUI();
+
+        const res = await apiPost("seatmapSave", item.payload);
+        if (res.status !== "success") throw new Error(res.message || "Seat save failed");
+      }
+
+
+      // EVIDENCE UPLOAD (CHUNKED)
+      if (item.type === "uploadEvidence") {
+        pendingProgress.set(key, { status: "syncing", percent: 20, message: "Reading offline file..." });
+        renderPendingUI();
+
+        const stored = await idbGetEvidenceFile(item.offlineId);
+        if (!stored || !stored.fileBlob) throw new Error("Missing offline file");
+
+        const blob = stored.fileBlob;
+
+        // ✅ chunk settings
+        const CHUNK_SIZE = 200 * 1024; // 200KB safer for Apps Script
+        const totalChunks = Math.ceil(blob.size / CHUNK_SIZE);
+
+        // unique upload id
+        const uploadId = "UP_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+
+        // upload chunks
+        for (let c = 0; c < totalChunks; c++) {
+          const start = c * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, blob.size);
+          const chunkBlob = blob.slice(start, end);
+
+          let chunkBase64 = await blobToBase64(chunkBlob);
+          //chunkBase64 = chunkBase64.split(",")[1] || chunkBase64; // remove data:* prefix
+
+          const percent = Math.floor((c / totalChunks) * 70) + 20;
+          pendingProgress.set(key, {
+            status: "syncing",
+            percent,
+            message: `Uploading chunk ${c + 1}/${totalChunks}...`
+          });
+          renderPendingUI();
+
+          const chunkPayload = {
+            uploadId,
+            chunkIndex: c,
+            totalChunks,
+            email: stored.email,
+            timestamp: stored.timestamp,
+            studentId: stored.studentId,
+            fileName: stored.fileName,
+            mimeType: stored.mimeType,
+            chunkBase64
+          };
+
+          const cres = await apiPost("uploadEvidenceChunk", chunkPayload);
+
+          if (cres.status !== "success") throw new Error(cres.message || "Chunk upload failed");
+        }
+
+        // finalize
+        pendingProgress.set(key, {
+          status: "syncing",
+          percent: 95,
+          message: "Finalizing file..."
+        });
+        renderPendingUI();
+
+        const finalizePayload = {
+          uploadId,
+          totalChunks,
+          email: stored.email,
+          timestamp: stored.timestamp,
+          studentId: stored.studentId,
+          fileName: stored.fileName,
+          mimeType: stored.mimeType
+        };
+
+        const fres = await apiPost("uploadEvidenceFinalize", finalizePayload);
+
+        if (fres.status !== "success") throw new Error(fres.message || "Finalize failed");
+
+        // delete offline file only if finalize success
+        await idbDeleteEvidenceFile(item.offlineId);
+
+        // ✅ REFRESH UI after successful upload
+        if (state.selected && state.selected.studentId === stored.studentId) {
+          await loadEvidenceList();
+        }
+      } // ✅ THIS closing brace
+
+      // Success
+      pendingProgress.set(key, {
+        status: "done",
+        percent: 100,
+        message: "Synced ✔"
+      });
+      renderPendingUI();
+
+      // small delay para makita progress
+      await new Promise(r => setTimeout(r, 250));
+
+    } catch (err) {
+      console.log("Sync failed:", item, err);
+
+      pendingProgress.set(key, {
+        status: "error",
+        percent: 100,
+        message: "Failed: " + err.message
+      });
+
+      remaining.push(item);
+      renderPendingUI();
+    }
+  }
+
+  setPendingQueue(remaining);
+
+  // Cleanup progress for removed jobs
+  if (remaining.length === 0) {
+    pendingProgress.clear();
+  }
+
+  renderPendingUI();
+}
+
+/*******************************************************
+* function name: blobToBase64
+* parameter: blob (Blob)
+* return: -
+* purpose: Converts a Blob/File object into a base64 string without the data URL prefix using FileReader.
+********************************************************/
+function blobToBase64(blob) {
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      // result is usually: "data:application/pdf;base64,AAA..."
+      const pureBase64 = result.includes(",") ? result.split(",")[1] : result;
+      resolve(pureBase64);
+    };
+
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/*******************************************************
+* function name: splitBlobIntoChunks
+* parameter: blob (Blob), chunkSize (number)
+* return: Blob[]
+* purpose: Splits a Blob into multiple smaller Blob chunks of the specified size for safer incremental upload.
+********************************************************/
+function splitBlobIntoChunks(blob, chunkSize = 300 * 1024) {
+
+  const chunks = [];
+  let offset = 0;
+
+  while (offset < blob.size) {
+    chunks.push(blob.slice(offset, offset + chunkSize));
+    offset += chunkSize;
+  }
+  return chunks;
+}
+
+/*******************************************************
+* function name: blobToBase64NoPrefix
+* parameter: blob (Blob)
+* return: -
+* purpose: Converts a Blob to base64 and ensures any data URL prefix is removed, returning only the raw base64 payload.********************************************************/
+async function blobToBase64NoPrefix(blob) {
+
+  const b64 = await blobToBase64(blob);
+  // remove: data:xxx;base64,
+  return b64.split(",")[1] || "";
+}
+
+/*******************************************************
+* function name: base64ToChunks
+* parameter: base64 (string), chunkSize (number)
+* return: -
+* purpose: Splits a long base64 string into fixed-size string chunks for chunked upload APIs.
+********************************************************/
+function base64ToChunks(base64, chunkSize = 200000) {
+
+  const chunks = [];
+  for (let i = 0; i < base64.length; i += chunkSize) {
+    chunks.push(base64.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+/*******************************************************
+* function name: openModal
+* parameter: modalEl (HTMLElement)
+* return: void
+* purpose: Shows a modal element by removing its hidden class.
+********************************************************/
+function openModal(modalEl) {
+  if (!modalEl) return;
+  modalEl.classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: closeModal
+* parameter: modalEl (HTMLElement)
+* return: void
+* purpose: Hides a modal element by adding its hidden class.
+********************************************************/
+function closeModal(modalEl) {
+  if (!modalEl) return;
+  modalEl.classList.add("hidden");
+}
+
+/*******************************************************
+* function name: attachModalBackdropClose
+* parameter: modalEl (HTMLElement)
+* return: void
+* purpose: Attaches a backdrop click handler to a modal so clicking outside content closes it.
+********************************************************/
+function attachModalBackdropClose(modalEl) {
+  if (!modalEl) return;
+  modalEl.onclick = (e) => {
+    if (e.target === modalEl) closeModal(modalEl);
+  };
+}
+
+/*******************************************************
+* function name: resetAppData
+* parameter: none
+* return: void
+* purpose: Clears setup, session, and pending sync data from localStorage after confirmation and reloads the app.
+********************************************************/
+function resetAppData() {
+
+  const ok = confirm(
+    "RESET APP?\n\nThis will clear:\n- Session\n- Pending Sync Queue\n- Cached setup\n\nYou will need to login again."
+  );
+  if (!ok) return;
+
+  // clear local storage
+  localStorage.removeItem("sf_apiUrl");
+  localStorage.removeItem("sf_clientId");
+  localStorage.removeItem(LS_SESSION);
+  localStorage.removeItem(LS_PENDING_UPDATES);
+
+  // optional: clear everything
+  // localStorage.clear();
+
+  alert("Reset done. Reloading app...");
+  location.reload();
+}
+
+/*******************************************************
+* function name: refreshDebugInfo
+* parameter: none
+* return: void
+* purpose: Updates debug info UI fields with current API URL, pending counts, and seat map stats.
+********************************************************/
+function refreshDebugInfo() {
+  if (dbgApiUrl) dbgApiUrl.textContent = state.apiUrl || "-";
+  if (dbgPending) dbgPending.textContent = String(getPendingCount());
+  if (dbgRoom) dbgRoom.textContent = state.seat.room || "-";
+  if (dbgSeats) dbgSeats.textContent = String((state.seat.seats || []).length);
+}
+
+/*******************************************************
+* function name: norm
+* parameter: s (string)
+* return: string
+* purpose: Normalizes a string for comparisons by trimming and converting to lowercase.
+********************************************************/
+function norm(s) {
+
+  return String(s || "").trim().toLowerCase();
+}
+
+/*******************************************************
+* function name: findStudentById
+* parameter: id (string)
+* return: object|null
+* purpose: Finds a student in master student list by normalized studentId.
+********************************************************/
+function findStudentById(id) {
+
+  const target = norm(id);
+  if (!target) return null;
+
+  return (state.seat.masterStudents || []).find(x =>
+    norm(x.studentId) === target
+  ) || null;
+}
+
+/*******************************************************
+* function name: findStudentByEmail
+* parameter: email (string)
+* return: object|null
+* purpose: Finds a student in master student list by normalized email address.
+********************************************************/
+function findStudentByEmail(email) {
+
+  const target = norm(email);
+  if (!target) return null;
+
+  return (state.seat.masterStudents || []).find(x =>
+    norm(x.studentEmail) === target
+  ) || null;
+}
+
+/*******************************************************
+* function name: findStudentByName
+* parameter: name (string)
+* return: object|null
+* purpose: Finds a student by name using exact match first, then partial match fallback.
+********************************************************/
+function findStudentByName(name) {
+
+  const target = norm(name);
+  if (!target) return null;
+
+  // exact match first
+  let exact = (state.seat.masterStudents || []).find(x =>
+    norm(x.studentName) === target
+  );
+  if (exact) return exact;
+
+  // fallback: contains match
+  return (state.seat.masterStudents || []).find(x =>
+    norm(x.studentName).includes(target)
+  ) || null;
+}
+
+/*******************************************************
+* function name: updateDeleteRoomButtonVisibility
+* parameter: none
+* return: void
+* purpose: Shows or hides the delete room button based on admin role and edit mode status.
+********************************************************/
+function updateDeleteRoomButtonVisibility() {
+
+  const btn = document.getElementById("btnDeleteRoom");
+  if (!btn) return;
+
+  const isAdmin = (state.me && state.me.role === "admin");
+  const editModeOff = (state.seat.editMode === false);
+
+  if (isAdmin && editModeOff) {
+    btn.classList.remove("hidden");
+  } else {
+    btn.classList.add("hidden");
+  }
+}
+
+/*******************************************************
+* function name: buildUrl
+* parameter: params (object)
+* return: string
+* purpose: Builds a request URL by combining base API URL with provided query parameters.
+********************************************************/
+function buildUrl(params = {}) {
+
+  const base = (state.apiUrl || "").trim();
+  if (!base) throw new Error("API URL is not set. Please Setup first.");
+
+  const url = new URL(base);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  return url.toString();
+}
+
+/* ===========================
+   OFFLINE QUEUE
+=========================== */
+/*******************************************************
+* function name: loadPendingUpdates
+* parameter: none
+* return: array
+* purpose: Loads pending remark/update jobs from localStorage with safe JSON parsing.
+********************************************************/
+function loadPendingUpdates() {
+
+  try {
+    return JSON.parse(localStorage.getItem(LS_PENDING_UPDATES) || "[]");
+  } catch (e) {
+    return [];
+  }
+}
+
+/*******************************************************
+* function name: savePendingUpdates
+* parameter: items (array)
+* return: void
+* purpose: Saves pending remark/update jobs array into localStorage.
+********************************************************/
+function savePendingUpdates(items) {
+
+  localStorage.setItem(LS_PENDING_UPDATES, JSON.stringify(items || []));
+}
+
+/*******************************************************
+* function name: getPendingCount
+* parameter: none
+* return: number
+* purpose: Returns total count of all pending offline jobs including updates and uploads.
+********************************************************/
+function getPendingCount() {
+
+  const a = loadPendingUpdates().length;
+  const b = getPendingQueue().length;
+  return a + b;
+}
+
+/*******************************************************
+* function name: updateSyncBadge
+* parameter: none
+* return: void
+* purpose: Updates the pending sync badge text and visibility based on pending job counts.
+********************************************************/
+function updateSyncBadge() {
+
+  if (!syncBadge) return;
+
+  const a = loadPendingUpdates().length;
+  const b = getPendingQueue().length;
+  const total = a + b;
+
+  if (total > 0) {
+    syncBadge.textContent = `Pending Sync: ${total} (remarks:${a}, uploads:${b})`;
+    syncBadge.classList.remove("hidden");
+  } else {
+    syncBadge.textContent = "Pending Sync: 0";
+    syncBadge.classList.add("hidden");
+  }
+}
+
+/* ===========================
+   ONLINE / OFFLINE BADGE (Fix 22)
+=========================== */
+/*******************************************************
+* function name: setNetBadge
+* parameter: status (string)
+* return: void
+* purpose: Updates the online/offline status badge text and style.
+********************************************************/
+function setNetBadge(status) {
+
+  if (!netBadge) return;
+
+  if (status === "online") {
+    netBadge.classList.remove("offline");
+    netBadge.textContent = "● Online";
+  } else if (status === "offline") {
+    netBadge.classList.add("offline");
+    netBadge.textContent = "● Offline";
+  } else {
+    netBadge.classList.remove("offline");
+    netBadge.textContent = "● Checking...";
+  }
+}
+
+/*******************************************************
+* function name: getQueueItemKey
+* parameter: item (object), idx (number)
+* return: string
+* purpose: Generates a stable display key for a pending queue item based on its type and identifiers.
+********************************************************/
+function getQueueItemKey(item, idx) {
+
+  // stable key
+  if (item.type === "uploadEvidence") return "evidence:" + (item.offlineId || idx);
+  if (item.type === "updateRecord") return "update:" + (item.createdAt || idx);
+  if (item.type === "seatmapSave") return "seatmap:" + (item.createdAt || idx);
+  return "job:" + idx;
+}
+
+/*******************************************************
+* function name: renderPendingUI
+* parameter: none
+* return: void
+* purpose: Renders the pending sync panel list with progress bars, metadata, and retry/delete controls.
+********************************************************/
+function renderPendingUI() {
+
+  if (!pendingPanel || !pendingList || !pendingCountText) return;
+
+  const q = getPendingQueue();
+
+  // Hide panel if no pending jobs
+  if (!q.length) {
+    pendingPanel.classList.add("hidden");
+    pendingList.innerHTML = "";
+    pendingCountText.textContent = "";
+    return;
+  }
+
+  pendingPanel.classList.remove("hidden");
+  pendingCountText.textContent = `(${q.length} waiting)`;
+  pendingList.innerHTML = "";
+
+  // ✅ declare once
+  const isOnline = navigator.onLine;
+
+  q.forEach((item, idx) => {
+    const key = getQueueItemKey(item, idx);
+
+    // Default progress info
+    let info = pendingProgress.get(key) || {
+      status: "waiting",
+      percent: 0,
+      message: "Waiting..."
+    };
+
+    // ✅ If OFFLINE, force waiting message (avoid "Failed to fetch")
+    if (!isOnline) {
+      info = {
+        status: "waiting",
+        percent: 0,
+        message: "Waiting for online..."
+      };
+    }
+
+    const title =
+      item.type === "uploadEvidence"
+        ? `Evidence Upload: ${item.fileName || "file"}`
+        : item.type === "updateRecord"
+          ? `Save Remarks / Done`
+          : item.type === "seatmapSave"
+            ? `Seat Map Save`
+            : `Pending Job`;
+
+    const meta =
+      item.type === "uploadEvidence"
+        ? `${item.email || "-"} • ${item.studentId || "-"}`
+        : item.type === "updateRecord"
+          ? `${item.payload?.email || "-"} • ${item.payload?.studentId || "-"}`
+          : item.type === "seatmapSave"
+            ? `${item.payload?.room || "-"} • Seat ${item.payload?.seatNo || "-"}`
+            : "";
+
+    const div = document.createElement("div");
+    div.className = "pendingItem";
+
+    div.innerHTML = `
+      <div class="pendingTopRow">
+        <div>
+          <div class="pendingTitle">${escapeHtml(title)}</div>
+          <div class="pendingMeta">${escapeHtml(meta)}</div>
+        </div>
+
+        <div class="pendingBtns">
+          <button class="btnPrimary"
+                  data-action="retry"
+                  data-key="${escapeHtml(key)}"
+                  ${isOnline ? "" : "disabled"}>
+            Retry
+          </button>
+
+          <button class="btnDanger"
+                  data-action="delete"
+                  data-key="${escapeHtml(key)}">
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div class="progressWrap">
+        <div class="progressBar">
+          <div class="progressFill" style="width:${info.percent || 0}%"></div>
+        </div>
+        <div class="progressText">${escapeHtml(info.message || "")}</div>
+      </div>
+    `;
+
+    pendingList.appendChild(div);
+  });
+
+  // Re-attach button events every render
+  pendingList.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.onclick = async () => {
+      const action = btn.getAttribute("data-action");
+      const key = btn.getAttribute("data-key");
+
+      if (action === "retry") {
+        await retrySinglePending(key);
+      }
+
+      if (action === "delete") {
+        deleteSinglePending(key);
+      }
+    };
+  });
+}
+
+/*******************************************************
+* function name: clearRemarksBox
+* parameter: none
+* return: void
+* purpose: Clears the remarks textarea input field in the details view.
+********************************************************/
+function clearRemarksBox() {
+
+  const el = document.getElementById("dRemarks");
+  if (el) el.value = "";
+}
+
+/*******************************************************
+* function name: deleteSinglePending
+* parameter: key (string)
+* return: void
+* purpose: Removes a specific pending queue item and its offline file (if any) after user confirmation.
+********************************************************/
+function deleteSinglePending(key) {
+
+  const q = getPendingQueue();
+
+  const idx = q.findIndex((item, i) => getQueueItemKey(item, i) === key);
+  if (idx < 0) return;
+
+  const item = q[idx];
+
+  const ok = confirm("Delete this pending item?\n\nThis will remove it from queue.");
+  if (!ok) return;
+
+  // If evidence, also delete file from IndexedDB
+  if (item.type === "uploadEvidence" && item.offlineId) {
+    idbDeleteEvidenceFile(item.offlineId).catch(() => { });
+  }
+
+  q.splice(idx, 1);
+  setPendingQueue(q);
+
+  pendingProgress.delete(key);
+  renderPendingUI();
+}
+
+/*******************************************************
+* function name: retrySinglePending
+* parameter: key (string)
+* return: Promise<void>
+* purpose: Retries syncing a single pending queue item when online.
+********************************************************/
+async function retrySinglePending(key) {
+
+  if (!navigator.onLine) {
+    alert("You are offline. Cannot retry now.");
+    return;
+  }
+
+  const q = getPendingQueue();
+  const idx = q.findIndex((item, i) => getQueueItemKey(item, i) === key);
+  if (idx < 0) return;
+
+  // Try sync only that one item
+  await syncPendingQueue({ onlyKey: key });
+}
+
+/*******************************************************
+* function name: refreshNetBadgeNow
+* parameter: none
+* return: void
+* purpose: Immediately refreshes network status badge based on current navigator online state.
+********************************************************/
+function refreshNetBadgeNow() {
+
+  setNetBadge(navigator.onLine ? "online" : "offline");
+}
+
+/*******************************************************
+* function name: startNetWatcherOnce
+* parameter: none
+* return: void
+* purpose: Starts one-time network status watchers and triggers automatic sync when connection is restored.
+********************************************************/
+function startNetWatcherOnce() {
+
+  if (netWatcherStarted) return;
+  netWatcherStarted = true;
+
+  refreshNetBadgeNow();
+
+  if (navigator.onLine) {
+    syncPendingQueue();
+  }
+
+  window.addEventListener("online", async () => {
+    setNetBadge("online");
+    await syncPendingUpdates(); // remarks/done
+    await syncPendingQueue();   // evidence + seatmapSave + updateRecord
+  });
+
+  window.addEventListener("offline", () => {
+    setNetBadge("offline");
+  });
+}
+
+/*******************************************************
+* function name: showNetBadge
+* parameter: none
+* return: void
+* purpose: Makes the network status badge visible.
+********************************************************/
+function showNetBadge() {
+
+  if (!netBadge) return;
+  netBadge.classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: hideNetBadge
+* parameter: none
+* return: void
+* purpose: Hides the network status badge element.
+********************************************************/
+function hideNetBadge() {
+
+  if (!netBadge) return;
+  netBadge.classList.add("hidden");
+}
+
+/* ===========================
+   LOCAL STORAGE (Setup)
+=========================== */
+/*******************************************************
+* function name: saveSetup
+* parameter: apiUrl (string), clientId (string)
+* return: void
+* purpose: Stores API configuration values into localStorage.
+********************************************************/
+function saveSetup(apiUrl, clientId) {
+
+  localStorage.setItem("sf_apiUrl", apiUrl);
+  localStorage.setItem("sf_clientId", clientId);
+}
+
+/*******************************************************
+* function name: loadSetup
+* parameter: none
+* return: object
+* purpose: Loads fixed API configuration into state and localStorage and returns it.
+********************************************************/
+function loadSetup() {
+
+  state.apiUrl = FIXED_API_URL;
+  state.clientId = FIXED_CLIENT_ID;
+
+  // optional: also store (for compatibility)
+  localStorage.setItem("sf_apiUrl", state.apiUrl);
+  localStorage.setItem("sf_clientId", state.clientId);
+
+  return {
+    apiUrl: state.apiUrl,
+    clientId: state.clientId
+  };
+}
+
+/*******************************************************
+* function name: clearSetup
+* parameter: none
+* return: void
+* purpose: Removes stored API configuration values from localStorage.
+********************************************************/
+function clearSetup() {
+
+  localStorage.removeItem("sf_apiUrl");
+  localStorage.removeItem("sf_clientId");
+}
+
+/* ===========================
+   SESSION SAVE/RESTORE (Stay logged in on refresh)
+=========================== */
+/*******************************************************
+* function name: saveSession
+* parameter: none
+* return: void
+* purpose: Saves current app session state snapshot into localStorage for restore after refresh.
+********************************************************/
+function saveSession() {
+  try {
+    const data = {
+      apiUrl: state.apiUrl || "",
+      clientId: state.clientId || "",
+      idToken: state.idToken || "",
+      filters: state.filters || {},
+      ui: state.ui || {},
+      list: {
+        page: state.list.page || 1,
+        pageSize: state.list.pageSize || 20
+      },
+      selectedEmail: state.selected?.email || "",
+      selectedIdx: state.selected?.idxInList ?? 0,
+      lastScreenBeforeDetails: lastScreenBeforeDetails || "",
+      currentScreen: state.currentScreen || "menu"
+    };
+    localStorage.setItem(LS_SESSION, JSON.stringify(data));
+  } catch (e) { }
+}
+
+/*******************************************************
+* function name: loadSession
+* parameter: none
+* return: object
+* purpose: Loads previously saved session snapshot from localStorage.
+********************************************************/
+function loadSession() {
+
+  try {
+    return JSON.parse(localStorage.getItem(LS_SESSION) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+/*******************************************************
+* function name: clearSession
+* parameter: none
+* return: void
+* purpose: Removes saved session snapshot from localStorage.
+********************************************************/
+function clearSession() {
+
+  localStorage.removeItem(LS_SESSION);
+}
+
+/* ===========================
+   DRIVE FILE ID EXTRACT
+=========================== */
+/*******************************************************
+* function name: extractDriveFileId
+* parameter: url (string)
+* return: string
+* purpose: Extracts a Google Drive file ID from multiple possible share URL formats.
+********************************************************/
+function extractDriveFileId(url) {
+
+  if (!url) return "";
+
+  const str = String(url);
+
+  // /d/FILEID/
+  let m = str.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (m && m[1]) return m[1];
+
+  // id=FILEID
+  m = str.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (m && m[1]) return m[1];
+
+  // open?id=FILEID
+  m = str.match(/open\?id=([a-zA-Z0-9_-]{10,})/);
+  if (m && m[1]) return m[1];
+
+  // fallback any long id
+  m = str.match(/[-\w]{25,}/);
+  if (m && m[0]) return m[0];
+
+  return "";
+}
+
+let modalZoom = {
+  scale: 1,
+  x: 0,
+  y: 0,
+  dragging: false,
+  startX: 0,
+  startY: 0
+};
+
+/*******************************************************
+* function name: applyModalTransform
+* parameter: none
+* return: void
+* purpose: Applies current zoom and pan transform values to the modal image element.
+********************************************************/
+function applyModalTransform() {
+
+  const img = document.getElementById("modalPhoto");
+  if (!img) return;
+  img.style.transform = `translate(${modalZoom.x}px, ${modalZoom.y}px) scale(${modalZoom.scale})`;
+}
+
+/*******************************************************
+* function name: resetModalZoom
+* parameter: none
+* return: void
+* purpose: Resets modal image zoom and pan values to defaults and reapplies transform.
+********************************************************/
+function resetModalZoom() {
+
+  modalZoom.scale = 1;
+  modalZoom.x = 0;
+  modalZoom.y = 0;
+  applyModalTransform();
+}
+
+/*******************************************************
+* function name: openEvidenceFile
+* parameter: url (string)
+* return: void
+* purpose: Opens an evidence file by routing PDFs to PDF modal and images to image modal viewer.
+********************************************************/
+function openEvidenceFile(url) {
+
+  if (!url) {
+    toast("No file available.");
+    return;
+  }
+
+  // PDF → open new tab
+  if (isPdfUrl(url)) {
+    //window.open(url, "_blank", "noopener,noreferrer");
+    openPdfModal(url);
+    return;
+  }
+
+  // IMAGE → open modal
+  openImageModalFromUrl(url);
+}
+
+/*******************************************************
+* function name: isPdfUrl
+* parameter: url (string)
+* return: boolean
+* purpose: Checks whether a URL likely points to a PDF file.
+********************************************************/
+function isPdfUrl(url = "") {
+
+  return String(url).toLowerCase().includes(".pdf");
+}
+
+/*******************************************************
+* function name: isImageUrl
+* parameter: url (string)
+* return: boolean
+* purpose: Checks whether a URL likely points to a supported image file.
+********************************************************/
+function isImageUrl(url = "") {
+
+  return String(url).toLowerCase().match(/\.(png|jpg|jpeg|gif|webp)(\?|$)/);
+}
+
+/*******************************************************
+* function name: openImageModalFromUrl
+* parameter: url (string)
+* return: void
+* purpose: Opens image preview modal using either base64 data URL or converted Google Drive direct link.
+********************************************************/
+function openImageModalFromUrl(url) {
+
+  if (!url) {
+    toast("No file available.");
+    return;
+  }
+
+  let fixed = String(url).trim();
+
+  // If already BASE64 data URL
+  if (fixed.startsWith("data:image/")) {
+    if (modalPhoto) modalPhoto.src = fixed;
+    if (photoModal) photoModal.classList.remove("hidden");
+    return;
+  }
+
+  // Convert drive link to direct view
+  const fileId = extractDriveFileId(fixed);
+  if (fileId) {
+    fixed = "https://drive.google.com/uc?export=view&id=" + fileId;
+  }
+
+  if (modalPhoto) modalPhoto.src = fixed;
+  if (photoModal) photoModal.classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: openPdfModal
+* parameter: previewUrl (string)
+* return: void
+* purpose: Opens the PDF preview modal and loads the given URL into the iframe viewer.
+********************************************************/
+function openPdfModal(previewUrl) {
+
+  if (!pdfModal || !pdfFrame) return;
+  pdfFrame.src = previewUrl;
+  pdfModal.classList.remove("hidden");
+}
+
+const btnFullscreenPhoto = document.getElementById("btnFullscreenPhoto");
+
+if (btnFullscreenPhoto) {
+  btnFullscreenPhoto.onclick = (ev) => {
+    ev.preventDefault();
+    if (!modalPhoto || !modalPhoto.src) return;
+    window.open(modalPhoto.src, "_blank");
   };
 }
 
@@ -5949,225 +8142,6 @@ async function uploadEvidenceInChunks({ email, timestamp, studentId, fileName, m
   return doneRes;
 }
 
-/* ===========================
-   GOOGLE LOGIN (GSI)
-=========================== */
-/*******************************************************
-* function name: waitForGoogleThenRun
-* parameter: fn (function)
-* return: void
-* purpose: Waits until Google Identity Services library is available before executing the provided function.
-********************************************************/
-function waitForGoogleThenRun(fn) {
-
-  try {
-    if (window.google && google.accounts && google.accounts.id) {
-      fn();
-      return;
-    }
-  } catch (e) { }
-  setTimeout(() => waitForGoogleThenRun(fn), 150);
-}
-
-/*******************************************************
-* function name: renderGoogleLoginButton
-* parameter: none
-* return: void
-* purpose: Renders the Google Sign-In button and initializes Google Identity Services login flow.
-********************************************************/
-function renderGoogleLoginButton() {
-
-  if (!state.clientId || !gsiButtonWrap) return;
-
-  gsiButtonWrap.innerHTML = "";
-
-  waitForGoogleThenRun(() => {
-    google.accounts.id.initialize({
-      client_id: state.clientId,
-      callback: onGoogleCredential
-    });
-
-    google.accounts.id.renderButton(
-      gsiButtonWrap,
-      { theme: "outline", size: "large", text: "signin_with" }
-    );
-  });
-}
-
-/*******************************************************
-* function name: onGoogleCredential
-* parameter: resp (object)
-* return: <void>
-* purpose: Handles Google login credential response, validates user via API, initializes user state, and loads initial app data.
-********************************************************/
-async function onGoogleCredential(resp) {
-
-  try {
-    showLoading("Loading Google Sign-In...");
-    state.idToken = resp.credential;
-
-    // ✅ PERSISTENT LOGIN SAVE (1 week session)
-    const now = Date.now();
-
-    // update badge immediately
-    refreshNetBadgeNow();
-
-    const me = await apiGet({
-      action: "me",
-      idToken: state.idToken
-    });
-
-    // ✅ HARD BLOCK if not allowlisted
-    if (!me || me.status !== "success") {
-      forceLogout(me?.message || "Access denied. Your email is not allowlisted.");
-      return;
-    }
-
-    // ✅ store user
-    state.me = me;
-    applyRoleUI();
-
-    localStorage.setItem("sf_id_token", state.idToken);
-    localStorage.setItem("sf_user_email", me.email || "");
-    document.body.classList.remove("student-mode");
-    if (state.me?.role === "student") {
-      document.body.classList.add("student-mode");
-      try {
-
-        // ✅ SHOW BADGE
-        const displayName = (me.name || "").trim() || me.email;
-        if (userBadge) {
-          userBadge.textContent = `${displayName} (${me.role})`;
-          userBadge.classList.remove("hidden");
-        }
-
-        // ✅ SHOW SAFE TOP BUTTONS
-        if (btnHelp) btnHelp.classList.remove("hidden");
-        if (btnAbout) btnAbout.classList.remove("hidden");
-        if (btnSupport) btnSupport.classList.remove("hidden");
-        if (btnChangelog) btnChangelog.classList.remove("hidden");
-        if (btnResetApp) btnResetApp.classList.remove("hidden");
-        if (btnLogout) btnLogout.classList.remove("hidden");
-
-        // ❌ KEEP ADMIN TOOLS HIDDEN
-        if (seatAdminTools) seatAdminTools.classList.add("hidden");
-        if (btnSeatAddRoom) btnSeatAddRoom.classList.add("hidden");
-        if (btnSeatEditToggle) btnSeatEditToggle.classList.add("hidden");
-
-        // ❌ KEEP RECORD BUTTONS HIDDEN
-        if (btnPrevRecord) btnPrevRecord.classList.add("hidden");
-        if (btnNextRecord) btnNextRecord.classList.add("hidden");
-        if (btnBackToList) btnBackToList.classList.add("hidden");
-
-        // ❌ KEEP RECORD LIST PANEL HIDDEN
-        const recordNav = document.querySelector(".recordNav");
-        if (recordNav) recordNav.classList.add("hidden");
-
-        // student flow
-        //showScreen(screenDetails);
-        await openStudentDetailsByEmail(state.me.email);
-        saveSession();
-
-        // ❌ KEEP MENU CARDS HIDDEN
-        if (menuStudentInfo) menuStudentInfo.classList.add("hidden");
-        if (menuSeatMapInfo) menuSeatMapInfo.classList.add("hidden");
-        if (menuExport) menuExport.classList.add("hidden");
-        if (btnOpenSeatMap) btnOpenSeatMap.classList.add("hidden");
-        if (btnGoList) btnGoList.classList.add("hidden");
-
-        const gradeAdminTools = document.getElementById("gradeAdminTools");
-        if (gradeAdminTools) gradeAdminTools.classList.add("hidden");
-
-        const gradeAdminButtons = document.getElementById("gradeAdminButtons");
-        if (gradeAdminButtons) gradeAdminButtons.classList.add("hidden");
-
-        const ldAdminControls = document.getElementById("ldAdminControls");
-        if (ldAdminControls) ldAdminControls.classList.add("hidden");
-
-        //if (dPhoto) dPhoto.classList.add("hidden");
-
-      } catch (e) {
-        alert(e.stack);
-      }
-      return;
-    } else {
-      document.body.classList.remove("student-mode");
-      if (menuStudentInfo) menuStudentInfo.classList.remove("hidden");
-      if (menuSeatMapInfo) menuSeatMapInfo.classList.remove("hidden");
-      if (menuExport) menuExport.classList.remove("hidden");
-      if (btnOpenSeatMap) btnOpenSeatMap.classList.remove("hidden");
-      if (btnGoList) btnGoList.classList.remove("hidden");
-
-      if (btnPrevRecord) btnPrevRecord.classList.remove("hidden");
-      if (btnNextRecord) btnNextRecord.classList.remove("hidden");
-      if (btnBackToList) btnBackToList.classList.remove("hidden");
-
-      const recordNav = document.querySelector(".recordNav");
-      if (recordNav) recordNav.classList.remove("hidden");
-
-      const gradeAdminTools = document.getElementById("gradeAdminTools");
-      if (gradeAdminTools) gradeAdminTools.classList.remove("hidden");
-
-      const gradeAdminButtons = document.getElementById("gradeAdminButtons");
-      if (gradeAdminButtons) gradeAdminButtons.classList.remove("hidden");
-
-      const ldAdminControls = document.getElementById("ldAdminControls");
-      if (ldAdminControls) ldAdminControls.classList.remove("hidden");
-
-      //if (dPhoto) dPhoto.classList.remove("hidden");
-    }
-
-    localStorage.setItem("sf_login_time", Date.now());
-
-    showLoading();
-
-    const displayName = (me.name || "").trim() || me.email;
-    if (userBadge) {
-      userBadge.textContent = `${displayName} (${me.role})`;
-      userBadge.classList.remove("hidden");
-    }
-
-    // show buttons
-    if (btnHelp) btnHelp.classList.remove("hidden");
-    if (btnAbout) btnAbout.classList.remove("hidden");
-    if (btnSupport) btnSupport.classList.remove("hidden");
-    if (btnChangelog) btnChangelog.classList.remove("hidden");
-    if (btnResetApp) btnResetApp.classList.remove("hidden");
-    if (btnLogout) btnLogout.classList.remove("hidden");
-
-    // admin tools
-    if (seatAdminTools) {
-      if (state.me.role === "admin") seatAdminTools.classList.remove("hidden");
-      else seatAdminTools.classList.add("hidden");
-    }
-
-    if (btnSeatAddRoom && btnSeatEditToggle) {
-      if (state.me.role === "admin") {
-        btnSeatAddRoom.classList.remove("hidden");
-        btnSeatEditToggle.classList.remove("hidden");
-      } else {
-        btnSeatAddRoom.classList.add("hidden");
-        btnSeatEditToggle.classList.add("hidden");
-      }
-    }
-
-    // proceed app
-    await loadRooms();
-    await loadInitialFilters();
-    await loadSeatMapMaster();
-
-    showScreen(screenMenu);
-    updateSeatEditUI();
-    showNetBadge();
-    saveSession();
-    hideLoading();
-
-  } catch (err) {
-    hideLoading();
-    forceLogout("Login error: " + err.toString());
-  }
-}
-
 /*******************************************************
 * function name: forceLogout
 * parameter: message (string)
@@ -6284,11 +8258,13 @@ async function loadInitialFilters() {
   fillSelect(fSchoolYear, res.schoolYears);
   fillSelect(fTerm, res.terms);
   fillSelect(fCourseSubject, res.courseSubjects);
+  //fillSelect(exportCourse, res.courseSubjects);
   fillSelect(fProgram, res.program);
 
   if (fSchoolYear) fSchoolYear.value = state.filters.schoolYear || "";
   if (fTerm) fTerm.value = state.filters.term || "";
   if (fCourseSubject) fCourseSubject.value = state.filters.courseSubject || "";
+  //if (exportCourse) exportCourse.value = state.filters.courseSubject || "";
   if (fProgram) fProgram.value = state.filters.program || "";
 }
 
@@ -7125,20 +9101,46 @@ function positionFloatingPreview(event, el) {
 * return: void
 * purpose: Switches details screen tab content and triggers grade and chart rendering when needed.
 ********************************************************/
-function openDetailsTab(tab) {
+async function openDetailsTab(tab) {
 
-  // hide all tab contents first
+  // Hide all tab contents
   document.getElementById("tabContentLearnerDev")?.classList.add("hidden");
   document.getElementById("tabContentGrades")?.classList.add("hidden");
 
   if (tab === "learner") {
+    showLoading("Loading GRADES... Please wait!");
+
     document.getElementById("tabContentLearnerDev")?.classList.remove("hidden");
     setTimeout(renderLearnerDevChart, 50);
   }
   if (tab === "grades") {
+    showLoading("Loading GRADES... Please wait!");
+
+    // Clear table (optional, render will overwrite anyway)
+    const tbody = document.getElementById("gradeTableBody");
+    if (tbody) {
+      tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;color:#94a3b8;">
+          Loading...
+        </td>
+      </tr>
+    `;
+    }
+
+    document.getElementById("gradeStudentId").textContent = "—";
+    document.getElementById("courseStudentId").textContent = "-";
+
     document.getElementById("tabContentGrades")?.classList.remove("hidden");
     const student = state.currentStudent;
     if (!student) return;
+    // Load courses first
+    await preloadStudentCourses(student);
+
+    // Render dropdown
+    populateCourseDropdown();
+
+    // Load grades
     loadTaskGrades(student.studentId);
   }
 
@@ -7455,425 +9457,7 @@ async function syncPendingUpdates() {
 /* ===========================
    SEAT MAP (API)
 =========================== */
-/*******************************************************
-* function name: loadRooms
-* parameter: none
-* return: <void>
-* purpose: Loads available seat map rooms from the API and populates the room selector dropdown.
-********************************************************/
-async function loadRooms() {
 
-  try {
-    const res = await apiGet({
-      action: "rooms",
-      idToken: state.idToken
-    });
-
-    if (res.status !== "success") {
-      console.warn("Rooms endpoint not ready:", res.message);
-      return;
-    }
-
-    fillSelect(selSeatRoom, res.rooms || []);
-  } catch (e) {
-    console.warn("loadRooms failed:", e.toString());
-  }
-}
-
-/* ✅ DELETE ROOM (ADMIN) */
-/*******************************************************
-* function name: deleteRoom
-* parameter: none
-* return: <void>
-* purpose: Deletes the selected room and all its seats via admin-only API call and refreshes seat UI.
-********************************************************/
-async function deleteRoom() {
-
-  if (!state.me || state.me.role !== "admin") {
-    toast("Admin only.");
-    return;
-  }
-
-  const room = selSeatRoom ? (selSeatRoom.value || "").trim() : "";
-  if (!room) {
-    toast("Select a room first.");
-    return;
-  }
-
-  showLoading("Please wait, deleting room...");
-  const ok = confirm(`Delete ROOM "${room}"?\n\nThis will remove ALL seats in this room.\nThis cannot be undone.`);
-  if (!ok) return;
-
-  try {
-    const res = await apiPost(
-      { action: "seatmapRoomDelete", idToken: state.idToken },
-      { room }
-    );
-
-    if (res.status !== "success") {
-      toast(res.message || "Delete room failed");
-      return;
-    }
-
-    // refresh dropdown + clear UI
-    await loadRooms();
-
-    if (seatRoomLabel) seatRoomLabel.textContent = "Room: -";
-    if (seatGrid) seatGrid.innerHTML = "";
-    state.seat.room = "";
-    state.seat.seats = [];
-
-    if (btnAddTable) btnAddTable.classList.add("hidden");
-    if (addTableWrap) addTableWrap.classList.add("hidden");
-
-    hideLoading();
-    toast(`Room deleted! Seats removed: ${res.deleted || 0}`);
-
-  } catch (e) {
-    hideLoading();
-    toast("Delete room error: " + e.toString());
-  }
-}
-
-/*******************************************************
-* function name: removeLastSeat
-* parameter: none
-* return: <void>
-* purpose: Removes the highest-numbered empty seat in the current room and reloads seat map.
-********************************************************/
-async function removeLastSeat() {
-
-  try {
-    showLoading("Please wait, removing seat...");
-    const room = (state.seat.room || "").trim();
-    if (!room) {
-      hideLoading();
-      alert("Please load a room first.");
-      return;
-    }
-
-    const seats = state.seat.seats || [];
-    if (seats.length === 0) {
-      hideLoading();
-      alert("No seats to remove.");
-      return;
-    }
-
-    // get max seatNo
-    let maxSeatNo = null;
-    seats.forEach(s => {
-      const n = parseInt(s?.seatNo, 10);
-      if (!isNaN(n)) {
-        if (maxSeatNo === null || n > maxSeatNo) maxSeatNo = n;
-      }
-    });
-
-    if (!maxSeatNo) {
-      hideLoading();
-      alert("No seats to remove.");
-      return;
-    }
-
-    // find seat object
-    const target = seats.find(x => String(x.seatNo) === String(maxSeatNo));
-    if (!target) {
-      hideLoading();
-      alert("Seat not found.");
-      return;
-    }
-
-    // ❌ cannot delete if seat is not empty
-    const hasStudent =
-      (target.studentEmail && target.studentEmail.trim() !== "") ||
-      (target.studentId && target.studentId.trim() !== "") ||
-      (target.studentName && target.studentName.trim() !== "");
-
-    if (hasStudent) {
-      hideLoading();
-      alert(`Cannot remove seat ${maxSeatNo}. Student is assigned. Please clear seat first.`);
-      return;
-    }
-
-    // delete from sheet
-    const res = await apiPost(
-      { action: "seatmapSeatDelete", idToken: state.idToken },
-      { room, seatNo: String(maxSeatNo) }
-    );
-
-    if (res.status !== "success") {
-      hideLoading();
-      alert(res.message || "Failed to remove seat.");
-      return;
-    }
-
-    // ✅ Reload from backend to reflect real max seat
-    await cacheDelete("seatmap_" + room);
-    await loadSeatRoom(room);
-
-    hideLoading();
-    alert(`Seat ${maxSeatNo} removed.`);
-
-  } catch (err) {
-    alert("Error removing seat: " + err.message);
-  }
-}
-
-/*******************************************************
-* function name: computeBestCols
-* parameter: perSide (number)
-* return: number
-* purpose: Computes ideal grid column count per side based on seat count with min/max limits.
-********************************************************/
-function computeBestCols(perSide) {
-
-  // auto columns depending on perSide count
-  // ex: 25 -> 5 cols, 36 -> 6 cols, 49 -> 7 cols
-  const ideal = Math.ceil(Math.sqrt(perSide));
-  return Math.max(5, Math.min(ideal, 10)); // min 5 cols, max 10 cols
-}
-
-/*******************************************************
-* function name: renderSeatGrid
-* parameter: none
-* return: void
-* purpose: Renders classroom-style seat grid layout with left/right sides, placeholders, and click behavior.
-********************************************************/
-function renderSeatGrid() {
-
-  if (!seatGrid) return;
-  seatGrid.innerHTML = "";
-
-  const seats = Array.isArray(state.seat.seats) ? state.seat.seats : [];
-
-  // Build seat map from backend seats
-  const map = new Map();
-  seats.forEach(s => {
-    if (!s || !s.seatNo) return;
-    const master = findStudentByEmail(s.studentEmail);
-
-    const phone =
-      master?.cellphoneNumber ||
-      master?.cellphone ||
-      master?.mobile ||
-      master?.mobileNumber ||
-      master?.contactNumber ||
-      "";
-
-    map.set(String(s.seatNo), {
-      seatNo: String(s.seatNo),
-      studentEmail: s.studentEmail || "",
-      studentId: s.studentId || "",
-      studentName: s.studentName || "",
-      cellphoneNumber: phone
-    });
-  });
-
-  // Find min/max seatNo from data (dynamic)
-  let minSeat = 999999;
-  let maxSeat = 0;
-
-  for (const s of seats) {
-    const n = parseInt(s?.seatNo, 10);
-    if (!isNaN(n)) {
-      minSeat = Math.min(minSeat, n);
-      maxSeat = Math.max(maxSeat, n);
-    }
-  }
-
-  // fallback if empty room
-  if (!isFinite(minSeat) || minSeat === 999999) minSeat = 1001;
-  if (!maxSeat || maxSeat < 1001) maxSeat = 1001;
-
-  // IMPORTANT: always start at 1001
-  if (minSeat > 1001) minSeat = 1001;
-
-  // total seats count
-  const totalSeats = (maxSeat - minSeat) + 1;
-
-  // fixed 5 columns per side
-  const cols = 5;
-  const seatsPerRow = cols * 2; // left 5 + right 5
-
-  // total rows needed
-  const totalRows = Math.ceil(totalSeats / seatsPerRow);
-
-  // Create FULL ordered list from minSeat..maxSeat
-  const ordered = [];
-  for (let i = minSeat; i <= maxSeat; i++) {
-    const key = String(i);
-    ordered.push(
-      map.get(key) || {
-        seatNo: key,
-        studentEmail: "",
-        studentId: "",
-        studentName: ""
-      }
-    );
-  }
-
-  // renderSeatCard
-  const renderSeatCard = (seat, idx) => {
-    const div = document.createElement("div");
-    div.className = "seat";
-
-    const hasStudent = (seat.studentEmail || "").trim() !== "";
-
-    div.setAttribute("data-tooltip", seat.studentName || seat.studentEmail || "Empty");
-
-    div.innerHTML = `
-      <div class="seatTopRow">
-        <div class="seatNo">${escapeHtml(seat.seatNo)}</div>
-        <div class="seatStatusDot ${hasStudent ? "on" : "off"}"></div>
-      </div>
-
-      <div class="seatMid">
-        ${hasStudent
-        ? `
-              <div class="seatAvatar">
-                <img class="seatPhoto"
-                     data-email="${escapeHtml(seat.studentEmail)}"
-                     alt="photo"
-                     src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-                      <svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'>
-                        <rect width='100%' height='100%' fill='#f1f5f9'/>
-                        <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle'
-                          font-family='Arial' font-size='12' fill='#64748b'>...</text>
-                      </svg>
-                     `)}"
-                />
-              </div>
-
-              <div class="seatName">${escapeHtml((seat.studentName || seat.studentEmail).toUpperCase())}</div>
-              <div class="seatEmail muted">${escapeHtml(seat.studentEmail)}</div>
-            `
-        : `
-              <div class="seatAvatar emptyIcon">👤</div>
-              <div class="seatEmpty">Empty</div>
-            `
-      }
-      </div>
-    `;
-
-
-    div.onclick = async (e) => {
-      if (state.seat.editMode === true) {
-        openSeatEditModal(seat);
-        return;
-      }
-
-      const hasStudent =
-        seat.studentEmail || seat.studentId || seat.studentName;
-
-      if (!hasStudent) {
-        toast("Seat is empty.");
-        return;
-      }
-
-      if (!isMobile()) {
-        if (lastSeatClicked && lastSeatClicked !== seat.seatNo) {
-          lastSeatClicked = null;
-        }
-
-        if (lastSeatClicked === seat.seatNo) {
-          closeSeatPreview();
-          await openStudentDetailsByEmail(seat.studentEmail);
-          lastSeatClicked = null;
-          return;
-        }
-
-        lastSeatClicked = seat.seatNo;
-        openSeatPreview(seat, e);
-
-        clearTimeout(seatPreviewTimer);
-        seatPreviewTimer = setTimeout(() => {
-          lastSeatClicked = null;
-        }, 350);
-
-        return;
-      }
-
-      openMobilePreview(seat);
-    };
-    return div;
-  };
-
-  // ---- BUILD LEFT/RIGHT SIDES BY ROWS (CLASSROOM STYLE) ----
-  // Each row consumes 10 seats:
-  // LEFT gets first 5 seats of that row
-  // RIGHT gets next 5 seats of that row
-  const leftRows = [];
-  const rightRows = [];
-
-  let ptr = 0;
-
-  for (let r = 0; r < totalRows; r++) {
-    const leftRow = [];
-    const rightRow = [];
-
-    for (let c = 0; c < cols; c++) {
-      if (ptr < ordered.length) leftRow.push(ordered[ptr++]);
-      else leftRow.push({ __placeholder: true });
-    }
-
-    for (let c = 0; c < cols; c++) {
-      if (ptr < ordered.length) rightRow.push(ordered[ptr++]);
-      else rightRow.push({ __placeholder: true });
-    }
-
-    leftRows.push(leftRow);
-    rightRows.push(rightRow);
-  }
-
-  // Reverse rows so bottom row is lowest seat numbers (1001..)
-  leftRows.reverse();
-  rightRows.reverse();
-
-  // flatten
-  const leftSeats = leftRows.flat();
-  const rightSeats = rightRows.flat();
-
-  // wrapper layout
-  const wrap = document.createElement("div");
-  wrap.className = "seatGridClassroom";
-
-  const left = document.createElement("div");
-  left.className = "seatSide";
-  left.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
-
-  const aisle = document.createElement("div");
-  aisle.className = "seatAisle";
-
-  const right = document.createElement("div");
-  right.className = "seatSide";
-  right.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
-
-  // placeholders renderer
-  const renderPlaceholder = () => {
-    const div = document.createElement("div");
-    div.className = "seat seatPlaceholder";
-    div.innerHTML = "";
-    return div;
-  };
-
-  leftSeats.forEach((s, i) => {
-    if (s && s.__placeholder) left.appendChild(renderPlaceholder());
-    else left.appendChild(renderSeatCard(s, i));
-  });
-
-  rightSeats.forEach((s, i) => {
-    if (s && s.__placeholder) right.appendChild(renderPlaceholder());
-    else right.appendChild(renderSeatCard(s, i));
-  });
-
-  wrap.appendChild(left);
-  wrap.appendChild(aisle);
-  wrap.appendChild(right);
-
-  seatGrid.appendChild(wrap);
-
-  // load photos after render
-  loadSeatPhotosInGrid();
-}
 
 /*******************************************************
 * function name: loadSeatPhotosInGrid
@@ -8047,115 +9631,6 @@ function clearSeatEditor() {
 }
 
 /*******************************************************
-* function name: addSeatEmpty
-* parameter: none
-* return: <void>
-* purpose: Quickly creates an empty seat entry using the current seat number input.
-********************************************************/
-async function addSeatEmpty() {
-
-  if (!state.seat.room) {
-    toast("Select a room first.");
-    return;
-  }
-
-  const seatNo = (inpSeatNo ? (inpSeatNo.value || "").trim() : "");
-  if (!seatNo) {
-    toast("Seat No is required to add empty seat.");
-    return;
-  }
-
-  if (inpSeatEmail) inpSeatEmail.value = "";
-  if (inpSeatId) inpSeatId.value = "";
-  if (inpSeatName) inpSeatName.value = "";
-
-  await saveSeat();
-}
-
-/*******************************************************
-* function name: addRoom
-* parameter: none
-* return: <void>
-* purpose: Creates a new room with default seats via admin API and loads it into the seat map view.
-********************************************************/
-async function addRoom() {
-
-  showLoading("Please wait, saving room...");
-  if (!state.me || state.me.role !== "admin") {
-    hideLoading();
-    toast("Admin only.");
-    return;
-  }
-
-  const room = (inpNewRoom ? (inpNewRoom.value || "").trim() : "");
-  if (!room) {
-    hideLoading();
-    toast("Room is required.");
-    return;
-  }
-
-  try {
-    const res = await apiPost(
-      { action: "seatmapRoomAddWithSeats", idToken: state.idToken },
-      { room, startSeatNo: 1001, totalSeats: 50 }
-    );
-
-    if (res.status !== "success") {
-      hideLoading();
-      toast(res.message || "Add room failed");
-      return;
-    }
-
-    if (inpNewRoom) inpNewRoom.value = "";
-    await loadRooms();
-
-    if (selSeatRoom) selSeatRoom.value = room;
-    await loadSeatRoom(room);
-
-    if (seatAddRoomWrap) seatAddRoomWrap.classList.add("hidden");
-
-    hideLoading();
-    toast("Room added! (50 seats created)");
-
-  } catch (e) {
-    hideLoading();
-    toast("Add room error: " + e.toString());
-  }
-}
-
-/*******************************************************
-* function name: loadSeatMapMaster
-* parameter: none
-* return: <void>
-* purpose: Loads master student list used for seat map matching and autofill.
-********************************************************/
-async function loadSeatMapMaster() {
-
-  document.getElementById('tabContentGrades')?.classList.add('hidden');
-  document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
-  try {
-    const res = await apiGet({
-      action: "seatmapMaster",
-      idToken: state.idToken
-    });
-
-    //console.log("MASTER STUDENTS SAMPLE:", res.students[0]);
-    //console.log("MASTER STUDENTS SAMPLE:", (res.students || [])[0]);
-
-    if (res.status !== "success") {
-      console.warn("seatmapMaster failed:", res.message);
-      return;
-    }
-
-    state.seat.masterStudents = res.students || [];
-    //console.log("Loaded master students:", state.seat.masterStudents.length);
-
-  } catch (e) {
-    console.warn("loadSeatMapMaster error:", e.toString());
-  }
-}
-
-/*******************************************************
 * function name: applyRoleUI
 * parameter: -
 * return: -
@@ -8171,20 +9646,16 @@ function applyRoleUI() {
   if (role === "student") {
 
     // hide left record nav
-    document.querySelectorAll(".recordNav")
-      .forEach(el => el.classList.add("hidden"));
+    document.querySelectorAll(".recordNav").forEach(el => el.classList.add("hidden"));
 
     // hide header nav buttons
-    document.querySelectorAll(".detailsHeaderBtns")
-      .forEach(el => el.classList.add("hidden"));
+    document.querySelectorAll(".detailsHeaderBtns").forEach(el => el.classList.add("hidden"));
 
     // hide photo card
-    document.querySelectorAll(".photo-card")
-      .forEach(el => el.classList.add("hidden"));
+    document.querySelectorAll(".photo-card").forEach(el => el.classList.add("hidden"));
 
     // force single-column layout
-    document.querySelectorAll(".details-grid")
-      .forEach(el => el.classList.add("student-mode"));
+    document.querySelectorAll(".details-grid").forEach(el => el.classList.add("student-mode"));
 
     // disable admin inputs
     if (dRemarks) dRemarks.disabled = true;
@@ -8200,17 +9671,13 @@ function applyRoleUI() {
   // ===== REVIEWER / ADMIN =====
   else {
 
-    document.querySelectorAll(".recordNav")
-      .forEach(el => el.classList.remove("hidden"));
+    document.querySelectorAll(".recordNav").forEach(el => el.classList.remove("hidden"));
 
-    document.querySelectorAll(".detailsHeaderBtns")
-      .forEach(el => el.classList.remove("hidden"));
+    document.querySelectorAll(".detailsHeaderBtns").forEach(el => el.classList.remove("hidden"));
 
-    document.querySelectorAll(".photo-card")
-      .forEach(el => el.classList.remove("hidden"));
+    document.querySelectorAll(".photo-card").forEach(el => el.classList.remove("hidden"));
 
-    document.querySelectorAll(".details-grid")
-      .forEach(el => el.classList.remove("student-mode"));
+    document.querySelectorAll(".details-grid").forEach(el => el.classList.remove("student-mode"));
 
     if (dRemarks) dRemarks.disabled = false;
     if (dDone) dDone.disabled = false;
@@ -8600,7 +10067,7 @@ if (btnUploadEvidence) {
 }
 if (btnaddTaskRow) btnaddTaskRow.onclick = () => addTaskRow();
 if (btnsaveTaskGrades) btnsaveTaskGrades.onclick = () => saveTaskGrades();
-if (btnresetGradesUI) btnresetGradesUI.onclick = () => resetGradesUI();
+if (btnresetGradesUI) btnresetGradesUI.onclick = () => resetGradeUI();   //resetGradesUI -> resetGradeUI
 if (btnaddLearnerDev) btnaddLearnerDev.onclick = () => addLearnerDev();
 if (btnsaveLearnerDev) btnsaveLearnerDev.onclick = () => saveLearnerDev();
 
@@ -9140,13 +10607,14 @@ if (btnSeatEditDelete) {
   };
 }
 
+/* OBSOLETE */
 /*******************************************************
 * function name: setupAddTableAutofill
 * parameter: none
 * return: void
 * purpose: Enables autofill linking between student ID, name, and email fields in add-seat form.
 ********************************************************/
-function setupAddTableAutofill() {
+/*function setupAddTableAutofill() {
 
   const inpId = document.getElementById("inpAddStudentId");
   const inpName = document.getElementById("inpTableStudentName"); // ✅ correct
@@ -9188,7 +10656,7 @@ function setupAddTableAutofill() {
       lock = false;
     }
   };
-}
+}*/
 
 if (btnRetryAllPending) {
   btnRetryAllPending.onclick = async () => {
@@ -9536,11 +11004,46 @@ document.addEventListener("click", (e) => {
 // onchange
 document.getElementById("exportScope").onchange = updateExportUI;
 
-document.getElementById("menuExport").addEventListener("click", async () => {
+document.getElementById("exportScope").addEventListener("click", async () => {
   openscreenExport();
   initExportForm();
 });
 
+document.getElementById("menuExport").addEventListener("change", async () => {
+  const students = await getStudentsForExport("section", "", "");
+  loadStudents(students);
+});
+
+document.getElementById("exportCourse").addEventListener("change", () => {
+
+  if (!ALL_STUDENTS.length) return; // 🔥
+
+  const scope = document.getElementById("exportScope").value;
+  if (scope !== "section") return;
+
+  const course = document.getElementById("exportCourse").value;
+
+  let filtered = ALL_STUDENTS;
+
+  if (course) {
+    filtered = ALL_STUDENTS.filter(s => String(s["course(subject)"]).toUpperCase() === String(course).toUpperCase());
+  }
+
+  loadStudents(filtered);
+});
+
+document.getElementById("exportScope").addEventListener("change", () => {
+
+  const scope = document.getElementById("exportScope").value;
+
+  if (scope === "student") {
+    // ✅ show ALL students immediately
+    loadStudents(ALL_STUDENTS);
+  } else {
+    // ✅ wait for course selection
+    loadStudents([]);
+  }
+});
 
 /* ===========================
    SESSION ACTIVITY REFRESH
