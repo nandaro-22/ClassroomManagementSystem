@@ -279,6 +279,8 @@ const btnCloseSeatPreview = document.getElementById("btnCloseSeatPreview");
 const seatPreviewFloat = document.getElementById("seatPreviewFloat");
 // remarks preview - mobile
 const btnPvMSave = document.getElementById("btnPvMSaveRemarks");
+// remarks preview - desktop
+const btnPvSave = document.getElementById("btnPvSaveRemarks");
 
 /* ===========================
    DOM — SEAT MAP
@@ -440,6 +442,15 @@ let gradeEditing = false;
 
 let ALL_STUDENTS = []; // global cache
 
+let modalZoom = {
+  scale: 1,
+  x: 0,
+  y: 0,
+  dragging: false,
+  startX: 0,
+  startY: 0
+};
+
 /* ===========================
    GLOBAL STATE
 =========================== */
@@ -499,7 +510,13 @@ const state = {
 
   gradeCategoryState: {},
 
-  autoSaveTimer: null
+  autoSaveTimer: null,
+
+  exportData: {
+    courses: [],
+    students: [],
+    loaded: false
+  }
 };
 
 state.grades = state.grades || {};
@@ -1188,13 +1205,14 @@ function updateCategoryMissingBadge(category) {
 async function loadTaskGrades(studentId) {
   try {
 
+    showLoading("Loading GRADES... Please wait!");
+
     // reset all fields
     resetGradeUI();
-    showLoading("Loading GRADES... Please wait!");
 
     // Stop API call if logged out
     if (!state.idToken) {
-      console.log("Skipped grades load - no session.");
+      //console.log("Skipped grades load - no session.");
       return;
     }
 
@@ -1226,7 +1244,7 @@ async function loadTaskGrades(studentId) {
     // ===== CASE 1: NO DATA → USE TEMPLATE
     if (!items.length) {
 
-      console.log("⚠️ No sheet data → using default template");
+      //console.log("⚠️ No sheet data → using default template");
 
       state.gradeTasks = getDefaultGradeTemplate();
 
@@ -1241,13 +1259,15 @@ async function loadTaskGrades(studentId) {
     // ===== CASE 2: WITH DATA
 
     // 🔥 STEP 1: SET DEFAULT COURSE
-    if (!state.filters.courseSubject) {
+    /* OBSOLETE */
+    // AUTO COURSE OVERRIDE
+    /*if (!state.filters.courseSubject) {
       const firstCourse = items.find(i => i.courseSubject)?.courseSubject;
       if (firstCourse) {
         state.filters.courseSubject = firstCourse;
         //console.log("state.filters.courseSubject = firstCourse: ", state.filters.courseSubject = firstCourse);
       }
-    }
+    }*/
 
     // 🔥 STEP 2: FILTER
     const selectedCourse = state.filters.courseSubject;
@@ -1710,6 +1730,7 @@ function populateCourseDropdown() {
   //select.value = state.filters.courseSubject;
   select.value = state.currentStudent.courseSubject;
   //console.log("select.value = state.currentStudent.courseSubject: ", state.currentStudent.courseSubject);
+
   select.onchange = function () {
     state.filters.courseSubject = this.value;
     loadTaskGrades(state.currentStudent.studentId);
@@ -2731,7 +2752,6 @@ async function loadLearnerDev(studentId) {
 ********************************************************/
 function renderLearnerDevChart() {
 
-  showLoading("Loading GRADES... Please wait!");
   const labels = state.learnerDev.categories || [];
   const data = labels.map(c => state.learnerDev.scores[c] || 0);
 
@@ -2830,7 +2850,6 @@ function renderLearnerDevChart() {
     }
   });
 
-  hideLoading();
 }
 
 /*******************************************************
@@ -3520,7 +3539,7 @@ async function runExport() {
     return;
   }
 
-  console.log("type: ", type);
+
   if (type === "excel") {
     showLoading("Exporting Excel. Please wait...");
     await exportExcel(students);
@@ -3712,7 +3731,7 @@ function getMaxScores(students, period, category) {
 // VERSION 2
 async function exportExcel(students) {
 
-  console.log("Exporting Excel. Please wait...");
+  //console.log("Exporting Excel. Please wait...");
   if (typeof XLSX === "undefined") {
     hideLoading();
     alert("XLSX not loaded");
@@ -4776,7 +4795,7 @@ async function exportExcel(students) {
   XLSX.utils.book_append_sheet(wb, transSheet, "Transmutation");
 
   XLSX.writeFile(wb, "Final_Report.xlsx", { cellFormula: true });
-  console.log("Excel saving done.");
+  //console.log("Excel saving done.");
 }
 
 /*******************************************************
@@ -4785,19 +4804,16 @@ async function exportExcel(students) {
 * return: 
 * purpose: Generate PDF EXACTLY SAME as Excel output
 * method: Excel → HTML → PDF (preserves merges/layout)
-********************************************************/
-/*******************************************************
- * FINAL exportPDF (PIXEL-STABLE + SAFE)
- * 
- * FLOW:
- * 1. GENERATE  → build Excel sheet (reuse logic)
- * 2. CONVERT   → sheet → HTML
- * 3. CLEAN     → apply Excel-like styling
- * 4. RENDER    → HTML → PDF (A4 landscape)
- *******************************************************/
+* 
+* FLOW:
+* 1. GENERATE  → build Excel sheet (reuse logic)
+* 2. CONVERT   → sheet → HTML
+* 3. CLEAN     → apply Excel-like styling
+* 4. RENDER    → HTML → PDF (A4 landscape)
+*******************************************************/
 async function exportPDF(students) {
 
-  console.log("Exporting PDF. Please wait...");
+  //console.log("Exporting PDF. Please wait...");
 
   try {
 
@@ -4925,7 +4941,7 @@ async function exportPDF(students) {
       },
       callback: function (doc) {
         doc.save("Final_Report.pdf");
-        console.log("PDF saving done.");
+        //console.log("PDF saving done.");
       }
     });
 
@@ -6023,14 +6039,14 @@ async function buildExcelSheet(ws, students) {
 ********************************************************/
 function exportCSV(students, base = 60) {
 
-  console.log("Exporting CSV file. Please wait...");
+  //console.log("Exporting CSV file. Please wait...");
 
   if (!students || students.length === 0) {
     alert("No data");
     return;
   }
 
-  console.log("students: ", students);
+  //console.log("students: ", students);
 
   let rows = [];
 
@@ -6105,7 +6121,7 @@ function exportCSV(students, base = 60) {
   link.download = "grades_data.csv";
   link.click();
 
-  console.log("CSV saving done.");
+  //console.log("CSV saving done.");
 }
 
 /*******************************************************
@@ -6387,6 +6403,86 @@ function extractCategory(tasks, period, category) {
   };
 }
 
+/*******************************************************
+* function name: preloadExportData
+* parameter: none
+* return: -
+* purpose: -
+*******************************************************/
+async function preloadExportData() {
+  if (state.exportData.loaded) return;
+
+  const res = await apiGet({
+    action: "exportGrades",
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || "",
+    program: state.filters.program || "",
+    section: state.filters.block || "",
+    idToken: state.idToken
+  });
+
+  if (!res || res.status !== "success") return;
+
+
+  const items = res.items || [];
+
+  const courses = new Set();
+  const students = new Set();
+
+  items.forEach(s => {
+    const course = (s.courseSubject || s["course(subject)"] || "").trim();
+    const name = (s["lastname,firstnamem.i."] || "").trim().toUpperCase();
+
+    if (course) courses.add(course);
+    if (name) students.add(name);
+  });
+
+  state.exportData.courses = [...courses].sort();
+  state.exportData.students = [...students].sort();
+  state.exportData.loaded = true;
+}
+
+/*******************************************************
+* function name: populateExportDropdown
+* parameter: list
+* return: -
+* purpose: -
+*******************************************************/
+function populateExportDropdown(selectId, list) {
+  const select = document.getElementById(selectId);
+  const current = select.value;
+
+  select.innerHTML = '<option value="">-- Select --</option>';
+
+  list.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    select.appendChild(opt);
+  });
+
+  if (list.includes(current)) {
+    select.value = current;
+  }
+}
+
+/* ===========================
+   ON SCOPE CHANGE
+=========================== */
+function onExportScopeChange(scope) {
+
+  //console.log("scope: ", scope);
+  if (scope === "section") {
+    populateExportDropdown("exportCourse", state.exportData.courses);
+    //console.log("state.exportData.courses: ", state.exportData.courses);
+  }
+
+  if (scope === "student") {
+    populateExportDropdown("exportStudent", state.exportData.students);
+    //console.log("state.exportData.students: ", state.exportData.students);
+  }
+}
+
 /* ======================================================
    APP SYSTEM / CORE STATE MANAGEMENT
 ====================================================== */
@@ -6416,28 +6512,9 @@ async function resetApp() {
   forceLogout();
 }
 
-/* ===========================
-   UI HELPERS
-=========================== */
-
-
-
-/* OBSOLETE *?
-/*******************************************************
-* function name: isSessionValid
-* parameter: none
-* return: -
-* purpose: -
-*******************************************************/
-/*function isSessionValid() {
-  const token = localStorage.getItem("sf_id_token");
-  const loginTime = Number(localStorage.getItem("sf_login_time") || 0);
-
-  if (!token || !loginTime) return false;
-
-  return (Date.now() - loginTime) < SESSION_MAX_AGE_MS;
-}*/
-
+/* ======================================================
+   UI HELPERS (Generic)
+====================================================== */
 /*******************************************************
 * function name: escapeHtml
 * parameter: str (string)
@@ -6494,12 +6571,103 @@ function fillSelect(selectEl, items) {
   });
 }
 
-btnClosePdf.onclick = closePdfModal;
+/*******************************************************
+* function name: clearRemarksBox
+* parameter: none
+* return: void
+* purpose: Clears the remarks textarea input field in the details view.
+********************************************************/
+function clearRemarksBox() {
 
-// click outside to close
-pdfModal.addEventListener("click", (e) => {
-  if (e.target === pdfModal) closePdfModal();
-});
+  const el = document.getElementById("dRemarks");
+  if (el) el.value = "";
+}
+
+/*******************************************************
+* function name: toggleAccordion
+* parameter: bodyEl (HTMLElement), arrowEl (HTMLElement)
+* return: void
+* purpose: Toggles accordion section visibility and arrow indicator state.
+********************************************************/
+function toggleAccordion(bodyEl, arrowEl) {
+
+  if (!bodyEl || !arrowEl) return;
+
+  const isHidden = bodyEl.classList.contains("hidden");
+  if (isHidden) {
+    bodyEl.classList.remove("hidden");
+    arrowEl.textContent = "▴";
+  } else {
+    bodyEl.classList.add("hidden");
+    arrowEl.textContent = "▾";
+  }
+}
+
+/*******************************************************
+* function name: showLoading
+* parameter: msg (string)
+* return: void
+* purpose: Displays the global loading overlay with optional message text.
+********************************************************/
+function showLoading(msg = "Loading...") {
+  const el = document.getElementById("globalLoading");
+  if (!el) return;
+
+  const txt = el.querySelector(".loadingText");
+  if (txt) txt.textContent = msg;
+
+  el.classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: hideLoading
+* parameter: none
+* return: void
+* purpose: Hides the global loading overlay.
+********************************************************/
+function hideLoading() {
+  const el = document.getElementById("globalLoading");
+  if (!el) return;
+  el.classList.add("hidden");
+}
+
+/* ======================================================
+   MODAL SYSTEM
+====================================================== */
+/*******************************************************
+* function name: openModal
+* parameter: modalEl (HTMLElement)
+* return: void
+* purpose: Shows a modal element by removing its hidden class.
+********************************************************/
+function openModal(modalEl) {
+  if (!modalEl) return;
+  modalEl.classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: closeModal
+* parameter: modalEl (HTMLElement)
+* return: void
+* purpose: Hides a modal element by adding its hidden class.
+********************************************************/
+function closeModal(modalEl) {
+  if (!modalEl) return;
+  modalEl.classList.add("hidden");
+}
+
+/*******************************************************
+* function name: attachModalBackdropClose
+* parameter: modalEl (HTMLElement)
+* return: void
+* purpose: Attaches a backdrop click handler to a modal so clicking outside content closes it.
+********************************************************/
+function attachModalBackdropClose(modalEl) {
+  if (!modalEl) return;
+  modalEl.onclick = (e) => {
+    if (e.target === modalEl) closeModal(modalEl);
+  };
+}
 
 /*******************************************************
 * function name: closePdfModal
@@ -6511,6 +6679,125 @@ function closePdfModal() {
   pdfFrame.src = "";
   pdfModal.classList.add("hidden");
 }
+
+/*******************************************************
+* function name: applyModalTransform
+* parameter: none
+* return: void
+* purpose: Applies current zoom and pan transform values to the modal image element.
+********************************************************/
+function applyModalTransform() {
+
+  const img = document.getElementById("modalPhoto");
+  if (!img) return;
+  img.style.transform = `translate(${modalZoom.x}px, ${modalZoom.y}px) scale(${modalZoom.scale})`;
+}
+
+/*******************************************************
+* function name: openEvidenceFile
+* parameter: url (string)
+* return: void
+* purpose: Opens an evidence file by routing PDFs to PDF modal and images to image modal viewer.
+********************************************************/
+function openEvidenceFile(url) {
+
+  if (!url) {
+    toast("No file available.");
+    return;
+  }
+
+  // PDF → open new tab
+  if (isPdfUrl(url)) {
+    //window.open(url, "_blank", "noopener,noreferrer");
+    openPdfModal(url);
+    return;
+  }
+
+  // IMAGE → open modal
+  openImageModalFromUrl(url);
+}
+
+/*******************************************************
+* function name: openImageModalFromUrl
+* parameter: url (string)
+* return: void
+* purpose: Opens image preview modal using either base64 data URL or converted Google Drive direct link.
+********************************************************/
+function openImageModalFromUrl(url) {
+
+  if (!url) {
+    toast("No file available.");
+    return;
+  }
+
+  let fixed = String(url).trim();
+
+  // If already BASE64 data URL
+  if (fixed.startsWith("data:image/")) {
+    if (modalPhoto) modalPhoto.src = fixed;
+    if (photoModal) photoModal.classList.remove("hidden");
+    return;
+  }
+
+  // Convert drive link to direct view
+  const fileId = extractDriveFileId(fixed);
+  if (fileId) {
+    fixed = "https://drive.google.com/uc?export=view&id=" + fileId;
+  }
+
+  if (modalPhoto) modalPhoto.src = fixed;
+  if (photoModal) photoModal.classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: openPdfModal
+* parameter: previewUrl (string)
+* return: void
+* purpose: Opens the PDF preview modal and loads the given URL into the iframe viewer.
+********************************************************/
+function openPdfModal(previewUrl) {
+
+  if (!pdfModal || !pdfFrame) return;
+  pdfFrame.src = previewUrl;
+  pdfModal.classList.remove("hidden");
+}
+
+/*******************************************************
+* function name: resetModalZoom
+* parameter: none
+* return: void
+* purpose: Resets modal image zoom and pan values to defaults and reapplies transform.
+********************************************************/
+function resetModalZoom() {
+
+  modalZoom.scale = 1;
+  modalZoom.x = 0;
+  modalZoom.y = 0;
+  applyModalTransform();
+}
+
+/* OBSOLETE */
+/*******************************************************
+* function name: isSessionValid
+* parameter: none
+* return: -
+* purpose: -
+*******************************************************/
+/*function isSessionValid() {
+  const token = localStorage.getItem("sf_id_token");
+  const loginTime = Number(localStorage.getItem("sf_login_time") || 0);
+
+  if (!token || !loginTime) return false;
+
+  return (Date.now() - loginTime) < SESSION_MAX_AGE_MS;
+}*/
+
+btnClosePdf.onclick = closePdfModal;
+
+// click outside to close
+pdfModal.addEventListener("click", (e) => {
+  if (e.target === pdfModal) closePdfModal();
+});
 
 /*******************************************************
 * function name: getPendingQueue
@@ -6845,7 +7132,8 @@ async function syncPendingQueue(opts = {}) {
       await new Promise(r => setTimeout(r, 250));
 
     } catch (err) {
-      console.log("Sync failed:", item, err);
+      //console.log("Sync failed:", item, err);
+      alert("Sync failed.");
 
       pendingProgress.set(key, {
         status: "error",
@@ -6934,41 +7222,6 @@ function base64ToChunks(base64, chunkSize = 200000) {
     chunks.push(base64.slice(i, i + chunkSize));
   }
   return chunks;
-}
-
-/*******************************************************
-* function name: openModal
-* parameter: modalEl (HTMLElement)
-* return: void
-* purpose: Shows a modal element by removing its hidden class.
-********************************************************/
-function openModal(modalEl) {
-  if (!modalEl) return;
-  modalEl.classList.remove("hidden");
-}
-
-/*******************************************************
-* function name: closeModal
-* parameter: modalEl (HTMLElement)
-* return: void
-* purpose: Hides a modal element by adding its hidden class.
-********************************************************/
-function closeModal(modalEl) {
-  if (!modalEl) return;
-  modalEl.classList.add("hidden");
-}
-
-/*******************************************************
-* function name: attachModalBackdropClose
-* parameter: modalEl (HTMLElement)
-* return: void
-* purpose: Attaches a backdrop click handler to a modal so clicking outside content closes it.
-********************************************************/
-function attachModalBackdropClose(modalEl) {
-  if (!modalEl) return;
-  modalEl.onclick = (e) => {
-    if (e.target === modalEl) closeModal(modalEl);
-  };
 }
 
 /*******************************************************
@@ -7337,18 +7590,6 @@ function renderPendingUI() {
 }
 
 /*******************************************************
-* function name: clearRemarksBox
-* parameter: none
-* return: void
-* purpose: Clears the remarks textarea input field in the details view.
-********************************************************/
-function clearRemarksBox() {
-
-  const el = document.getElementById("dRemarks");
-  if (el) el.value = "";
-}
-
-/*******************************************************
 * function name: deleteSinglePending
 * parameter: key (string)
 * return: void
@@ -7600,66 +7841,6 @@ function extractDriveFileId(url) {
   return "";
 }
 
-let modalZoom = {
-  scale: 1,
-  x: 0,
-  y: 0,
-  dragging: false,
-  startX: 0,
-  startY: 0
-};
-
-/*******************************************************
-* function name: applyModalTransform
-* parameter: none
-* return: void
-* purpose: Applies current zoom and pan transform values to the modal image element.
-********************************************************/
-function applyModalTransform() {
-
-  const img = document.getElementById("modalPhoto");
-  if (!img) return;
-  img.style.transform = `translate(${modalZoom.x}px, ${modalZoom.y}px) scale(${modalZoom.scale})`;
-}
-
-/*******************************************************
-* function name: resetModalZoom
-* parameter: none
-* return: void
-* purpose: Resets modal image zoom and pan values to defaults and reapplies transform.
-********************************************************/
-function resetModalZoom() {
-
-  modalZoom.scale = 1;
-  modalZoom.x = 0;
-  modalZoom.y = 0;
-  applyModalTransform();
-}
-
-/*******************************************************
-* function name: openEvidenceFile
-* parameter: url (string)
-* return: void
-* purpose: Opens an evidence file by routing PDFs to PDF modal and images to image modal viewer.
-********************************************************/
-function openEvidenceFile(url) {
-
-  if (!url) {
-    toast("No file available.");
-    return;
-  }
-
-  // PDF → open new tab
-  if (isPdfUrl(url)) {
-    //window.open(url, "_blank", "noopener,noreferrer");
-    openPdfModal(url);
-    return;
-  }
-
-  // IMAGE → open modal
-  openImageModalFromUrl(url);
-}
-
 /*******************************************************
 * function name: isPdfUrl
 * parameter: url (string)
@@ -7680,51 +7861,6 @@ function isPdfUrl(url = "") {
 function isImageUrl(url = "") {
 
   return String(url).toLowerCase().match(/\.(png|jpg|jpeg|gif|webp)(\?|$)/);
-}
-
-/*******************************************************
-* function name: openImageModalFromUrl
-* parameter: url (string)
-* return: void
-* purpose: Opens image preview modal using either base64 data URL or converted Google Drive direct link.
-********************************************************/
-function openImageModalFromUrl(url) {
-
-  if (!url) {
-    toast("No file available.");
-    return;
-  }
-
-  let fixed = String(url).trim();
-
-  // If already BASE64 data URL
-  if (fixed.startsWith("data:image/")) {
-    if (modalPhoto) modalPhoto.src = fixed;
-    if (photoModal) photoModal.classList.remove("hidden");
-    return;
-  }
-
-  // Convert drive link to direct view
-  const fileId = extractDriveFileId(fixed);
-  if (fileId) {
-    fixed = "https://drive.google.com/uc?export=view&id=" + fileId;
-  }
-
-  if (modalPhoto) modalPhoto.src = fixed;
-  if (photoModal) photoModal.classList.remove("hidden");
-}
-
-/*******************************************************
-* function name: openPdfModal
-* parameter: previewUrl (string)
-* return: void
-* purpose: Opens the PDF preview modal and loads the given URL into the iframe viewer.
-********************************************************/
-function openPdfModal(previewUrl) {
-
-  if (!pdfModal || !pdfFrame) return;
-  pdfFrame.src = previewUrl;
-  pdfModal.classList.remove("hidden");
 }
 
 const btnFullscreenPhoto = document.getElementById("btnFullscreenPhoto");
@@ -8194,7 +8330,8 @@ function forceLogout(message) {
 
     if (message) toast(message);
   } catch (e) {
-    console.log("forceLogout error:", e);
+    //console.log("forceLogout error:", e);
+    alert("Session ended. Force Logout");
   }
 }
 
@@ -8528,7 +8665,7 @@ async function loadStudentPhotoInto(imgEl, item) {
     await cacheSet("photo_" + fileId, dataUrl);
 
   } catch (err) {
-    console.warn("Photo load failed:", err);
+    //console.warn("Photo load failed:", err);
 
     if (!imgEl) return;
     imgEl.src =
@@ -9108,13 +9245,19 @@ async function openDetailsTab(tab) {
   document.getElementById("tabContentGrades")?.classList.add("hidden");
 
   if (tab === "learner") {
-    showLoading("Loading GRADES... Please wait!");
 
     document.getElementById("tabContentLearnerDev")?.classList.remove("hidden");
     setTimeout(renderLearnerDevChart, 50);
   }
   if (tab === "grades") {
-    showLoading("Loading GRADES... Please wait!");
+
+    const student = state.currentStudent;
+    if (!student) return;
+    // Load courses first
+    await preloadStudentCourses(student);
+
+    // Render dropdown
+    populateCourseDropdown();
 
     // Clear table (optional, render will overwrite anyway)
     const tbody = document.getElementById("gradeTableBody");
@@ -9132,13 +9275,6 @@ async function openDetailsTab(tab) {
     document.getElementById("courseStudentId").textContent = "-";
 
     document.getElementById("tabContentGrades")?.classList.remove("hidden");
-    const student = state.currentStudent;
-    if (!student) return;
-    // Load courses first
-    await preloadStudentCourses(student);
-
-    // Render dropdown
-    populateCourseDropdown();
 
     // Load grades
     loadTaskGrades(student.studentId);
@@ -9454,11 +9590,6 @@ async function syncPendingUpdates() {
   updateSyncBadge();
 }
 
-/* ===========================
-   SEAT MAP (API)
-=========================== */
-
-
 /*******************************************************
 * function name: loadSeatPhotosInGrid
 * parameter: none
@@ -9535,7 +9666,7 @@ async function loadSeatPhotosInGrid() {
       await cacheSet("photo_" + fileId, dataUrl);
     }
   } catch (err) {
-    console.warn("Seat photo load failed:", err);
+    //console.warn("Seat photo load failed:", err);
   }
 }
 
@@ -9688,27 +9819,23 @@ function applyRoleUI() {
   }
 }
 
-/* ===========================
-   ACCORDION
-=========================== */
 /*******************************************************
-* function name: toggleAccordion
-* parameter: bodyEl (HTMLElement), arrowEl (HTMLElement)
+* function name: applyStudentToModal
+* parameter: stu (object)
 * return: void
-* purpose: Toggles accordion section visibility and arrow indicator state.
+* purpose: Applies selected student data into seat edit modal fields with lock protection.
 ********************************************************/
-function toggleAccordion(bodyEl, arrowEl) {
+function applyStudentToModal(stu) {
 
-  if (!bodyEl || !arrowEl) return;
+  if (!stu) return;
 
-  const isHidden = bodyEl.classList.contains("hidden");
-  if (isHidden) {
-    bodyEl.classList.remove("hidden");
-    arrowEl.textContent = "▴";
-  } else {
-    bodyEl.classList.add("hidden");
-    arrowEl.textContent = "▾";
-  }
+  seatEditLock = true;
+
+  if (editStudentId) editStudentId.value = stu.studentId || "";
+  if (editStudentEmail) editStudentEmail.value = stu.studentEmail || "";
+  if (editStudentName) editStudentName.value = stu.studentName || "";
+
+  seatEditLock = false;
 }
 
 /* ===========================
@@ -10071,9 +10198,6 @@ if (btnresetGradesUI) btnresetGradesUI.onclick = () => resetGradeUI();   //reset
 if (btnaddLearnerDev) btnaddLearnerDev.onclick = () => addLearnerDev();
 if (btnsaveLearnerDev) btnsaveLearnerDev.onclick = () => saveLearnerDev();
 
-// remarks preview - desktop
-const btnPvSave = document.getElementById("btnPvSaveRemarks");
-
 if (btnPvSave) {
   btnPvSave.onclick = async () => {
     if (state.me.role === "student") {
@@ -10262,8 +10386,16 @@ if (menuSeatMapInfo) {
 }
 
 if (menuExport) {
-  menuExport.onclick = () => {
+  menuExport.onclick = async () => {
     showScreen(screenExport); // Export to excel/pdf
+
+    await preloadExportData();
+
+    const scopeSelect = document.getElementById("exportScope").value;
+    if (scopeSelect) scopeSelect.value = "section";
+
+    // default = section
+    onExportScopeChange(scopeSelect);
   };
 }
 
@@ -10437,25 +10569,6 @@ if (btnSeatEditToggle) {
     // update Delete Room button visibility
     updateDeleteRoomButtonVisibility();
   };
-}
-
-/*******************************************************
-* function name: applyStudentToModal
-* parameter: stu (object)
-* return: void
-* purpose: Applies selected student data into seat edit modal fields with lock protection.
-********************************************************/
-function applyStudentToModal(stu) {
-
-  if (!stu) return;
-
-  seatEditLock = true;
-
-  if (editStudentId) editStudentId.value = stu.studentId || "";
-  if (editStudentEmail) editStudentEmail.value = stu.studentEmail || "";
-  if (editStudentName) editStudentName.value = stu.studentName || "";
-
-  seatEditLock = false;
 }
 
 if (editStudentId) {
@@ -10694,35 +10807,6 @@ if (btnSeatClear) btnSeatClear.onclick = clearSeatEditor;
 /* Fix 18: Add Room + Add Seat */
 if (btnAddRoom) btnAddRoom.onclick = addRoom;
 if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
-
-/* GLOBAL LOADING OVERLAY */
-/*******************************************************
-* function name: showLoading
-* parameter: msg (string)
-* return: void
-* purpose: Displays the global loading overlay with optional message text.
-********************************************************/
-function showLoading(msg = "Loading...") {
-  const el = document.getElementById("globalLoading");
-  if (!el) return;
-
-  const txt = el.querySelector(".loadingText");
-  if (txt) txt.textContent = msg;
-
-  el.classList.remove("hidden");
-}
-
-/*******************************************************
-* function name: hideLoading
-* parameter: none
-* return: void
-* purpose: Hides the global loading overlay.
-********************************************************/
-function hideLoading() {
-  const el = document.getElementById("globalLoading");
-  if (!el) return;
-  el.classList.add("hidden");
-}
 
 /* ===========================
    INIT
@@ -10983,6 +11067,10 @@ function hideLoading() {
   }
 })();
 
+/* ===========================
+   EVENT HANDLER
+=========================== */
+
 // ✅ GLOBAL MODAL CLOSE HANDLER (SAFE)
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-close]");
@@ -11001,18 +11089,18 @@ document.addEventListener("click", (e) => {
   if (img) img.src = "";
 });
 
-// onchange
-document.getElementById("exportScope").onchange = updateExportUI;
+//document.getElementById("exportScope").onchange = updateExportUI;
 
+/*
 document.getElementById("exportScope").addEventListener("click", async () => {
   openscreenExport();
   initExportForm();
-});
+});*/
 
-document.getElementById("menuExport").addEventListener("change", async () => {
-  const students = await getStudentsForExport("section", "", "");
-  loadStudents(students);
-});
+/*document.getElementById("menuExport").addEventListener("change", async () => {
+  //const students = await getStudentsForExport("section", "", "");
+  //loadStudents(students);
+});*/
 
 document.getElementById("exportCourse").addEventListener("change", () => {
 
@@ -11032,7 +11120,8 @@ document.getElementById("exportCourse").addEventListener("change", () => {
   loadStudents(filtered);
 });
 
-document.getElementById("exportScope").addEventListener("change", () => {
+/* OBSOLETE */
+/*document.getElementById("exportScope").addEventListener("change", () => {
 
   const scope = document.getElementById("exportScope").value;
 
@@ -11043,11 +11132,20 @@ document.getElementById("exportScope").addEventListener("change", () => {
     // ✅ wait for course selection
     loadStudents([]);
   }
+});*/
+
+document.getElementById("exportScope").addEventListener("change", (e) => {
+  const scope = e.target.value;
+
+  if (!state.exportData) return;
+
+  updateExportUI();
+  onExportScopeChange(scope);
 });
 
+
 /* ===========================
-   SESSION ACTIVITY REFRESH
-   (1-week inactivity timeout support)
+   SESSION ACTIVITY REFRESH (1-week inactivity timeout support)
 =========================== */
 /*******************************************************
 * function name: refreshActivityStamp
