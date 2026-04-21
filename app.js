@@ -168,6 +168,7 @@ const screenList = document.getElementById("screenList");
 const screenDetails = document.getElementById("screenDetails");
 const screenSeatMap = document.getElementById("screenSeatMap");
 const screenExport = document.getElementById("screenExport");
+const screenImport = document.getElementById("screenImport");
 const screenMenu = document.getElementById("screenMenu");
 
 /* ===========================
@@ -340,6 +341,7 @@ const inpAddStudentEmail = document.getElementById("inpAddStudentEmail");
 const menuStudentInfo = document.getElementById("menuStudentInfo");
 const menuSeatMapInfo = document.getElementById("menuSeatMapInfo");
 const menuExport = document.getElementById("menuExport");
+const menuImportDownload = document.getElementById("menuImportDownload");
 const exportCourse = document.getElementById("exportCourse");
 
 /* ===========================
@@ -704,12 +706,15 @@ function renderTaskGrades() {
   });
 
   // ===== INPUT EVENTS
-  document.querySelectorAll(".gradeInput").forEach(input => {
-    input.oninput = function () {
-      updateGradeRealtime(this.dataset.taskcode, this);
-      recomputeTaskFinal();
-    };
-  });
+  console.log("state.me?.role: ", state.me?.role);
+  if (state.me?.role !== "student") {
+    document.querySelectorAll(".gradeInput").forEach(input => {
+      input.oninput = function () {
+        updateGradeRealtime(this.dataset.taskcode, this);
+        recomputeTaskFinal();
+      };
+    });
+  }
 
   setTimeout(() => {
     recomputeAllGrades();
@@ -1252,6 +1257,7 @@ async function loadTaskGrades(studentId) {
       //loadGradeCourses(student, res.items);
       renderTaskGrades();
       recomputeTaskFinal();
+      applyRoleUI();
       hideLoading();
       return;
     }
@@ -1292,6 +1298,7 @@ async function loadTaskGrades(studentId) {
       //loadGradeCourses(student, res.items);
       renderTaskGrades();
       recomputeTaskFinal();
+      applyRoleUI();
     }
     hideLoading();
   } catch (err) {
@@ -1299,6 +1306,7 @@ async function loadTaskGrades(studentId) {
     state.gradeTasks = getDefaultGradeTemplate();
     renderTaskGrades();
     recomputeTaskFinal();
+    applyRoleUI();
     hideLoading();
   }
 }
@@ -1735,6 +1743,198 @@ function populateCourseDropdown() {
     state.filters.courseSubject = this.value;
     loadTaskGrades(state.currentStudent.studentId);
   };
+}
+
+/*******************************************************
+* function name: handleJsonUpload
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+async function handleJsonUpload() {
+  const input = document.getElementById("importJsonFile");
+  const file = input.files[0];
+
+  if (!file) {
+    alert("Please select a JSON file");
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = async function (e) {
+    const text = e.target.result;
+    await processImportJSON(text);
+  };
+
+  reader.readAsText(file);
+}
+
+/*******************************************************
+* function name: processImportJSON
+* parameter: 
+* return: -
+* purpose: -
+*******************************************************/
+async function processImportJSON(text) {
+  showLoading("Importing grades...");
+
+  try {
+    // ---------------------------------------
+    // STEP 1: PARSE JSON
+    // ---------------------------------------
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      throw new Error("Invalid JSON syntax");
+    }
+
+    // ---------------------------------------
+    // STEP 2: NORMALIZE STRUCTURE
+    // Supports:
+    // 1. { studentId, items }
+    // 2. { data: [ ... ] }
+    // 3. [ { studentId, items } ]
+    // ---------------------------------------
+    let students = [];
+
+    if (Array.isArray(parsed)) {
+      students = parsed;
+    } else if (parsed.data && Array.isArray(parsed.data)) {
+      students = parsed.data;
+    } else if (parsed.studentId && parsed.items) {
+      students = [parsed];
+    } else {
+      throw new Error("Invalid file structure");
+    }
+
+    if (!students.length) {
+      throw new Error("No data found");
+    }
+
+    // ---------------------------------------
+    // STEP 3: PROCESS EACH STUDENT
+    // ---------------------------------------
+    let totalInserted = 0;
+
+    for (const student of students) {
+      if (!student.studentId) {
+        //console.warn("Skipping student: missing studentId");
+        toast("Skipping student: missing studentId");
+        continue;
+      }
+
+      if (!Array.isArray(student.items) || !student.items.length) {
+        console.warn(`Skipping ${student.studentId}: no items`);
+        continue;
+      }
+
+      // ---------------------------------------
+      // STEP 4: CLEAN + VALIDATE ITEMS
+      // ---------------------------------------
+      const cleanItems = [];
+
+      for (const g of student.items) {
+        // skip invalid rows
+        if (
+          !g.category ||
+          !g.period ||
+          g.score === "" ||
+          g.score === null ||
+          g.max === "" ||
+          g.max === null
+        ) {
+          continue;
+        }
+
+        const item = {
+          courseSubject: g.courseSubject || "",
+          period: String(g.period || "").trim(),
+          date: g.date || new Date().toISOString().split("T")[0],
+          category: String(g.category || "").trim(),
+          taskCode: String(g.taskCode || "").trim(),
+          taskName: String(g.taskName || "").trim(),
+          max: Number(g.max),
+          score: Number(g.score)
+        };
+
+        // skip invalid numeric values
+        if (isNaN(item.score) || isNaN(item.max)) continue;
+
+        cleanItems.push(item);
+      }
+
+      if (!cleanItems.length) {
+        console.warn(`No valid items for ${student.studentId}`);
+        continue;
+      }
+
+      // ---------------------------------------
+      // STEP 5: SEND TO API (APPEND MODE)
+      // ---------------------------------------
+      const res = await apiPost(
+        {
+          action: "gradesTaskSave",
+          idToken: state.idToken
+        },
+        {
+          studentId: student.studentId,
+          items: cleanItems
+        }
+      );
+
+      if (res.status !== "success") {
+        //console.error(res);
+        throw new Error(res.message || `Failed for ${student.studentId}`);
+      }
+
+      totalInserted += cleanItems.length;
+    }
+
+    // ---------------------------------------
+    // STEP 6: DONE
+    // ---------------------------------------
+    hideLoading();
+
+    alert(`Import successful ✅\nRecords added: ${totalInserted}`);
+
+    // optional refresh
+    if (students[0]?.studentId) {
+      await loadTaskGrades(students[0].studentId);
+    }
+
+  } catch (err) {
+    hideLoading();
+    console.error(err);
+    toast(err.message || "Invalid file format");
+  }
+}
+
+/*******************************************************
+* function name: downloadAddin
+* parameter: 
+* return: -
+* purpose: 
+********************************************************/
+function downloadAddin() {
+  const link = document.createElement("a");
+  link.href = "assets/GradeSystem.xlam";
+  link.download = "GradeSystem.xlam";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+/*******************************************************
+* function name: closescreenExport
+* parameter: 
+* return: -
+* purpose: 
+********************************************************/
+function closescreenImport() {
+  document.getElementById("screenImport").classList.add("hidden");
+  showScreen(screenMenu);
 }
 
 /* OBSOLETE *?
@@ -3379,6 +3579,7 @@ async function onGoogleCredential(resp) {
         if (menuStudentInfo) menuStudentInfo.classList.add("hidden");
         if (menuSeatMapInfo) menuSeatMapInfo.classList.add("hidden");
         if (menuExport) menuExport.classList.add("hidden");
+        if (menuImportDownload) menuImportDownload.classList.add("hidden");
         if (btnOpenSeatMap) btnOpenSeatMap.classList.add("hidden");
         if (btnGoList) btnGoList.classList.add("hidden");
 
@@ -3402,6 +3603,7 @@ async function onGoogleCredential(resp) {
       if (menuStudentInfo) menuStudentInfo.classList.remove("hidden");
       if (menuSeatMapInfo) menuSeatMapInfo.classList.remove("hidden");
       if (menuExport) menuExport.classList.remove("hidden");
+      if (menuImportDownload) menuImportDownload.classList.remove("hidden");
       if (btnOpenSeatMap) btnOpenSeatMap.classList.remove("hidden");
       if (btnGoList) btnGoList.classList.remove("hidden");
 
@@ -6833,7 +7035,8 @@ function showScreen(el) {
     screenList,
     screenDetails,
     screenSeatMap,
-    screenExport
+    screenExport,
+    screenImport
   ];
 
   // hide grades
@@ -6862,6 +7065,7 @@ function showScreen(el) {
   else if (el === screenDetails) state.currentScreen = "details";
   else if (el === screenSeatMap) state.currentScreen = "seatmap";
   else if (el === screenExport) state.currentScreen = "export"
+  else if (el === screenImport) state.currentScreen = "import"
   //else if (el === screenConfig) state.currentScreen = "config";
   //else state.currentScreen = "config";
   else state.currentScreen = "menu";
@@ -8324,6 +8528,7 @@ function forceLogout(message) {
     if (menuStudentInfo) menuStudentInfo.classList.add("hidden");
     if (menuSeatMapInfo) menuSeatMapInfo.classList.add("hidden");
     if (menuExport) menuExport.classList.add("hidden");
+    if (menuImportDownload) menuImportDownload.classList.add("hidden");
 
     showScreen(screenConfig);
     hideNetBadge();
@@ -9250,7 +9455,7 @@ async function openDetailsTab(tab) {
     setTimeout(renderLearnerDevChart, 50);
   }
   if (tab === "grades") {
-
+    applyRoleUI();
     const student = state.currentStudent;
     if (!student) return;
     // Load courses first
@@ -9667,6 +9872,7 @@ async function loadSeatPhotosInGrid() {
     }
   } catch (err) {
     //console.warn("Seat photo load failed:", err);
+    toast("Seat photo load failed: " + err.toString());
   }
 }
 
@@ -9796,6 +10002,16 @@ function applyRoleUI() {
     if (btnSave) btnSave.classList.add("hidden");
     if (btnHistory) btnHistory.classList.add("hidden");
     if (btnLDev) btnLDev.classList.add("hidden");
+
+    //disable grade inputs
+    document.querySelectorAll(".gradeInput").forEach(input => {
+      input.setAttribute("readonly", true);
+    });
+
+    //Hide editting buttons
+    if (btnsaveTaskGrades) btnsaveTaskGrades.style.display = "none";
+    if (btnaddTaskRow) btnaddTaskRow.style.display = "none";
+    if (btnresetGradesUI) btnresetGradesUI.style.display = "none";
 
   }
 
@@ -10396,6 +10612,12 @@ if (menuExport) {
 
     // default = section
     onExportScopeChange(scopeSelect);
+  };
+}
+
+if (menuImportDownload) {
+  menuImportDownload.onclick = () => {
+    showScreen(screenImport); // Import JSON
   };
 }
 
@@ -11036,6 +11258,9 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
         }
         else if (target === "export") {
           showScreen(screenExport);
+        }
+        else if (target === "import") {
+          showScreen(screenImport);
         }
         else {
           showScreen(screenList);
