@@ -1753,21 +1753,40 @@ function populateCourseDropdown() {
 *******************************************************/
 async function handleJsonUpload() {
   const input = document.getElementById("importJsonFile");
-  const file = input.files[0];
 
-  if (!file) {
-    alert("Please select a JSON file");
+  // ---------------------------------------
+  // STEP 1: VALIDATE INPUT
+  // ---------------------------------------
+  if (!input || !input.files || !input.files.length) {
+    toast("Please select a JSON file");
     return;
   }
 
-  const reader = new FileReader();
+  const file = input.files[0];
 
-  reader.onload = async function (e) {
-    const text = e.target.result;
+  // ---------------------------------------
+  // STEP 2: VALIDATE FILE TYPE
+  // ---------------------------------------
+  if (!file.name.toLowerCase().endsWith(".json")) {
+    toast("Invalid file type. Please upload a JSON file.");
+    return;
+  }
+
+  try {
+    // ---------------------------------------
+    // STEP 3: READ FILE (MODERN WAY)
+    // ---------------------------------------
+    const text = await file.text(); // ✅ simpler than FileReader
+
+    // ---------------------------------------
+    // STEP 4: PROCESS
+    // ---------------------------------------
     await processImportJSON(text);
-  };
 
-  reader.readAsText(file);
+  } catch (err) {
+    console.error(err);
+    toast("Failed to read file");
+  }
 }
 
 /*******************************************************
@@ -1792,10 +1811,6 @@ async function processImportJSON(text) {
 
     // ---------------------------------------
     // STEP 2: NORMALIZE STRUCTURE
-    // Supports:
-    // 1. { studentId, items }
-    // 2. { data: [ ... ] }
-    // 3. [ { studentId, items } ]
     // ---------------------------------------
     let students = [];
 
@@ -1814,100 +1829,64 @@ async function processImportJSON(text) {
     }
 
     // ---------------------------------------
-    // STEP 3: PROCESS EACH STUDENT
+    // STEP 3: BUILD ROWS (BATCH)
     // ---------------------------------------
-    let totalInserted = 0;
+    const rows = [];
 
-    for (const student of students) {
-      if (!student.studentId) {
-        //console.warn("Skipping student: missing studentId");
-        toast("Skipping student: missing studentId");
-        continue;
-      }
+    students.forEach(student => {
+      if (!student.studentId) return;
 
-      if (!Array.isArray(student.items) || !student.items.length) {
-        console.warn(`Skipping ${student.studentId}: no items`);
-        continue;
-      }
+      (student.items || []).forEach(item => {
 
-      // ---------------------------------------
-      // STEP 4: CLEAN + VALIDATE ITEMS
-      // ---------------------------------------
-      const cleanItems = [];
-
-      for (const g of student.items) {
-        // skip invalid rows
-        if (
-          !g.category ||
-          !g.period ||
-          g.score === "" ||
-          g.score === null ||
-          g.max === "" ||
-          g.max === null
-        ) {
-          continue;
+        const period = String(item.period || "").trim().toUpperCase();
+        if (!period.includes("MIDTERM") && !period.includes("FINAL")) {
+          console.warn("Invalid period skipped: ", item);
+          return;
         }
 
-        const item = {
-          courseSubject: g.courseSubject || "",
-          period: String(g.period || "").trim(),
-          date: g.date || new Date().toISOString().split("T")[0],
-          category: String(g.category || "").trim(),
-          taskCode: String(g.taskCode || "").trim(),
-          taskName: String(g.taskName || "").trim(),
-          max: Number(g.max),
-          score: Number(g.score)
-        };
+        if (!item.category || item.score === "" || item.max === "") return;
 
-        // skip invalid numeric values
-        if (isNaN(item.score) || isNaN(item.max)) continue;
+        rows.push([
+          student.studentId,
+          item.courseSubject || "",
+          period,
+          item.date || new Date().toISOString().split("T")[0],
+          String(item.category || "").trim().toUpperCase(),
+          String(item.taskCode || "").trim(),
+          String(item.taskName || "").trim(),
+          Number(item.max),
+          Number(item.score)
+        ]);
+      });
+    });
 
-        cleanItems.push(item);
-      }
+    if (!rows.length) throw new Error("No valid rows");
 
-      if (!cleanItems.length) {
-        console.warn(`No valid items for ${student.studentId}`);
-        continue;
-      }
+    // ---------------------------------------
+    // STEP 4: SEND TO API
+    // ---------------------------------------
+    const res = await apiPost(
+      {
+        action: "appendBatchToSheet",
+        idToken: state.idToken
+      },
+      { rows }
+    );
 
-      // ---------------------------------------
-      // STEP 5: SEND TO API (APPEND MODE)
-      // ---------------------------------------
-      const res = await apiPost(
-        {
-          action: "gradesTaskSave",
-          idToken: state.idToken
-        },
-        {
-          studentId: student.studentId,
-          items: cleanItems
-        }
-      );
-
-      if (res.status !== "success") {
-        //console.error(res);
-        throw new Error(res.message || `Failed for ${student.studentId}`);
-      }
-
-      totalInserted += cleanItems.length;
+    if (res.status !== "success") {
+      throw new Error(res.message || "Import failed");
     }
 
     // ---------------------------------------
-    // STEP 6: DONE
+    // STEP 5: DONE
     // ---------------------------------------
     hideLoading();
-
-    alert(`Import successful ✅\nRecords added: ${totalInserted}`);
-
-    // optional refresh
-    if (students[0]?.studentId) {
-      await loadTaskGrades(students[0].studentId);
-    }
+    alert(`Import successful ✅\nInserted: ${res.inserted || 0}\nUpdated: ${rows.updated || 0}`);
 
   } catch (err) {
     hideLoading();
     console.error(err);
-    toast(err.message || "Invalid file format");
+    alert(err.message || "Invalid file format");
   }
 }
 
