@@ -341,6 +341,7 @@ const inpAddStudentEmail = document.getElementById("inpAddStudentEmail");
 const menuStudentInfo = document.getElementById("menuStudentInfo");
 const menuSeatMapInfo = document.getElementById("menuSeatMapInfo");
 const menuExport = document.getElementById("menuExport");
+const menuExportMainList = document.getElementById("menuExportMainList");
 const menuImportDownload = document.getElementById("menuImportDownload");
 const exportCourse = document.getElementById("exportCourse");
 
@@ -926,6 +927,10 @@ function recomputeTaskFinal() {
   if (finalEl) {
     finalEl.textContent = final.toFixed(2);
   }
+  const noteE1 = document.getElementById("finalGradeNote");
+  if (noteE1) {
+    noteE1.textContent = "Please be advised that this is an unofficial list of Grades. In case of inconsistency, please contact your class adviser or assigned faculty."
+  }
   // ===== BADGE =====
   const badge = document.getElementById("finalGradeStatus");
   if (!badge) return;
@@ -1277,7 +1282,7 @@ async function loadTaskGrades(studentId) {
 
     // 🔥 STEP 2: FILTER
     const selectedCourse = state.filters.courseSubject;
-    //console.log("state.filters.courseSubject: ", state.filters.courseSubject);
+    console.log("state.filters.courseSubject: ", state.filters.courseSubject);
 
     let filtered = items.filter(item =>
       !selectedCourse || item.courseSubject === selectedCourse
@@ -1294,12 +1299,12 @@ async function loadTaskGrades(studentId) {
 
     //console.log("loadTaskGrades student: ", student);
 
-    if (!gradeEditing) {
-      //loadGradeCourses(student, res.items);
-      renderTaskGrades();
-      recomputeTaskFinal();
-      applyRoleUI();
-    }
+    //if (!gradeEditing) {
+    //loadGradeCourses(student, res.items);
+    renderTaskGrades();
+    recomputeTaskFinal();
+    applyRoleUI();
+    //}
     hideLoading();
   } catch (err) {
     //console.error("TASK LOAD ERROR:", err);
@@ -6647,6 +6652,91 @@ function populateExportDropdown(selectId, list) {
   }
 }
 
+/*******************************************************
+* function name: exportStudentListCSV
+* parameter: list
+* return: -
+* purpose: -
+*******************************************************/
+function exportStudentListCSV(students) {
+  console.log("student: ", students);
+  if (!students.length) {
+    alert("No data to export");
+    return;
+  }
+
+  // ---------------------------------------
+  // STEP 1: REMOVE DUPLICATES
+  // ---------------------------------------
+  const map = new Map();
+
+  students.forEach(s => {
+
+    const studentId = s.studentId || s.studentid || s.studentnumber || s.studentidnumber || "";
+
+    if (!studentId) return;
+
+    // skip duplicates
+    if (map.has(studentId)) return;
+
+    // ---------------------------------------
+    // STEP 2: PARSE NAME
+    // format: "LASTNAME,FIRSTNAME M.I."
+    // ---------------------------------------
+    let full = String(s["lastname,firstnamem.i."] || "").trim().toUpperCase();
+
+    let lastName = "";
+    let firstName = "";
+
+    if (full.includes(",")) {
+      const parts = full.split(",");
+      lastName = parts[0]?.trim() || "";
+      firstName = parts[1]?.trim() || "";
+    } else {
+      firstName = full;
+    }
+
+    const course = String(s.courseSubject || s["course(subject)"] || "").trim();
+
+    map.set(studentId, {
+      studentId,
+      lastName,
+      firstName,
+      course
+    });
+
+  });
+
+  const list = Array.from(map.values());
+  console.log("list: ", list);
+  // ---------------------------------------
+  // STEP 3: BUILD CSV
+  // ---------------------------------------
+  let csv = "StudentID,LastName,FirstName,Course/Subject\n";
+
+  list.forEach(s => {
+    csv += [
+      s.studentId,
+      s.lastName,
+      s.firstName,
+      s.course
+    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",") + "\n";
+  });
+
+  // ---------------------------------------
+  // STEP 4: DOWNLOAD
+  // ---------------------------------------
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "student_list.csv";
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
 /* ===========================
    ON SCOPE CHANGE
 =========================== */
@@ -8674,6 +8764,13 @@ async function loadList(resetPage = false) {
   if (cached && cached.items && Array.isArray(cached.items)) {
     state.list.total = cached.total || 0;
     state.list.items = cached.items || [];
+
+    // ✅ SORT 
+    state.list.items.sort((a, b) => {
+      const getLast = (name) => String(name || "").split(",")[0].trim().toUpperCase();
+      return getLast(a.fullName).localeCompare(getLast(b.fullName));
+    });
+
     renderList();
   }
 
@@ -8703,6 +8800,13 @@ async function loadList(resetPage = false) {
 
   state.list.total = res.total || 0;
   state.list.items = res.items || [];
+
+  // ✅ SORT 
+  state.list.items.sort((a, b) => {
+    const getLast = (name) => String(name || "").split(",")[0].trim().toUpperCase();
+    return getLast(a.fullName).localeCompare(getLast(b.fullName));
+  });
+
   renderList();
   saveSession();
 
@@ -10591,6 +10695,17 @@ if (menuExport) {
 
     // default = section
     onExportScopeChange(scopeSelect);
+  };
+}
+
+if (menuExportMainList) {
+  menuExportMainList.onclick = async () => {
+    showLoading();
+    //showScreen(screenSeatMap); // Seat map screen
+    const studList = await getStudentsForExport("", "", "");
+
+    exportStudentListCSV(studList);
+    hideLoading();
   };
 }
 
