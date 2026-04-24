@@ -19,11 +19,11 @@
 
 <body>
 	<header class="topbar">
-		<div class="brand">
+		<div class="brand" onclick="goToMainMenu()" style="cursor: pointer;">
 			<div class="logo">SF</div>
 			<div>
 				<div class="title">Student-Classroom Managament System</div>
-				<div class="subtitle">Student Form Web App v6</div>
+				<div class="subtitle">Student Form Web App v7</div>
 			</div>
 		</div>
 
@@ -36,7 +36,6 @@
 			<button id="btnSupport" class="btn btn-ghost hidden">Support</button>
 			<button id="btnChangelog" class="btn btn-ghost hidden">Updates</button>
 			<button id="btnResetApp" class="btn btn-ghost hidden">Reset</button>
-
 			<button id="btnLogout" class="btn btn-danger hidden">Logout</button>
 		</div>
 	</header>
@@ -636,7 +635,7 @@
 					</div>
 					<div>
 						<label>Student ID</label>
-						<input id="inpSeatId" type="text" placeholder="2025-0001" />
+						<input id="inpSeatId" type="text" placeholder="202xxxxxx" />
 					</div>
 					<div>
 						<label>Student Name</label>

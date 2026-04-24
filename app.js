@@ -533,6 +533,197 @@ state.gradeCategoryState = state.gradeCategoryState || {};
 
 state.subjectType = "minor"; // default
 
+
+/*******************************************************
+ * UNIVERSAL AUTOCOMPLETE (NAME / ID / EMAIL)
+ *******************************************************/
+function setupAutocomplete(inputEl, type) {
+
+  if (!inputEl) return;
+
+  if (inputEl.dataset.autocompleteAttached) return;
+  inputEl.dataset.autocompleteAttached = "true";
+
+  let dropdown = document.createElement("div");
+  dropdown.className = "autocomplete-dropdown";
+
+  dropdown.style.position = "fixed";
+  dropdown.style.background = "#fff";
+  dropdown.style.border = "1px solid #bdbdbd";
+  dropdown.style.borderRadius = "8px";
+  dropdown.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)";
+  dropdown.style.maxHeight = "220px";
+  dropdown.style.overflowY = "auto";
+  dropdown.style.zIndex = "2147483648";
+  dropdown.style.display = "none";
+
+  document.body.appendChild(dropdown);
+
+  let activeIndex = -1;
+  let currentList = [];
+
+  function positionDropdown() {
+    const rect = inputEl.getBoundingClientRect();
+    dropdown.style.left = rect.left + "px";
+    dropdown.style.top = rect.bottom + "px";
+    dropdown.style.width = rect.width + "px";
+  }
+
+  function closeDropdown() {
+    dropdown.style.display = "none";
+    dropdown.innerHTML = "";
+    activeIndex = -1;
+    currentList = [];
+  }
+
+  function highlight(text, keyword) {
+    if (!keyword) return text;
+    const lower = text.toLowerCase();
+    const idx = lower.indexOf(keyword);
+    if (idx === -1) return text;
+
+    return text.substring(0, idx)
+      + "<strong>" + text.substring(idx, idx + keyword.length) + "</strong>"
+      + text.substring(idx + keyword.length);
+  }
+
+  function renderList(list, keyword) {
+    dropdown.innerHTML = "";
+    currentList = list;
+    activeIndex = -1;
+
+    list.forEach((stu, index) => {
+      const item = document.createElement("div");
+
+      let display = "";
+
+      if (type === "name") display = stu.studentName;
+      if (type === "id") display = stu.studentId;
+      if (type === "email") display = stu.studentEmail;
+
+      item.innerHTML = highlight(display || "", keyword);
+
+      item.style.padding = "10px";
+      item.style.cursor = "pointer";
+
+      item.onmouseover = () => setActive(index);
+      item.onclick = () => selectItem(index);
+
+      dropdown.appendChild(item);
+    });
+
+    dropdown.style.display = list.length ? "block" : "none";
+  }
+
+  function setActive(index) {
+    const items = dropdown.children;
+    if (!items.length) return;
+
+    [...items].forEach(el => el.style.background = "#fff");
+
+    activeIndex = index;
+
+    const activeItem = items[index];
+    activeItem.style.background = "#d2eafa";
+
+    // 🔥 AUTO SCROLL INTO VIEW
+    activeItem.scrollIntoView({
+      block: "nearest",   // important (no jump)
+      behavior: "smooth"  // optional (remove if you want instant)
+    });
+  }
+
+  function selectItem(index) {
+    const stu = currentList[index];
+    if (!stu) return;
+
+    applyStudentToModal(stu);
+    closeDropdown();
+  }
+
+  function searchStudents(value) {
+    const students = state.seat.masterStudents || [];
+
+    return students.filter(s => {
+      const name = (s.studentName || "").toLowerCase();
+      const id = (s.studentId || "").toLowerCase();
+      const email = (s.studentEmail || "").toLowerCase();
+
+      return (
+        name.includes(value) ||
+        id.includes(value) ||
+        email.includes(value)
+      );
+    }).slice(0, 10);
+  }
+
+  let debounceTimer;
+
+  inputEl.addEventListener("input", () => {
+
+    if (seatEditLock) return;
+
+    const value = inputEl.value.trim().toLowerCase();
+
+    clearTimeout(debounceTimer);
+
+    if (value.length < 1) {
+      closeDropdown();
+      return;
+    }
+
+    debounceTimer = setTimeout(() => {
+      const results = searchStudents(value);
+
+      if (!results.length) {
+        closeDropdown();
+        return;
+      }
+
+      positionDropdown();
+      renderList(results, value);
+    }, 150);
+  });
+
+  inputEl.addEventListener("keydown", (e) => {
+
+    const items = dropdown.children;
+    if (!items.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIndex = (activeIndex + 1) % items.length;
+      setActive(activeIndex);
+    }
+
+    else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIndex = (activeIndex - 1 + items.length) % items.length;
+      setActive(activeIndex);
+    }
+
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0) {
+        selectItem(activeIndex);
+      }
+    }
+
+    else if (e.key === "Escape") {
+      closeDropdown();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!dropdown.contains(e.target) && e.target !== inputEl) {
+      closeDropdown();
+    }
+  });
+
+  window.addEventListener("resize", positionDropdown);
+  window.addEventListener("scroll", positionDropdown);
+}
+
 /* ======================================================
    GRADES SYSTEM
 ====================================================== */
@@ -797,7 +988,8 @@ async function resetGradeUI() {
   const finalEl = document.getElementById("finalGradeValue");
   if (finalEl) {
     finalEl.textContent = "-";
-    finalEl.style.color = "#64748b";
+    //finalEl.style.color = "#64748b";
+    finalEl.style.color = "#1e5db6";
   }
 
   // ✅ CLEAR STATUS BADGE
@@ -1417,14 +1609,14 @@ async function saveTaskGrades() {
     const student = state.currentStudent;
     if (!student) {
       hideLoading();
-      alert("No student selected");
+      toast("No student selected");
       return;
     }
 
     const selectedCourse = document.getElementById("newTaskCourseSection").value;
     if (!selectedCourse) {
       hideLoading();
-      alert("Please select a Course/Subject first");
+      toast("Please select a Course/Subject first");
       return;
     }
 
@@ -1471,19 +1663,19 @@ async function saveTaskGrades() {
 
     if (!res || res.status !== "success") {
       hideLoading();
-      alert(res?.message || "Save failed");
+      toast("❌ Save failed. " || res?.message);
       return;
     }
 
-    alert("Grades Saved Successfully ✅");
+    toast("Grades Saved Successfully ✅");
 
     await loadTaskGrades(student.studentId);
 
     hideLoading();
   } catch (e) {
     hideLoading();
-    console.error(e);
-    alert("Save Failed ❌");
+    //console.error(e);
+    toast("❌ Save Failed: ", e.toString());
   }
 }
 
@@ -1501,17 +1693,17 @@ async function addTaskRow() {
   const prefix = getCategoryPrefix(upperCat);
 
   if (period === "-- Select Category --") {
-    alert("Please select period.");
+    toast("Please select period.");
     return;
   }
 
   if (upperCat === "-- SELECT CATEGORY --") {
-    alert("Please select category.");
+    toast("Please select category.");
     return;
   }
 
   if (max === "Items") {
-    alert("Please input items.");
+    toast("Please input items.");
     return;
   }
 
@@ -1886,12 +2078,12 @@ async function processImportJSON(text) {
     // STEP 5: DONE
     // ---------------------------------------
     hideLoading();
-    alert(`Import successful ✅\nInserted: ${res.inserted || 0}\nUpdated: ${rows.updated || 0}`);
+    toast(`Import successful ✅\nInserted: ${res.inserted || 0}\nUpdated: ${rows.updated || 0}`);
 
   } catch (err) {
     hideLoading();
-    console.error(err);
-    alert(err.message || "Invalid file format");
+    //console.error(err);
+    toast("Invalid file format. " || err.message);
   }
 }
 
@@ -2365,20 +2557,27 @@ async function loadRooms() {
 ********************************************************/
 async function deleteRoom() {
 
+  showLoading("Please wait, deleting room...");
+
   if (!state.me || state.me.role !== "admin") {
     toast("Admin only.");
+    hideLoading();
     return;
   }
 
   const room = selSeatRoom ? (selSeatRoom.value || "").trim() : "";
   if (!room) {
     toast("Select a room first.");
+    hideLoading();
     return;
   }
 
-  showLoading("Please wait, deleting room...");
+
   const ok = confirm(`Delete ROOM "${room}"?\n\nThis will remove ALL seats in this room.\nThis cannot be undone.`);
-  if (!ok) return;
+  if (!ok) {
+    hideLoading();
+    return;
+  }
 
   try {
     const res = await apiPost(
@@ -2387,7 +2586,8 @@ async function deleteRoom() {
     );
 
     if (res.status !== "success") {
-      toast(res.message || "Delete room failed");
+      hideLoading();
+      toast("Delete room failed. " || res.message);
       return;
     }
 
@@ -2424,14 +2624,14 @@ async function removeLastSeat() {
     const room = (state.seat.room || "").trim();
     if (!room) {
       hideLoading();
-      alert("Please load a room first.");
+      toast("Please load a room first.");
       return;
     }
 
     const seats = state.seat.seats || [];
     if (seats.length === 0) {
       hideLoading();
-      alert("No seats to remove.");
+      toast("No seats to remove.");
       return;
     }
 
@@ -2446,7 +2646,7 @@ async function removeLastSeat() {
 
     if (!maxSeatNo) {
       hideLoading();
-      alert("No seats to remove.");
+      toast("No seats to remove.");
       return;
     }
 
@@ -2454,7 +2654,7 @@ async function removeLastSeat() {
     const target = seats.find(x => String(x.seatNo) === String(maxSeatNo));
     if (!target) {
       hideLoading();
-      alert("Seat not found.");
+      toast("Seat not found.");
       return;
     }
 
@@ -2466,7 +2666,7 @@ async function removeLastSeat() {
 
     if (hasStudent) {
       hideLoading();
-      alert(`Cannot remove seat ${maxSeatNo}. Student is assigned. Please clear seat first.`);
+      toast(`Cannot remove seat ${maxSeatNo}. Student is assigned. Please clear seat first.`);
       return;
     }
 
@@ -2478,7 +2678,7 @@ async function removeLastSeat() {
 
     if (res.status !== "success") {
       hideLoading();
-      alert(res.message || "Failed to remove seat.");
+      toast(res.message || "Failed to remove seat.");
       return;
     }
 
@@ -2487,10 +2687,10 @@ async function removeLastSeat() {
     await loadSeatRoom(room);
 
     hideLoading();
-    alert(`Seat ${maxSeatNo} removed.`);
+    toast(`Seat ${maxSeatNo} removed.`);
 
   } catch (err) {
-    alert("Error removing seat: " + err.message);
+    toast("Error removing seat: " + err.message);
   }
 }
 
@@ -3100,7 +3300,7 @@ async function saveLearnerDev() {
     });
 
     hideLoading();
-    alert("Saved");
+    toast("Saved");
   } catch (err) {
     hideLoading();
     toast("Save error: " + err.toString());
@@ -3254,7 +3454,7 @@ async function handleUploadEvidence(file) {
 
   try {
     if (!file) {
-      alert("Please choose a file.");
+      toast("Please choose a file.");
       return;
     }
 
@@ -3290,12 +3490,12 @@ async function handleUploadEvidence(file) {
       throw new Error(res.message || "Upload failed");
     }
 
-    alert("Evidence uploaded successfully!");
+    toast("Evidence uploaded successfully!");
     clearEvidenceFileInput();
     await loadEvidenceList(); // ✅ add
 
   } catch (err) {
-    alert("Upload error: " + err);
+    toast("Upload error: " + err.toString());
   }
 }
 
@@ -3579,7 +3779,7 @@ async function onGoogleCredential(resp) {
         //if (dPhoto) dPhoto.classList.add("hidden");
 
       } catch (e) {
-        alert(e.stack);
+        toast(e.stack);
       }
       return;
     } else {
@@ -3721,7 +3921,7 @@ async function runExport() {
   const students = await getStudentsForExport(scope, section, student);
 
   if (!students.length) {
-    alert("No students found.");
+    toast("No students found.");
     return;
   }
 
@@ -3920,7 +4120,7 @@ async function exportExcel(students) {
   //console.log("Exporting Excel. Please wait...");
   if (typeof XLSX === "undefined") {
     hideLoading();
-    alert("XLSX not loaded");
+    toast("XLSX not loaded");
     return;
   }
 
@@ -5007,7 +5207,7 @@ async function exportPDF(students) {
      * 1. GENERATE (REUSE YOUR EXACT EXCEL LOGIC)
      *******************************************************/
     if (typeof XLSX === "undefined") {
-      alert("XLSX not loaded");
+      toast("XLSX not loaded");
       hideLoading();
       return;
     }
@@ -5021,7 +5221,7 @@ async function exportPDF(students) {
     // ✅ SAFETY CHECK (prevents 'Sheet has no data')
     if (!ws["!ref"]) {
       console.error("Sheet has no data!");
-      alert("Failed: Excel sheet is empty.");
+      toast("Failed: Excel sheet is empty.");
       hideLoading();
       return;
     }
@@ -5103,7 +5303,7 @@ async function exportPDF(students) {
      * 4. RENDER (HTML → PDF)
      *******************************************************/
     if (!window.jspdf || !window.html2canvas) {
-      alert("Missing jsPDF or html2canvas");
+      toast("Missing jsPDF or html2canvas");
       hideLoading();
       return;
     }
@@ -5136,8 +5336,8 @@ async function exportPDF(students) {
     /*******************************************************
      * ERROR HANDLING
      *******************************************************/
-    console.error("PDF Export Error:", err);
-    alert("PDF failed");
+    //console.error("PDF Export Error:", err);
+    toast("PDF failed. " + err.toString());
   }
 }
 
@@ -5156,7 +5356,7 @@ async function buildExcelSheet(ws, students) {
 
   if (typeof XLSX === "undefined") {
     hideLoading();
-    alert("XLSX not loaded");
+    toast("XLSX not loaded");
     return;
   }
 
@@ -6228,7 +6428,7 @@ function exportCSV(students, base = 60) {
   //console.log("Exporting CSV file. Please wait...");
 
   if (!students || students.length === 0) {
-    alert("No data");
+    toast("No data");
     return;
   }
 
@@ -6661,7 +6861,7 @@ function populateExportDropdown(selectId, list) {
 function exportStudentListCSV(students) {
   console.log("student: ", students);
   if (!students.length) {
-    alert("No data to export");
+    toast("No data to export");
     return;
   }
 
@@ -6811,7 +7011,7 @@ function escapeHtml(str) {
 function toast(msg) {
 
   try {
-    alert(String(msg));
+    toast(String(msg));
   } catch (e) {
     console.error("toast failed:", e);
   }
@@ -7224,7 +7424,7 @@ async function queueEvidenceUploadOffline(file, student) {
   renderPendingUI();
 
   clearEvidenceFileInput();
-  alert("Offline: Evidence saved to Pending Sync. It will upload when online.");
+  toast("Offline: Evidence saved to Pending Sync. It will upload when online.");
 }
 
 /*******************************************************
@@ -7406,7 +7606,7 @@ async function syncPendingQueue(opts = {}) {
 
     } catch (err) {
       //console.log("Sync failed:", item, err);
-      alert("Sync failed.");
+      toast("Sync failed.");
 
       pendingProgress.set(key, {
         status: "error",
@@ -7519,7 +7719,7 @@ function resetAppData() {
   // optional: clear everything
   // localStorage.clear();
 
-  alert("Reset done. Reloading app...");
+  toast("Reset done. Reloading app...");
   location.reload();
 }
 
@@ -7901,7 +8101,7 @@ function deleteSinglePending(key) {
 async function retrySinglePending(key) {
 
   if (!navigator.onLine) {
-    alert("You are offline. Cannot retry now.");
+    toast("You are offline. Cannot retry now.");
     return;
   }
 
@@ -8605,7 +8805,7 @@ function forceLogout(message) {
     if (message) toast(message);
   } catch (e) {
     //console.log("forceLogout error:", e);
-    alert("Session ended. Force Logout");
+    toast("Session ended. Force Logout");
   }
 }
 
@@ -9315,8 +9515,8 @@ async function openDetails(item, idxInList = 0) {
     loadEvidenceList();
     applyRoleUI();
   } catch (e) {
-    console.error("🔥 openDetails crash:", e.stack);
-    alert(e.stack);
+    //console.error("🔥 openDetails crash:", e.stack);
+    toast(e.stack);
     throw e;
   }
 }
@@ -9326,13 +9526,13 @@ if (btnSeatPreviewUpload) {
     try {
 
       if (!state.selected) {
-        alert("No student selected.");
+        toast("No student selected.");
         return;
       }
 
       const file = seatPreviewEvidenceFile.files[0];
       if (!file) {
-        alert("Please choose a file.");
+        toast("Please choose a file.");
         return;
       }
 
@@ -9345,7 +9545,7 @@ if (btnSeatPreviewUpload) {
       hideLoading();
     } catch (err) {
       hideLoading();
-      alert("Upload error: " + err.message);
+      toast("Upload error: " + err.message);
     }
   };
 }
@@ -10004,13 +10204,16 @@ async function openStudentDetailsByEmail(email) {
 * purpose: Saves or updates a seat assignment for the current room via seat map API.
 ********************************************************/
 async function saveSeat() {
+  showLoading();
   if (!state.seat.room) {
     toast("Select a room first.");
+    hideLoading();
     return;
   }
   const seatNo = (inpSeatNo ? (inpSeatNo.value || "").trim() : "");
   if (!seatNo) {
     toast("Seat No is required.");
+    hideLoading();
     return;
   }
 
@@ -10027,13 +10230,16 @@ async function saveSeat() {
 
     if (res.status !== "success") {
       toast(res.message || "Save seat failed");
+      hideLoading();
       return;
     }
 
     toast("Seat saved!");
     await loadSeatRoom(state.seat.room);
+    hideLoading();
   } catch (e) {
     toast("Save seat error: " + e.toString());
+    hideLoading();
   }
 }
 
@@ -10137,6 +10343,18 @@ function applyStudentToModal(stu) {
   seatEditLock = false;
 }
 
+/*******************************************************
+* function name: goToMainMenu
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function goToMainMenu() {
+
+  showScreen(screenMenu);
+}
+
+
 /* ===========================
    EVENTS
 =========================== */
@@ -10226,7 +10444,7 @@ if (btnResetApp) btnResetApp.onclick = async () => {
   localStorage.removeItem(LS_PENDING_UPDATES);
   localStorage.removeItem(PENDING_SYNC_KEY);
 
-  alert("Reset done. Reloading app...");
+  toast("Reset done. Reloading app...");
   location.reload();
 };
 
@@ -10500,7 +10718,7 @@ if (btnsaveLearnerDev) btnsaveLearnerDev.onclick = () => saveLearnerDev();
 if (btnPvSave) {
   btnPvSave.onclick = async () => {
     if (state.me.role === "student") {
-      alert("Students cannot edit remarks.");
+      toast("Students cannot edit remarks.");
       return;
     }
     if (!state.seat.currentSeat) return;
@@ -10516,7 +10734,7 @@ if (btnPvSave) {
     });
 
     if (recRes.status !== "success" || !recRes.item) {
-      alert("Record not found");
+      toast("Record not found");
       return;
     }
 
@@ -10533,9 +10751,9 @@ if (btnPvSave) {
     if (res.status === "success") {
       seat.remarks = text;
       document.getElementById("pvRemarks").value = "";
-      alert("Remarks saved ✔");
+      toast("Remarks saved ✔");
     } else {
-      alert(res.message || "Save failed");
+      toast("Save failed. " || res.message);
     }
   };
 }
@@ -10543,7 +10761,7 @@ if (btnPvSave) {
 if (btnPvMSave) {
   btnPvMSave.onclick = async () => {
     if (state.me.role === "student") {
-      alert("Students cannot edit remarks.");
+      toast("Students cannot edit remarks.");
       return;
     }
 
@@ -10559,7 +10777,7 @@ if (btnPvMSave) {
     });
 
     if (recRes.status !== "success" || !recRes.item) {
-      alert("Record not found");
+      toast("Record not found");
       return;
     }
 
@@ -10576,9 +10794,9 @@ if (btnPvMSave) {
     if (res.status === "success") {
       seat.remarks = text;
       document.getElementById("pvMRemarks").value = "";
-      alert("Remarks saved ✔");
+      toast("Remarks saved ✔");
     } else {
-      alert(res.message || "Save failed");
+      toast("Save failed. " || res.message);
     }
   };
 }
@@ -10903,13 +11121,14 @@ if (editStudentEmail) {
   };
 }
 
-if (editStudentName) {
+/* OBSOLETE */
+/*if (editStudentName) {
   editStudentName.oninput = () => {
     if (seatEditLock) return;
     const stu = findStudentByName(editStudentName.value);
     if (stu) applyStudentToModal(stu);
   };
-}
+}*/
 
 if (fCourseSubject) {
   fCourseSubject.onchange = async () => {
@@ -10968,10 +11187,10 @@ if (btnSeatEditSave) {
       const res = await apiPost("seatmapSave", body);
 
       if (res.status !== "success") {
-        throw new Error(res.message || "Save failed");
+        throw new Error("Save failed. " || res.message);
       }
 
-      toast("Seat updated!");
+      toast("✅ Seat updated!");
       closeSeatEditModal();
       await loadSeatRoom(state.seat.room);
 
@@ -11090,7 +11309,7 @@ if (btnSeatEditDelete) {
 if (btnRetryAllPending) {
   btnRetryAllPending.onclick = async () => {
     if (!navigator.onLine) {
-      alert("Offline pa. Mag online muna bago mag Retry All.");
+      toast("Offline pa. Mag online muna bago mag Retry All.");
       return;
     }
     await syncPendingQueue();
@@ -11332,6 +11551,10 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
 
           if (res?.status === "success") {
             state.seat.masterStudents = res.students || [];
+
+            setupAutocomplete(editStudentName, "name");
+            setupAutocomplete(editStudentId, "id");
+            setupAutocomplete(editStudentEmail, "email");
           }
         }
 
