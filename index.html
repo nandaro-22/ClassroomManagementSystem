@@ -19,7 +19,7 @@
 
 <body>
 	<header class="topbar">
-		<div class="brand" onclick="goToMainMenu()" style="cursor: pointer;">
+		<div id="btngoToMainMenu" class="brand" style="cursor: pointer;">
 			<div class="logo">SF</div>
 			<div>
 				<div class="title">Student-Classroom Managament System</div>
@@ -125,12 +125,20 @@
 			</div>
 		</section>
 
+		<!-- SCREEN: DASHBOARD -->
+		<section id="screenDash" class="card hidden">
+			<h2>Dashboard</h2>
+
+			<div id="dashboardWrap" class="dashboardWrap"></div>
+
+		</section>
+
 		<!-- SCREEN: LIST -->
 		<section id="screenList" class="card hidden">
 			<div class="row space-between">
 				<div>
 					<h2>Records</h2>
-					<div id="lblRecordCount" class="muted">Record 0 of 0</div>
+					<div id="lblRecordCount" class="muted">Showing 0 to 0 of 0</div>
 				</div>
 
 				<div class="row gap">
@@ -266,7 +274,7 @@
 							</div>
 
 							<div class="row gap">
-								<button id="btnSave" class="btn btn-primary">Save</button>
+								<button id="btnSave" class="btn btn-primary">Save Remarks</button>
 								<button id="btnUploadEvidence" class="btn btn-primary">Upload Evidence</button>
 								<button id="btnHistory" class="btn btn-primary">View History</button>
 								<button id="btnLDev" class="btn btn-primary">Learners Development</button>
@@ -341,8 +349,8 @@
 				</select>
 
 				<div class="row gap" style="margin-top:12px;">
-					<button class="btn btn-primary" onclick="runExport()">Export</button>
-					<button class="btn btn-ghost" onclick="closescreenExport()">Cancel</button>
+					<button id="btnrunExport" class="btn btn-primary">Export</button>
+					<button id="btnclosescreenExport" class="btn btn-ghost">Cancel</button>
 				</div>
 
 			</div>
@@ -359,9 +367,9 @@
 				<input type="file" id="importJsonFile" accept=".json" />
 
 				<div class="row gap" style="margin-top:12px;">
-					<button class="btn btn-primary" onclick="handleJsonUpload()">Import Grades</button>
-					<button class="btn btn-primary" onclick="downloadAddin()">Download Excel Add-in</button>
-					<button class="btn btn-ghost" onclick="closescreenExport()">Cancel</button>
+					<button id="btnhandleJsonUpload" class="btn btn-primary">Import Grades</button>
+					<button id="btndownloadAddin" class="btn btn-primary">Download Excel Add-in</button>
+					<button id="btnclosescreenImport" class="btn btn-ghost">Cancel</button>
 				</div>
 			</div>
 		</div>
@@ -1146,15 +1154,9 @@
 		<input type="file" id="seatPreviewEvidenceFile" accept="image/*,.pdf" />
 
 		<div class="previewBtnRow">
-			<button id="btnPvSaveRemarks" class="btn btn-primary">
-				Save Remarks
-			</button>
-			<button id="btnSeatPreviewUpload" class="btn btn-primary">
-				Upload Evidence
-			</button>
-			<button id="btnOpenFullProfileDesktop" class="btn btn-primary">
-				Open Full Profile
-			</button>
+			<button id="btnPvSaveRemarks" class="btn btn-primary">Save Remarks</button>
+			<button id="btnSeatPreviewUpload" class="btn btn-primary">Upload Evidence</button>
+			<button id="btnOpenFullProfileDesktop" class="btn btn-primary">Open Full Profile</button>
 		</div>
 	</div>
 
@@ -1179,15 +1181,9 @@
 		<div id="pvMTextRemarks" class="seatPreviewMeta">Evidence Upload</div>
 		<input type="file" id="seatPreviewEvidenceFile" accept="image/*,.pdf" />
 		<div class="previewBtnRow">
-			<button id="btnPvMSaveRemarks" class="btn btn-primary">
-				Save Remarks
-			</button>
-			<button id="btnSeatPreviewUpload" class="btn btn-primary">
-				Upload Evidence
-			</button>
-			<button id="btnOpenFullProfileMobile" class="btn btn-primary">
-				Open Full Profile
-			</button>
+			<button id="btnPvMSaveRemarks" class="btn btn-primary">Save Remarks</button>
+			<button id="btnSeatPreviewUpload" class="btn btn-primary">Upload Evidence</button>
+			<button id="btnOpenFullProfileMobile" class="btn btn-primary">Open Full Profile</button>
 		</div>
 	</div>
 

@@ -2803,7 +2803,8 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 999999999999;
+  z-index: 99999999;
+  /*z-index: 999999999999; */
 
   /* block all clicks */
   pointer-events: all;
@@ -2824,6 +2825,7 @@ button:disabled {
 .loadingText {
   font-weight: 800;
   font-size: 16px;
+  z-index: 999999999999;
 }
 
 .loadingSpinner {
@@ -3183,4 +3185,96 @@ button:disabled {
   .gradeInput {
     width: 60px;
   }
+}
+
+/* ===========================
+   DASHBOARD
+=========================== */
+.dashboardWrap {
+  margin-top: 20px;
+}
+
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.dashboardCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.dashboardTitle {
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.dashboardCount {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.dashboardList {
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.dashboardItem {
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.dashboardItem:hover {
+  background: #e0f2fe;
+}
+
+.dashboardAnalytics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.kpiCard {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.kpiTitle {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.kpiValue {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.kpiSub {
+  font-size: 12px;
+  color: #0ea5e9;
+}
+
+.progressCard {
+  grid-column: span 2;
+}
+
+.progressBar {
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: #0ea5e9;
 }

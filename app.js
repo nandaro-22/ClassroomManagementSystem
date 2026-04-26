@@ -170,6 +170,9 @@ const screenSeatMap = document.getElementById("screenSeatMap");
 const screenExport = document.getElementById("screenExport");
 const screenImport = document.getElementById("screenImport");
 const screenMenu = document.getElementById("screenMenu");
+const screenDash = document.getElementById("screenDash");
+const tabContentGrades = document.getElementById("tabContentGrades");
+const tabContentLearnerDev = document.getElementById("tabContentLearnerDev");
 
 /* ===========================
    DOM — AUTH / LOGIN
@@ -282,6 +285,12 @@ const seatPreviewFloat = document.getElementById("seatPreviewFloat");
 const btnPvMSave = document.getElementById("btnPvMSaveRemarks");
 // remarks preview - desktop
 const btnPvSave = document.getElementById("btnPvSaveRemarks");
+const btnrunExport = document.getElementById("btnrunExport");
+const btnclosescreenExport = document.getElementById("btnclosescreenExport");
+const btnclosescreenImport = document.getElementById("btnclosescreenImport");
+const btnhandleJsonUpload = document.getElementById("btnhandleJsonUpload");
+const btndownloadAddin = document.getElementById("btndownloadAddin");
+const btngoToMainMenu = document.getElementById("btngoToMainMenu");
 
 /* ===========================
    DOM — SEAT MAP
@@ -484,7 +493,7 @@ const state = {
 
   list: {
     page: 1,
-    pageSize: 20,  // ✅ show only 20 students per page
+    pageSize: 999999,  // ✅ show ALL students
     total: 0,
     items: []
   },
@@ -533,11 +542,302 @@ state.gradeCategoryState = state.gradeCategoryState || {};
 
 state.subjectType = "minor"; // default
 
+let masterPromise = null;
+let API_LOCK = false;
+
+/*******************************************************
+* function name: apiPost
+* parameter: actionOrParams (string|object), payload (object)
+* return: <object>
+* purpose: Sends a POST request to the API with action and idToken, handles auth failures, timeout, and JSON parsing.
+********************************************************/
+async function apiPost(actionOrParams, payload = {}) {
+
+  let action = "";
+  let idToken = "";
+
+  if (typeof actionOrParams === "string") {
+    action = actionOrParams;
+    idToken = state.idToken || "";
+  } else if (actionOrParams && typeof actionOrParams === "object") {
+    action = actionOrParams.action || "";
+    idToken = actionOrParams.idToken || state.idToken || "";
+  }
+
+  if (!action) throw new Error("Missing action in apiPost()");
+  if (!state.apiUrl) throw new Error("Missing API URL (state.apiUrl)");
+
+  // ✅ must be logged in
+  if (!idToken || !String(idToken).trim()) {
+    forceLogout("Not logged in. Please login again.");
+    throw new Error("Not logged in. Please login again.");
+  }
+
+  const base = String(state.apiUrl || "").trim();
+  if (!base.includes("/exec")) throw new Error("Invalid API URL. Must end with /exec");
+
+  const url = `${base}?action=${encodeURIComponent(action)}&idToken=${encodeURIComponent(idToken)}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 240000);
+
+  try {
+    const fd = new FormData();
+    fd.append("payload", JSON.stringify(payload || {}));
+
+    const res = await fetch(url, {
+      method: "POST",
+      body: fd,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+
+    const text = await res.text();
+
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      data = { status: "error", message: text };
+    }
+
+    const msg = String(data?.message || "").toLowerCase();
+
+    const isDenied =
+      msg.includes("access denied") ||
+      msg.includes("not in users sheet") ||
+      msg.includes("invalid token") ||
+      msg.includes("aud mismatch") ||
+      msg.includes("invalid client id") ||
+      msg.includes("missing idtoken");
+
+    const isHttpDenied = (res.status === 401 || res.status === 403);
+
+    if (isDenied || isHttpDenied) {
+      forceLogout(data?.message || "Access denied.");
+      return { status: "error", message: "Access denied" };
+    }
+
+    return data;
+
+  } catch (err) {
+    clearTimeout(timeout);
+
+    if (String(err).includes("AbortError")) {
+      return { status: "error", message: "Request timeout. Please try again." };
+    }
+
+    return { status: "error", message: err.toString() };
+  }
+}
+
+/*******************************************************
+* function name: apiGet
+* parameter: params (object)
+* return: <object>
+* purpose: Sends a GET request to the API with query parameters, parses response, and forces logout on auth/permission errors.
+********************************************************/
+/*async function apiGet(params = {}) {
+
+  try {
+    const url = buildUrl(params);
+    const res = await fetch(url);
+
+    const text = await res.text();
+    let data = null;
+
+    try { data = JSON.parse(text); }
+    catch { data = { status: "error", message: text }; }
+
+    const msg = String(data?.message || "").toLowerCase();
+
+    const isDenied =
+      msg.includes("access denied") ||
+      msg.includes("not in users sheet") ||
+      msg.includes("invalid token") ||
+      msg.includes("aud mismatch") ||
+      msg.includes("invalid client id") ||
+      msg.includes("missing idtoken");
+
+    const isHttpDenied = (res.status === 401 || res.status === 403);
+
+    // logout ONLY if server explicitly says invalid token / access denied
+    if (isDenied) {
+      forceLogout(data?.message || "Access denied");
+      return { status: "error", message: "Access denied" };
+    }
+
+    // DO NOT logout on plain HTTP error
+    if (isHttpDenied) {
+      console.warn("HTTP denied but not forcing logout");
+      return { status: "error", message: "http_error" };
+    }
+
+    return data;
+
+  } catch (err) {
+    //return { status:"error", message: err.toString() };
+    console.warn("apiGet network error:", err);
+    return { status: "network_error", message: err.toString() };
+  }
+}*/
+
+async function apiGet(params = {}) {
+
+  if (API_LOCK) return { status: "blocked" };
+  API_LOCK = true;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000); // ⏱ 30s timeout
+
+  try {
+
+    const url = state.apiUrl || FIXED_API_URL;
+
+    // 🔥 ALWAYS INCLUDE TOKEN
+    params.idToken = params.idToken || state.idToken;
+
+    // 🔥 USE FormData (MATCHES Apps Script parseBody)
+    const form = new FormData();
+    form.append("payload", JSON.stringify(params));
+
+    const res = await fetch(url, {
+      method: "POST",
+      body: form,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { status: "error", message: text };
+    }
+
+    const msg = String(data?.message || "").toLowerCase();
+
+    const isDenied =
+      msg.includes("access denied") ||
+      msg.includes("denied") || // 🔥 improved detection
+      msg.includes("not in users sheet") ||
+      msg.includes("invalid token") ||
+      msg.includes("aud mismatch") ||
+      msg.includes("invalid client id") ||
+      msg.includes("missing idtoken");
+
+    const isHttpDenied = (res.status === 401 || res.status === 403);
+
+    // 🔐 FORCE LOGOUT ONLY IF TOKEN ISSUE
+    if (isDenied) {
+      forceLogout(data?.message || "Access denied");
+      return { status: "error", message: "access_denied" };
+    }
+
+    // 🚫 DO NOT LOOP ON HTTP ERRORS
+    if (isHttpDenied) {
+      console.warn("HTTP blocked:", res.status);
+      return { status: "error", message: "http_error" };
+    }
+
+    return data;
+
+  } catch (err) {
+
+    clearTimeout(timeout);
+
+    console.warn("apiGet network error:", err);
+
+    if (String(err).includes("AbortError")) {
+      return {
+        status: "timeout",
+        message: "Request timeout"
+      };
+    }
+
+    return {
+      status: "network_error",
+      message: err.toString()
+    };
+
+  } finally {
+    // ✅ ALWAYS RELEASE LOCK (no duplicate lines)
+    API_LOCK = false;
+  }
+}
+
+/*******************************************************
+* function name: apiPostNoCors
+* parameter: action (string), payload (object)
+* return: <object>
+* purpose: Sends a POST request using no-cors form encoding for endpoints that must avoid CORS preflight, assuming success response.
+********************************************************/
+async function apiPostNoCors(action, payload = {}) {
+
+  if (!action) throw new Error("Missing action");
+  if (!state.apiUrl) throw new Error("Missing API URL");
+  //if (!state.idToken) throw new Error("Missing idToken");
+
+  const base = String(state.apiUrl || "").trim();
+  const url = `${base}?action=${encodeURIComponent(action)}&idToken=${encodeURIComponent(state.idToken)}`;
+
+  // form-urlencoded (no CORS preflight)
+  const form = new URLSearchParams();
+  for (const k in (payload || {})) {
+    form.append(k, typeof payload[k] === "object" ? JSON.stringify(payload[k]) : String(payload[k]));
+  }
+
+  // IMPORTANT: no-cors means we cannot read response
+  await fetch(url, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: form.toString()
+  });
+
+  // assume success (server will handle it)
+  return { status: "success" };
+}
+
+/*******************************************************
+* function name: ensureMasterStudentsLoaded
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function ensureMasterStudentsLoaded() {
+
+  if (state.seat.masterStudents?.length) return;
+
+  if (masterPromise) return masterPromise;
+
+  masterPromise = (async () => {
+
+    /*const res = await apiGet({
+      action: "seatmapMaster",
+      idToken: state.idToken
+    });*/
+    const res = await apiPost("seatmapMaster", {});
+
+    if (res?.status === "success") {
+      state.seat.masterStudents = res.students || [];
+    } else {
+      state.seat.masterStudents = [];
+    }
+
+  })();
+
+  return masterPromise;
+}
 
 /*******************************************************
  * UNIVERSAL AUTOCOMPLETE (NAME / ID / EMAIL)
  *******************************************************/
-function setupAutocomplete(inputEl, type) {
+/*function setupAutocomplete(inputEl, type) {
 
   if (!inputEl) return;
 
@@ -722,6 +1022,287 @@ function setupAutocomplete(inputEl, type) {
 
   window.addEventListener("resize", positionDropdown);
   window.addEventListener("scroll", positionDropdown);
+}*/
+function setupAutocomplete(inputEl, type) {
+
+  if (!inputEl) return;
+
+  // 🔥 prevent duplicate attach
+  if (inputEl.dataset.autocompleteAttached === "true") return;
+  inputEl.dataset.autocompleteAttached = "true";
+
+  let dropdown = document.createElement("div");
+  dropdown.className = "autocomplete-dropdown";
+
+  Object.assign(dropdown.style, {
+    position: "fixed",
+    background: "#fff",
+    border: "1px solid #ccc",
+    borderRadius: "8px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+    maxHeight: "220px",
+    overflowY: "auto",
+    zIndex: "2147483647",
+    display: "none"
+  });
+
+  document.body.appendChild(dropdown);
+
+  let activeIndex = -1;
+  let currentList = [];
+  let debounceTimer = null;
+
+  // =========================
+  // POSITION
+  // =========================
+  function positionDropdown() {
+    const rect = inputEl.getBoundingClientRect();
+    dropdown.style.left = rect.left + "px";
+    dropdown.style.top = rect.bottom + "px";
+    dropdown.style.width = rect.width + "px";
+  }
+
+  function closeDropdown() {
+    dropdown.style.display = "none";
+    dropdown.innerHTML = "";
+    activeIndex = -1;
+    currentList = [];
+  }
+
+  // =========================
+  // HIGHLIGHT
+  // =========================
+  function highlight(text, keyword) {
+    if (!keyword) return text;
+    const idx = text.toLowerCase().indexOf(keyword);
+    if (idx === -1) return text;
+
+    return text.substring(0, idx) +
+      "<strong>" + text.substring(idx, idx + keyword.length) + "</strong>" +
+      text.substring(idx + keyword.length);
+  }
+
+  // =========================
+  // RENDER
+  // =========================
+  function renderList(list, keyword) {
+    dropdown.innerHTML = "";
+    currentList = list;
+    activeIndex = -1;
+
+    list.forEach((stu, index) => {
+      const item = document.createElement("div");
+
+      item.innerHTML = `
+        <div>👤 ${highlight(stu.studentName || "", keyword)}</div>
+        <div style="font-size:12px;color:#64748b;">
+          📧 ${highlight(stu.studentEmail || "", keyword)} • 
+          🆔 ${highlight(stu.studentId || "", keyword)}
+        </div>
+      `;
+
+      item.style.padding = "10px";
+      item.style.cursor = "pointer";
+
+      item.onmouseenter = () => setActive(index);
+      item.onclick = () => selectItem(index, inputEl);
+
+      dropdown.appendChild(item);
+    });
+
+    dropdown.style.display = list.length ? "block" : "none";
+  }
+
+  function setActive(index) {
+    const items = dropdown.children;
+    if (!items.length) return;
+
+    [...items].forEach(el => el.style.background = "#fff");
+
+    activeIndex = index;
+
+    const activeItem = items[index];
+    activeItem.style.background = "#d2eafa";
+
+    activeItem.scrollIntoView({
+      block: "nearest",   // important (no jump)
+      behavior: "smooth"  // optional (remove if you want instant)
+    });
+  }
+
+  // =========================
+  // SELECT
+  // =========================
+  async function selectItem(index, inputEl) {
+    const stu = currentList[index];
+    if (!stu) return;
+
+    seatEditLock = true;
+
+    const name = stu.studentName || stu.fullName || "";
+
+    // 🔥 INSTANT UI RESPONSE
+    closeDropdown();
+
+    if (inputEl) inputEl.value = name;
+
+    state.ui.search = name;
+    state.list.page = 1;
+
+    applyStudentToModal(stu);
+
+    await loadList(true);
+
+    setTimeout(() => {
+      seatEditLock = false;
+    }, 0);
+  }
+
+  // =========================
+  // SEARCH
+  // =========================
+  function searchStudents(value) {
+    const students = state.seat.masterStudents || [];
+
+    const exact = [];
+    const partial = [];
+
+    students.forEach(s => {
+      const name = (s.studentName || "").toLowerCase();
+      const id = (s.studentId || "").toLowerCase();
+      const email = (s.studentEmail || "").toLowerCase();
+
+      if (name.startsWith(value) || id.startsWith(value) || email.startsWith(value)) {
+        exact.push(s);
+      } else if (
+        name.includes(value) ||
+        id.includes(value) ||
+        email.includes(value)
+      ) {
+        partial.push(s);
+      }
+    });
+
+    return [...exact, ...partial].slice(0, 10);
+  }
+
+  // =========================
+  // INPUT EVENT
+  // =========================
+  inputEl.addEventListener("input", () => {
+
+    if (seatEditLock) return;
+
+    const value = inputEl.value.trim().toLowerCase();
+
+    clearTimeout(debounceTimer);
+
+    if (!value) {
+      closeDropdown();
+      return;
+    }
+
+    debounceTimer = setTimeout(() => {
+      const results = searchStudents(value);
+
+      if (!results.length) return closeDropdown();
+
+      positionDropdown();
+      renderList(results, value);
+    }, 200);
+  });
+
+  // =========================
+  // KEYBOARD
+  // =========================
+  inputEl.addEventListener("keydown", (e) => {
+
+    const items = dropdown.children;
+    if (!items.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIndex = (activeIndex + 1) % items.length;
+      setActive(activeIndex);
+    }
+
+    else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIndex = (activeIndex - 1 + items.length) % items.length;
+      setActive(activeIndex);
+    }
+
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0) {
+        selectItem(activeIndex, inputEl); // 🔥 FIXED
+      }
+    }
+
+    else if (e.key === "Escape") {
+      closeDropdown();
+    }
+  });
+
+  // =========================
+  // CLEAR BUTTON (FIXED WIDTH)
+  // =========================
+  if (!inputEl.dataset.clearAttached) {
+    inputEl.dataset.clearAttached = "true";
+
+    const wrapper = document.createElement("div");
+
+    Object.assign(wrapper.style, {
+      position: "relative",
+      width: "50%"
+    });
+
+    inputEl.parentNode.insertBefore(wrapper, inputEl);
+    wrapper.appendChild(inputEl);
+
+    const btn = document.createElement("span");
+    btn.innerHTML = "✕";
+
+    Object.assign(btn.style, {
+      position: "absolute",
+      right: "10px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      cursor: "pointer",
+      fontSize: "14px",
+      color: "#999",
+      display: "none"
+    });
+
+    wrapper.appendChild(btn);
+
+    inputEl.addEventListener("input", () => {
+      btn.style.display = inputEl.value ? "block" : "none";
+    });
+
+    btn.onclick = async () => {
+      inputEl.value = "";
+      state.ui.search = "";
+      state.list.page = 1;
+
+      await loadList(true);
+
+      btn.style.display = "none";
+      inputEl.focus();
+    };
+  }
+
+  // =========================
+  // OUTSIDE CLICK
+  // =========================
+  document.addEventListener("click", (e) => {
+    if (!dropdown.contains(e.target) && e.target !== inputEl) {
+      closeDropdown();
+    }
+  });
+
+  window.addEventListener("resize", positionDropdown);
+  window.addEventListener("scroll", positionDropdown);
 }
 
 /* ======================================================
@@ -898,7 +1479,7 @@ function renderTaskGrades() {
   });
 
   // ===== INPUT EVENTS
-  console.log("state.me?.role: ", state.me?.role);
+
   if (state.me?.role !== "student") {
     document.querySelectorAll(".gradeInput").forEach(input => {
       input.oninput = function () {
@@ -1415,22 +1996,27 @@ async function loadTaskGrades(studentId) {
     // Stop API call if logged out
     if (!state.idToken) {
       //console.log("Skipped grades load - no session.");
+      hideLoading();
       return;
     }
 
     const student = state.currentStudent;
-    if (!student) return;
+    if (!student) {
+      hideLoading();
+      return;
+    }
 
     // Load Transmutation table
     if (!state.transmutationMajor) {
       await loadTransmutationTables();
     }
 
-    const res = await apiGet({
+    /*const res = await apiGet({
       action: "gradesTaskLoad",
       studentId,
       idToken: state.idToken
-    });
+    });*/
+    const res = await apiPost("gradesTaskLoad", { studentId });
 
     if (!res || res.status !== "success") {
       hideLoading();
@@ -1474,7 +2060,7 @@ async function loadTaskGrades(studentId) {
 
     // 🔥 STEP 2: FILTER
     const selectedCourse = state.filters.courseSubject;
-    console.log("state.filters.courseSubject: ", state.filters.courseSubject);
+    //const selectedCourse = state.currentStudent.courseSubject;
 
     let filtered = items.filter(item =>
       !selectedCourse || item.courseSubject === selectedCourse
@@ -1621,11 +2207,12 @@ async function saveTaskGrades() {
     }
 
     // 🔥 STEP 1: GET ALL EXISTING DATA FIRST
-    const resLoad = await apiGet({
+    /*const resLoad = await apiGet({
       action: "gradesTaskLoad",
       studentId: student.studentId,
       idToken: state.idToken
-    });
+    });*/
+    const resLoad = await apiPost("gradesTaskLoad", { studentId: student.studentId });
 
     let allItems = resLoad?.items || [];
 
@@ -1891,11 +2478,12 @@ function formatGradeDate(dateStr) {
 *******************************************************/
 async function preloadStudentCourses(student) {
   try {
-    const res = await apiGet({
+    /*const res = await apiGet({
       action: "getStudentCourses",
       studentId: student.studentId,
       idToken: state.idToken
-    });
+    });*/
+    const res = await apiPost("getStudentCourses", { studentId: student.studentId });
 
     if (res.status === "success") {
       state.cachedCourses = (res.courses || []).map(c => c.trim());
@@ -1929,11 +2517,12 @@ function populateCourseDropdown() {
   });
 
   if (!state.filters.courseSubject) {
-    state.filters.courseSubject = courses[0] || "";
+    //state.filters.courseSubject = courses[0] || "";
+    state.filters.courseSubject = state.currentStudent.courseSubject
   }
 
-  //select.value = state.filters.courseSubject;
-  select.value = state.currentStudent.courseSubject;
+  select.value = state.filters.courseSubject;
+  //select.value = state.currentStudent.courseSubject;
   //console.log("select.value = state.currentStudent.courseSubject: ", state.currentStudent.courseSubject);
 
   select.onchange = function () {
@@ -1979,7 +2568,7 @@ async function handleJsonUpload() {
     // STEP 4: PROCESS
     // ---------------------------------------
     await processImportJSON(text);
-
+    document.getElementById("importJsonFile").value = "";
   } catch (err) {
     console.error(err);
     toast("Failed to read file");
@@ -2103,7 +2692,7 @@ function downloadAddin() {
 }
 
 /*******************************************************
-* function name: closescreenExport
+* function name: closescreenImport
 * parameter: 
 * return: -
 * purpose: 
@@ -2412,8 +3001,9 @@ function closescreenImport() {
 *******************************************************/
 async function loadSeatRoom(room) {
   const key = "seatmap_" + room;
+
   // 1) Get first master students (with cellphone numbers)
-  const masterRes = await apiGet({
+  /*const masterRes = await apiGet({
     action: "seatmapMaster",
     idToken: state.idToken
   });
@@ -2422,7 +3012,8 @@ async function loadSeatRoom(room) {
     state.seat.masterStudents = masterRes.students || [];
   } else {
     state.seat.masterStudents = [];
-  }
+  }*/
+  await ensureMasterStudentsLoaded();
 
   // 2) load cached seats for quick load of UI
   const cached = await cacheGet(key);
@@ -2432,11 +3023,12 @@ async function loadSeatRoom(room) {
   }
 
   // 3) Get latest seats from server
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "seatmap",
     idToken: state.idToken,
     room: room
-  });
+  });*/
+  const res = await apiPost("seatmap", { room: room });
 
   if (res.status === "success") {
     state.seat.seats = res.seats || [];
@@ -2456,7 +3048,7 @@ async function loadSeatMapMaster() {
   document.getElementById('tabContentGrades')?.classList.add('hidden');
   document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
   try {
-    const res = await apiGet({
+    /*const res = await apiGet({
       action: "seatmapMaster",
       idToken: state.idToken
     });
@@ -2466,7 +3058,9 @@ async function loadSeatMapMaster() {
       return;
     }
 
-    state.seat.masterStudents = res.students || [];
+    state.seat.masterStudents = res.students || [];*/
+
+    await ensureMasterStudentsLoaded();
 
   } catch (e) {
     console.warn("loadSeatMapMaster error:", e.toString());
@@ -2491,7 +3085,7 @@ async function addRoom() {
   const room = (inpNewRoom ? (inpNewRoom.value || "").trim() : "");
   if (!room) {
     hideLoading();
-    toast("Room is required.");
+    toast("Room Name/Number is required.");
     return;
   }
 
@@ -2533,10 +3127,11 @@ async function addRoom() {
 async function loadRooms() {
 
   try {
-    const res = await apiGet({
+    /*const res = await apiGet({
       action: "rooms",
       idToken: state.idToken
-    });
+    });*/
+    const res = await apiPost("rooms", {});
 
     if (res.status !== "success") {
       console.warn("Rooms endpoint not ready:", res.message);
@@ -2813,7 +3408,7 @@ function renderSeatGrid() {
                       <svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'>
                         <rect width='100%' height='100%' fill='#f1f5f9'/>
                         <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle'
-                          font-family='Arial' font-size='12' fill='#64748b'>...</text>
+                          font-family='Arial' font-size='36' fill='#64748b'>👤</text>
                       </svg>
                      `)}"
                 />
@@ -3105,11 +3700,12 @@ async function addSeatEmpty() {
 *******************************************************/
 async function loadLearnerDev(studentId) {
   if (!state.idToken) return;
-  const res = await apiGet({
+  /* const res = await apiGet({
     action: "learnerDevLoad",
     idToken: state.idToken,
     studentId
-  });
+  });*/
+  const res = await apiPost("learnerDevLoad", { studentId });
 
   if (res.status !== "success") {
     console.warn("learnerDevLoad failed", res);
@@ -3328,11 +3924,12 @@ async function getPhotoCached(email) {
   if (cached) return cached;
 
   // 2) fetch from API
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "photo",
     idToken: state.idToken,
     email: email
-  });
+  });*/
+  const res = await apiPost("photo", { email: email });
 
   if (res.status !== "success") return null;
   const dataUrl = `data:${res.mimeType || "image/jpeg"};base64,${res.base64 || ""}`;
@@ -3451,9 +4048,10 @@ async function uploadEvidenceChunked(payload, progressCb) {
 * purpose: Handles evidence upload flow by validating input, routing to offline queue when offline, or uploading immediately via API when online, then refreshing the evidence list UI.
 ********************************************************/
 async function handleUploadEvidence(file) {
-
+  showLoading("Please wait, uploading evidence...");
   try {
     if (!file) {
+      hideLoading();
       toast("Please choose a file.");
       return;
     }
@@ -3464,14 +4062,16 @@ async function handleUploadEvidence(file) {
       studentId: state.selected.studentId
     };
 
-    // ✅ OFFLINE → store to IndexedDB
-    if (!navigator.onLine) {
-      await queueEvidenceUploadOffline(file, student);
-      return;
+    if (!student.studentId || !student.email) {
+      hideLoading();
+      throw new Error("Missing studentId/email in evidence upload payload");
     }
 
-    if (!student.studentId || !student.email) {
-      throw new Error("Missing studentId/email in evidence upload payload");
+    // ✅ OFFLINE → store to IndexedDB
+    if (!navigator.onLine) {
+      hideLoading();
+      await queueEvidenceUploadOffline(file, student);
+      return;
     }
 
     // ✅ ONLINE → upload now
@@ -3487,14 +4087,17 @@ async function handleUploadEvidence(file) {
     const res = await apiPost("uploadEvidence", payload);
 
     if (res.status !== "success") {
+      hideLoading();
       throw new Error(res.message || "Upload failed");
     }
 
     toast("Evidence uploaded successfully!");
     clearEvidenceFileInput();
     await loadEvidenceList(); // ✅ add
-
+    hideLoading();
   } catch (err) {
+    hideLoading();
+    //toast("Upload error: " + err.toString());
     toast("Upload error: " + err.toString());
   }
 }
@@ -3702,13 +4305,15 @@ async function onGoogleCredential(resp) {
     // update badge immediately
     refreshNetBadgeNow();
 
-    const me = await apiGet({
+    /*const me = await apiGet({
       action: "me",
       idToken: state.idToken
-    });
+    });*/
+    const me = await apiPost("me", {});
 
     // ✅ HARD BLOCK if not allowlisted
     if (!me || me.status !== "success") {
+      hideLoading();
       forceLogout(me?.message || "Access denied. Your email is not allowlisted.");
       return;
     }
@@ -3812,8 +4417,6 @@ async function onGoogleCredential(resp) {
 
     localStorage.setItem("sf_login_time", Date.now());
 
-    showLoading();
-
     const displayName = (me.name || "").trim() || me.email;
     if (userBadge) {
       userBadge.textContent = `${displayName} (${me.role})`;
@@ -3890,7 +4493,6 @@ async function onGoogleCredential(resp) {
 * purpose: 
 ********************************************************/
 async function runExport() {
-
   state.subjectType = document.getElementById("subjectType")?.value || "minor";
 
   const type = document.getElementById("exportType").value;
@@ -3922,24 +4524,17 @@ async function runExport() {
 
   if (!students.length) {
     toast("No students found.");
+    hideLoading();
     return;
   }
 
 
   if (type === "excel") {
-    showLoading("Exporting Excel. Please wait...");
     await exportExcel(students);
-    hideLoading();
   } else if (type === "pdf") {
-    //alert("under construction!");
-    showLoading("Exporting PDF. Please wait...");
     await exportPDF(students);
-    hideLoading();
   } else if (type === "csv") {
-    //alert("under construction!");
-    showLoading("Exporting CSV. Please wait...");
     exportCSV(students, subjectType);
-    hideLoading();
   }
 }
 
@@ -3981,7 +4576,7 @@ async function getStudentsForExport(scope, section, name) {
 
   //const course = (exportCourse?.value || state.filters.courseSubject || "").trim().toUpperCase();
 
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "exportGrades",
 
     // ✅ EXACT PARAM ALIGNMENT
@@ -3994,6 +4589,17 @@ async function getStudentsForExport(scope, section, name) {
     section: state.filters.block || "",
 
     idToken: state.idToken
+  });*/
+  const res = await apiPost("exportGrades", {
+
+    // ✅ EXACT PARAM ALIGNMENT
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || "",
+    courseSubject: section || "",
+
+    // 🔥 IMPORTANT: send BOTH for safety
+    program: state.filters.program || "",
+    section: state.filters.block || ""
   });
 
   //console.log("res: ", res);
@@ -4044,11 +4650,13 @@ async function getStudentsForExport(scope, section, name) {
 * purpose: 
 ********************************************************/
 async function loadGradesForExport(studentId) {
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "gradesTaskLoad",
     studentId,
     idToken: state.idToken
-  });
+  });*/
+  const res = await apiPost("gradesTaskLoad", { studentId });
+
 
   return res?.items || [];
 }
@@ -4117,7 +4725,6 @@ function getMaxScores(students, period, category) {
 // VERSION 2
 async function exportExcel(students) {
 
-  //console.log("Exporting Excel. Please wait...");
   if (typeof XLSX === "undefined") {
     hideLoading();
     toast("XLSX not loaded");
@@ -4147,10 +4754,7 @@ async function exportExcel(students) {
     if (c.includes("AUG")) return "AUGUSTINIAN VALUE";
     if (c.includes("QUIZ")) return "QUIZ";
     if (c.includes("PARTICIPATION")) return "CLASS PARTICIPATION";
-
-    if (c.includes("EXAM"))
-      return period === "FINAL PERIOD" ? "FINAL EXAM" : "MIDTERM EXAM";
-
+    if (c.includes("EXAM")) return period === "FINAL PERIOD" ? "FINAL EXAM" : "MIDTERM EXAM";
     return c;
   };
 
@@ -5181,7 +5785,7 @@ async function exportExcel(students) {
   XLSX.utils.book_append_sheet(wb, transSheet, "Transmutation");
 
   XLSX.writeFile(wb, "Final_Report.xlsx", { cellFormula: true });
-  //console.log("Excel saving done.");
+  hideLoading();
 }
 
 /*******************************************************
@@ -5198,8 +5802,6 @@ async function exportExcel(students) {
 * 4. RENDER    → HTML → PDF (A4 landscape)
 *******************************************************/
 async function exportPDF(students) {
-
-  //console.log("Exporting PDF. Please wait...");
 
   try {
 
@@ -6425,9 +7027,8 @@ async function buildExcelSheet(ws, students) {
 ********************************************************/
 function exportCSV(students, base = 60) {
 
-  //console.log("Exporting CSV file. Please wait...");
-
   if (!students || students.length === 0) {
+    hideLoading();
     toast("No data");
     return;
   }
@@ -6507,7 +7108,7 @@ function exportCSV(students, base = 60) {
   link.download = "grades_data.csv";
   link.click();
 
-  //console.log("CSV saving done.");
+  hideLoading();
 }
 
 /*******************************************************
@@ -6532,11 +7133,15 @@ function updateExportUI() {
 ********************************************************/
 async function initExportForm() {
 
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "exportGrades",
     schoolYear: state.filters.schoolYear || "",
     term: state.filters.term || "",
     idToken: state.idToken
+  });*/
+  const res = await apiPost("exportGrades", {
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || ""
   });
 
   if (res?.status === "success") {
@@ -6798,13 +7403,19 @@ function extractCategory(tasks, period, category) {
 async function preloadExportData() {
   if (state.exportData.loaded) return;
 
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "exportGrades",
     schoolYear: state.filters.schoolYear || "",
     term: state.filters.term || "",
     program: state.filters.program || "",
     section: state.filters.block || "",
     idToken: state.idToken
+  });*/
+  const res = await apiPost("exportGrades", {
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || "",
+    program: state.filters.program || "",
+    section: state.filters.block || ""
   });
 
   if (!res || res.status !== "success") return;
@@ -6859,7 +7470,7 @@ function populateExportDropdown(selectId, list) {
 * purpose: -
 *******************************************************/
 function exportStudentListCSV(students) {
-  console.log("student: ", students);
+
   if (!students.length) {
     toast("No data to export");
     return;
@@ -6908,7 +7519,7 @@ function exportStudentListCSV(students) {
   });
 
   const list = Array.from(map.values());
-  console.log("list: ", list);
+
   // ---------------------------------------
   // STEP 3: BUILD CSV
   // ---------------------------------------
@@ -6979,7 +7590,7 @@ async function resetApp() {
   state.list.total = 0;
   state.seat = { room: "", editMode: false, seats: [], masterStudents: [], editingSeat: null };
   toast("Cache cleared. Logging out.");
-  //showScreen(screenConfig);
+  showScreen(screenConfig);
   forceLogout();
 }
 
@@ -7008,10 +7619,52 @@ function escapeHtml(str) {
 * return: void
 * purpose: Displays a simple user notification using alert with basic error protection.
 ********************************************************/
-function toast(msg) {
+/*function toast(msg) {
 
   try {
     toast(String(msg));
+  } catch (e) {
+    console.error("toast failed:", e);
+  }
+}*/
+function toast(msg) {
+
+  try {
+
+    const text = String(msg || "");
+
+    // fallback if no UI yet
+    if (!window._toastEl) {
+
+      const el = document.createElement("div");
+      el.style.position = "fixed";
+      el.style.bottom = "20px";
+      el.style.left = "50%";
+      el.style.transform = "translateX(-50%)";
+      el.style.background = "#111";
+      el.style.color = "#fff";
+      el.style.padding = "10px 16px";
+      el.style.borderRadius = "8px";
+      el.style.fontSize = "14px";
+      el.style.zIndex = "999999";
+      el.style.opacity = "0";
+      el.style.transition = "opacity 0.3s ease";
+
+      document.body.appendChild(el);
+      window._toastEl = el;
+    }
+
+    const el = window._toastEl;
+
+    el.textContent = text;
+    el.style.opacity = "1";
+
+    clearTimeout(el._timer);
+
+    el._timer = setTimeout(() => {
+      el.style.opacity = "0";
+    }, 2500);
+
   } catch (e) {
     console.error("toast failed:", e);
   }
@@ -7300,20 +7953,23 @@ function showScreen(el) {
   const screens = [
     screenConfig,
     screenMenu,
+    screenDash,
     screenFilters,
     screenList,
     screenDetails,
     screenSeatMap,
     screenExport,
-    screenImport
+    screenImport,
+    tabContentGrades,
+    tabContentLearnerDev
   ];
-
-  // hide grades
-  document.getElementById('tabContentGrades')?.classList.add('hidden');
-  document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
 
   screens.forEach(s => s && s.classList.add("hidden"));
   if (el) el.classList.remove("hidden");
+
+  // hide grades
+  //document.getElementById('tabContentGrades')?.classList.add('hidden');
+  //document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
 
   // ✅ update Delete Room button visibility ONLY when seat map is shown
   if (el === screenSeatMap) {
@@ -7327,17 +7983,25 @@ function showScreen(el) {
     showNetBadge();
   }
 
-  // ✅ NEW: Track current screen for refresh restore
-  if (el === screenMenu) state.currentScreen = "menu";
+  // ✅ Track current screen for refresh restore
+  if (el === screenMenu) {
+    state.currentScreen = "menu";
+    loadList(true);
+    document.getElementById("screenDash")?.classList.remove("hidden");
+  }
   else if (el === screenFilters) state.currentScreen = "filters";
   else if (el === screenList) state.currentScreen = "list";
   else if (el === screenDetails) state.currentScreen = "details";
   else if (el === screenSeatMap) state.currentScreen = "seatmap";
   else if (el === screenExport) state.currentScreen = "export"
   else if (el === screenImport) state.currentScreen = "import"
-  //else if (el === screenConfig) state.currentScreen = "config";
-  //else state.currentScreen = "config";
-  else state.currentScreen = "menu";
+  else if (el === screenConfig) state.currentScreen = "config";
+  else state.currentScreen = "config";
+  /*else {
+    state.currentScreen = "menu";
+    loadList(true);
+    document.getElementById("screenDash")?.classList.remove("hidden");
+  }*/
 
   // ✅ Save session every time screen changes
   saveSession();
@@ -8350,57 +9014,6 @@ if (btnFullscreenPhoto) {
    API HELPERS
 =========================== */
 /*******************************************************
-* function name: apiGet
-* parameter: params (object)
-* return: <object>
-* purpose: Sends a GET request to the API with query parameters, parses response, and forces logout on auth/permission errors.
-********************************************************/
-async function apiGet(params = {}) {
-
-  try {
-    const url = buildUrl(params);
-    const res = await fetch(url);
-
-    const text = await res.text();
-    let data = null;
-
-    try { data = JSON.parse(text); }
-    catch { data = { status: "error", message: text }; }
-
-    const msg = String(data?.message || "").toLowerCase();
-
-    const isDenied =
-      msg.includes("access denied") ||
-      msg.includes("not in users sheet") ||
-      msg.includes("invalid token") ||
-      msg.includes("aud mismatch") ||
-      msg.includes("invalid client id") ||
-      msg.includes("missing idtoken");
-
-    const isHttpDenied = (res.status === 401 || res.status === 403);
-
-    // logout ONLY if server explicitly says invalid token / access denied
-    if (isDenied) {
-      forceLogout(data?.message || "Access denied");
-      return { status: "error", message: "Access denied" };
-    }
-
-    // DO NOT logout on plain HTTP error
-    if (isHttpDenied) {
-      console.warn("HTTP denied but not forcing logout");
-      return { status: "error", message: "http_error" };
-    }
-
-    return data;
-
-  } catch (err) {
-    //return { status:"error", message: err.toString() };
-    console.warn("apiGet network error:", err);
-    return { status: "network_error", message: err.toString() };
-  }
-}
-
-/*******************************************************
 * function name: openSeatPreview
 * parameter: seat (object), event (MouseEvent)
 * return: void
@@ -8429,38 +9042,41 @@ function openSeatPreview(seat, event) {
   document.getElementById("pvName").textContent = (seat.studentName || "—").toUpperCase();
   document.getElementById("pvStudentId").textContent = seat.studentId || "—";
   document.getElementById("pvEmail").textContent = seat.studentEmail || "—";
+  document.getElementById("pvPhone").textContent = seat.cellphoneNumber || "—";
   // load remarks from record cache if available
   document.getElementById("pvRemarks").value = ""; // clear remarks
 
   const emailLower = String(seat.studentEmail || "").trim().toLowerCase();
   const idLower = String(seat.studentId || "").trim().toLowerCase();
 
-  document.getElementById("pvPhone").textContent = "Loading...";
+  //document.getElementById("pvPhone").textContent = "Loading...";
+
 
   (async () => {
-    try {
-      const res = await apiGet({
-        action: "recordByEmail",
-        idToken: state.idToken,
-        email: seat.studentEmail
-      });
+    //try {
+    /*const res = await apiGet({
+      action: "recordByEmail",
+      idToken: state.idToken,
+      email: seat.studentEmail
+    });*/
+    const res = await apiPost("recordByEmail", { email: seat.studentEmail });
 
-      if (res.status === "success" && res.item) {
-        const rec = res.item;
+    if (res.status === "success" && res.item) {
+      const rec = res.item;
 
-        const phone = res.item.cellphoneNumber || "—";
-        document.getElementById("pvPhone").textContent = phone;
+      //const phone = res.item.cellphoneNumber || "—";
+      //document.getElementById("pvPhone").textContent = phone;
 
-        // ✅ v6 FIX — full identifiers
-        state.selected = rec;
+      // ✅ v6 FIX — full identifiers
+      state.selected = rec;
 
-      } else {
-        document.getElementById("pvPhone").textContent = "—";
-      }
+    } /*else {
+    document.getElementById("pvPhone").textContent = "—";
+  }
     } catch (e) {
       console.warn("Phone load failed:", e);
       document.getElementById("pvPhone").textContent = "—";
-    }
+    }*/
   })();
 
   // show preview first
@@ -8474,10 +9090,7 @@ function openSeatPreview(seat, event) {
   );
   if (!stu) return;
 
-  const raw =
-    stu.picture2x2_direct ||
-    stu.picture2x2 ||
-    "";
+  const raw = stu.picture2x2_direct || stu.picture2x2 || "";
 
   if (!raw) return;
 
@@ -8493,11 +9106,12 @@ function openSeatPreview(seat, event) {
         return;
       }
 
-      const res = await apiGet({
+      /*const res = await apiGet({
         action: "photo",
         idToken: state.idToken,
         fileId
-      });
+      });*/
+      const res = await apiPost("photo", { fileId });
 
       if (res.status !== "success") return;
 
@@ -8533,126 +9147,6 @@ const SEAT_PLACEHOLDER =
         font-size="24" fill="#9ca3af">?</text>
     </svg>
   `);
-
-/*******************************************************
-* function name: apiPost
-* parameter: actionOrParams (string|object), payload (object)
-* return: <object>
-* purpose: Sends a POST request to the API with action and idToken, handles auth failures, timeout, and JSON parsing.
-********************************************************/
-async function apiPost(actionOrParams, payload = {}) {
-
-  let action = "";
-  let idToken = "";
-
-  if (typeof actionOrParams === "string") {
-    action = actionOrParams;
-    idToken = state.idToken || "";
-  } else if (actionOrParams && typeof actionOrParams === "object") {
-    action = actionOrParams.action || "";
-    idToken = actionOrParams.idToken || state.idToken || "";
-  }
-
-  if (!action) throw new Error("Missing action in apiPost()");
-  if (!state.apiUrl) throw new Error("Missing API URL (state.apiUrl)");
-
-  // ✅ must be logged in
-  if (!idToken || !String(idToken).trim()) {
-    forceLogout("Not logged in. Please login again.");
-    throw new Error("Not logged in. Please login again.");
-  }
-
-  const base = String(state.apiUrl || "").trim();
-  if (!base.includes("/exec")) throw new Error("Invalid API URL. Must end with /exec");
-
-  const url = `${base}?action=${encodeURIComponent(action)}&idToken=${encodeURIComponent(idToken)}`;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 240000);
-
-  try {
-    const fd = new FormData();
-    fd.append("payload", JSON.stringify(payload || {}));
-
-    const res = await fetch(url, {
-      method: "POST",
-      body: fd,
-      signal: controller.signal
-    });
-
-    clearTimeout(timeout);
-
-    const text = await res.text();
-
-    let data = null;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      data = { status: "error", message: text };
-    }
-
-    const msg = String(data?.message || "").toLowerCase();
-
-    const isDenied =
-      msg.includes("access denied") ||
-      msg.includes("not in users sheet") ||
-      msg.includes("invalid token") ||
-      msg.includes("aud mismatch") ||
-      msg.includes("invalid client id") ||
-      msg.includes("missing idtoken");
-
-    const isHttpDenied = (res.status === 401 || res.status === 403);
-
-    if (isDenied || isHttpDenied) {
-      forceLogout(data?.message || "Access denied.");
-      return { status: "error", message: "Access denied" };
-    }
-
-    return data;
-
-  } catch (err) {
-    clearTimeout(timeout);
-
-    if (String(err).includes("AbortError")) {
-      return { status: "error", message: "Request timeout. Please try again." };
-    }
-
-    return { status: "error", message: err.toString() };
-  }
-}
-
-/*******************************************************
-* function name: apiPostNoCors
-* parameter: action (string), payload (object)
-* return: <object>
-* purpose: Sends a POST request using no-cors form encoding for endpoints that must avoid CORS preflight, assuming success response.
-********************************************************/
-async function apiPostNoCors(action, payload = {}) {
-
-  if (!action) throw new Error("Missing action");
-  if (!state.apiUrl) throw new Error("Missing API URL");
-  //if (!state.idToken) throw new Error("Missing idToken");
-
-  const base = String(state.apiUrl || "").trim();
-  const url = `${base}?action=${encodeURIComponent(action)}&idToken=${encodeURIComponent(state.idToken)}`;
-
-  // form-urlencoded (no CORS preflight)
-  const form = new URLSearchParams();
-  for (const k in (payload || {})) {
-    form.append(k, typeof payload[k] === "object" ? JSON.stringify(payload[k]) : String(payload[k]));
-  }
-
-  // IMPORTANT: no-cors means we cannot read response
-  await fetch(url, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-    body: form.toString()
-  });
-
-  // assume success (server will handle it)
-  return { status: "success" };
-}
 
 /*******************************************************
 * function name: readBlobAsBase64
@@ -8856,10 +9350,11 @@ function driveToImageUrl(url) {
 ********************************************************/
 async function loadInitialFilters() {
 
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "filters",
     idToken: state.idToken
-  });
+  });*/
+  const res = await apiPost("filters", {});
 
   if (res.status !== "success") {
     toast(res.message || "Failed loading dropdown filters");
@@ -8892,9 +9387,16 @@ async function loadCascadeOptions() {
   const currentCourse = fCourseSubject ? (fCourseSubject.value || "") : "";
   const currentProgram = fProgram ? (fProgram.value || "") : "";
 
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "cascade",
     idToken: state.idToken,
+    schoolYear: currentSY,
+    term: currentTerm,
+    courseSubject: currentCourse,
+    program: currentProgram
+  });*/
+
+  const res = await apiPost("cascade", {
     schoolYear: currentSY,
     term: currentTerm,
     courseSubject: currentCourse,
@@ -8952,15 +9454,26 @@ async function loadList(resetPage = false) {
 
   if (resetPage) state.list.page = 1;
 
+  const noFilter =
+    !state.filters.schoolYear &&
+    !state.filters.term &&
+    !state.filters.courseSubject &&
+    !state.filters.program &&
+    !state.ui.search;
+
   // ✅ cache key depends on filters/search/page
   const cacheKey =
     `list_sy${state.filters.schoolYear}_t${state.filters.term}_c${state.filters.courseSubject}_p${state.filters.program}` +
     `_p${state.list.page}_s${state.list.pageSize}` +
     `_q${state.ui.search}_nr${state.ui.noRemarks}_oa${state.ui.onlyAssigned}_nd${state.ui.notDone}`;
 
+  let cached = null;
 
-  // 1) SHOW CACHED FIRST (FAST)
-  const cached = await cacheGet(cacheKey);
+  if (!noFilter) {
+    // 1) SHOW CACHED FIRST (FAST)
+    cached = await cacheGet(cacheKey);
+  }
+
   if (cached && cached.items && Array.isArray(cached.items)) {
     state.list.total = cached.total || 0;
     state.list.items = cached.items || [];
@@ -8975,10 +9488,24 @@ async function loadList(resetPage = false) {
   }
 
   // 2) FETCH LATEST ONLINE
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "list",
     idToken: state.idToken,
-
+ 
+    page: state.list.page,
+    pageSize: state.list.pageSize,
+ 
+    q: state.ui.search || "",
+    noRemarks: state.ui.noRemarks ? "true" : "false",
+    onlyAssigned: state.ui.onlyAssigned ? "true" : "false",
+    notDone: state.ui.notDone ? "true" : "false",
+ 
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || "",
+    courseSubject: state.filters.courseSubject || "",
+    program: state.filters.program || ""
+  });*/
+  const res = await apiPost("list", {
     page: state.list.page,
     pageSize: state.list.pageSize,
 
@@ -9000,6 +9527,8 @@ async function loadList(resetPage = false) {
 
   state.list.total = res.total || 0;
   state.list.items = res.items || [];
+  state.list.page = res.page;
+  state.list.maxPage = res.maxPage;
 
   // ✅ SORT 
   state.list.items.sort((a, b) => {
@@ -9007,15 +9536,28 @@ async function loadList(resetPage = false) {
     return getLast(a.fullName).localeCompare(getLast(b.fullName));
   });
 
+  // ✅ RENDER LIST 
   renderList();
+
+  // ✅ RENDER DASHBOARD
+  renderDashboard();
+
+  // ✅ SAVE STATE
   saveSession();
 
-  // 3) SAVE TO CACHE (NEXT OPEN = FAST)
-  await cacheSet(cacheKey, {
-    total: state.list.total,
-    items: state.list.items,
-    savedAt: new Date().toISOString()
-  });
+  if (!noFilter) {
+    // 3) SAVE TO CACHE (NEXT OPEN = FAST)
+    await cacheSet(cacheKey, {
+      total: state.list.total,
+      items: state.list.items,
+      savedAt: new Date().toISOString()
+    });
+  }
+
+  btnNextTop.disabled = state.list.page >= state.list.maxPage;
+  btnNext.disabled = state.list.page >= state.list.maxPage;
+  btnPrevTop.disabled = state.list.page <= 1;
+  btnPrev.disabled = state.list.page <= 1;
 }
 
 /*******************************************************
@@ -9030,8 +9572,12 @@ function renderList() {
 
   listWrap.innerHTML = "";
 
+  const start = (state.list.page - 1) * state.list.pageSize + 1;
+  const end = Math.min(start + state.list.items.length - 1, state.list.total);
+
   if (lblRecordCount) {
-    lblRecordCount.textContent = `Record ${state.list.items.length} of ${state.list.total}`;
+    //lblRecordCount.textContent = `Record ${state.list.items.length} of ${state.list.total}`;
+    lblRecordCount.textContent = `Showing ${start} to ${end} of ${state.list.total}`;
   }
   if (lblPage) lblPage.textContent = `Page ${state.list.page}`;
   if (lblPageTop) lblPageTop.textContent = `Page ${state.list.page}`;
@@ -9135,11 +9681,12 @@ async function loadStudentPhotoInto(imgEl, item) {
       return;
     }
 
-    const res = await apiGet({
+    /*const res = await apiGet({
       action: "photo",
       idToken: state.idToken,
       fileId: fileId
-    });
+    });*/
+    const res = await apiPost("photo", { fileId: fileId });
 
     if (res.status !== "success") throw new Error(res.message || "Photo API error");
 
@@ -9162,8 +9709,8 @@ async function loadStudentPhotoInto(imgEl, item) {
         <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">
           <rect width="100%" height="100%" fill="#f8fbff"/>
           <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
-            font-family="Arial" font-size="22" fill="#64748b">
-            Photo not available
+            font-family="Arial" font-size="72" fill="#64748b">
+            👤
           </text>
         </svg>
       `);
@@ -9188,8 +9735,8 @@ async function loadListPhoto(imgEl, item) {
         <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">
           <rect width="100%" height="100%" fill="#f1f5f9"/>
           <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
-            font-family="Arial" font-size="14" fill="#64748b">
-            ...
+            font-family="Arial" font-size="56" fill="#64748b">
+            👤
           </text>
         </svg>
       `);
@@ -9208,11 +9755,12 @@ async function loadListPhoto(imgEl, item) {
       return;
     }
 
-    const res = await apiGet({
+    /*const res = await apiGet({
       action: "photo",
       idToken: state.idToken,
       fileId
-    });
+    });*/
+    const res = await apiPost("photo", { fileId });
 
     if (res.status !== "success") return;
 
@@ -9398,6 +9946,7 @@ async function openDetails(item, idxInList = 0) {
     const btnProofOpen = document.getElementById("btnProofOpen");
     if (btnProofOpen) {
       btnProofOpen.onclick = async (ev) => {
+        showLoading("Loading Proof of Enrollment...");
         ev.preventDefault();
         try {
           const proofRaw = item.enrollmentProof_direct || item.enrollmentProof || "";
@@ -9408,21 +9957,19 @@ async function openDetails(item, idxInList = 0) {
             return;
           }
 
-          showLoading("Loading Proof of Enrollment...");
-
-          const res = await apiGet({
+          /*const res = await apiGet({
             action: "photo",
             idToken: state.idToken,
             fileId: fileId
-          });
-
-          hideLoading();
+          });*/
+          const res = await apiPost("photo", { fileId: fileId });
 
           if (res.status !== "success") throw new Error(res.message || "Failed to load proof");
 
           const mime = res.mimeType || "image/jpeg";
           const dataUrl = `data:${mime};base64,${res.base64}`;
           openImageModalFromUrl(dataUrl);
+          hideLoading();
         } catch (err) {
           hideLoading();
           toast("Proof open failed: " + err.toString());
@@ -9500,7 +10047,15 @@ async function openDetails(item, idxInList = 0) {
       seedLearnerDevDefaults();
     }
 
-    await loadSeatRoom(state.seat.room);
+    const room = (state.seat.room || selSeatRoom?.value || "").trim();
+
+    if (!room) {
+      console.warn("No room selected. Skipping seat load.");
+    } else {
+      state.seat.room = room;
+      //console.log("Loading room: ", state.seat.room);
+      await loadSeatRoom(state.seat.room);
+    }
     //renderGradeTable();            // build table
     //if (state.currentStudent?.studentId) {
     //  if(!gradeEditing){
@@ -9515,7 +10070,7 @@ async function openDetails(item, idxInList = 0) {
     loadEvidenceList();
     applyRoleUI();
   } catch (e) {
-    //console.error("🔥 openDetails crash:", e.stack);
+    console.error("🔥 openDetails crash:", e.stack);
     toast(e.stack);
     throw e;
   }
@@ -9524,27 +10079,24 @@ async function openDetails(item, idxInList = 0) {
 if (btnSeatPreviewUpload) {
   btnSeatPreviewUpload.onclick = async () => {
     try {
-
       if (!state.selected) {
         toast("No student selected.");
+        seatPreviewEvidenceFile.value = "";
         return;
       }
 
       const file = seatPreviewEvidenceFile.files[0];
-      if (!file) {
+      /*f (!file) {
+        hideLoading();
         toast("Please choose a file.");
         return;
-      }
-
-      showLoading("Please wait, uploading evidence...");
+      }*/
 
       await handleUploadEvidence(file);
 
       seatPreviewEvidenceFile.value = "";
 
-      hideLoading();
     } catch (err) {
-      hideLoading();
       toast("Upload error: " + err.message);
     }
   };
@@ -9576,6 +10128,7 @@ function closeSeatPreview() {
 ********************************************************/
 async function openMobilePreview(seat) {
   state.seat.currentSeat = seat;
+
   const pv = document.getElementById("seatPreviewMobile");
   pv.classList.remove("hidden");
 
@@ -9591,31 +10144,32 @@ async function openMobilePreview(seat) {
   document.getElementById("pvMStudentId").textContent = seat.studentId || "—";
   document.getElementById("pvMEmail").textContent = seat.studentEmail || "—";
   document.getElementById("pvMRemarks").value = ""; // clear remarks
-  let phone = "—";
-
-  try {
-    const res = await apiGet({
-      action: "recordByEmail",
-      idToken: state.idToken,
-      email: email
-    });
-
-    if (res.status === "success" && res.item) {
-      const rec = res.item;
-
-      phone =
-        rec.cellphoneNumber ||
-        rec.cellphone ||
-        rec.mobile ||
-        rec.mobileNumber ||
-        rec.contactNumber ||
-        "—";
-    }
-  } catch (e) {
-    console.warn("Mobile preview phone load failed:", e);
+  /*let phone = "—";
+ 
+  try {*/
+  /*const res = await apiGet({
+    action: "recordByEmail",
+    idToken: state.idToken,
+    email: email
+  });*/
+  /*const res = await apiPost("recordByEmail", { email: email });
+ 
+  if (res.status === "success" && res.item) {
+    const rec = res.item;
+ 
+    phone =
+      rec.cellphoneNumber ||
+      rec.cellphone ||
+      rec.mobile ||
+      rec.mobileNumber ||
+      rec.contactNumber ||
+      "—";
   }
+} catch (e) {
+  console.warn("Mobile preview phone load failed:", e);
+}*/
 
-  document.getElementById("pvMPhone").textContent = phone;
+  document.getElementById("pvMPhone").textContent = seat.cellphoneNumber;
   document.getElementById("pvMRemarks").value = seat.remarks || "";
 
   const stu = (state.seat.masterStudents || []).find(
@@ -9640,11 +10194,12 @@ async function openMobilePreview(seat) {
             return;
           }
 
-          const res = await apiGet({
+          /*const res = await apiGet({
             action: "photo",
             idToken: state.idToken,
             fileId
-          });
+          });*/
+          const res = await apiPost("photo", { fileId });
 
           if (res.status !== "success") return;
 
@@ -9760,7 +10315,7 @@ async function openDetailsTab(tab) {
     }
 
     document.getElementById("gradeStudentId").textContent = "—";
-    document.getElementById("courseStudentId").textContent = "-";
+    document.getElementById("courseStudentId").textContent = "—";
 
     document.getElementById("tabContentGrades")?.classList.remove("hidden");
 
@@ -9819,9 +10374,14 @@ async function loadEvidenceList() {
   if (!state.selected) return;
   if (!evidenceList) return;
 
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "evidence",
     idToken: state.idToken,
+    email: state.selected.email,
+    timestamp: state.selected.timestamp,
+    studentId: state.selected.studentId
+  });*/
+  const res = await apiPost("evidence", {
     email: state.selected.email,
     timestamp: state.selected.timestamp,
     studentId: state.selected.studentId
@@ -9883,11 +10443,12 @@ async function loadEvidenceList() {
         }
 
         // IMAGE = load as base64 then open modal viewer
-        const res = await apiGet({
+        /*const res = await apiGet({
           action: "photo",
           idToken: state.idToken,
           fileId: fileId
-        });
+        });*/
+        const res = await apiPost("photo", { fileId: fileId });
 
         if (res.status !== "success") {
           toast(res.message || "Failed to load evidence image.");
@@ -9944,11 +10505,12 @@ async function loadHistory() {
 
   showLoading("Loading history...");
 
-  const res = await apiGet({
+  /*const res = await apiGet({
     action: "history",
     idToken: state.idToken,
     recordKey: state.selected.recordKey
-  });
+  });*/
+  const res = await apiPost("history", { recordKey: state.selected.recordKey });
 
   if (res.status !== "success") {
     toast(res.message || "History load failed");
@@ -9983,15 +10545,20 @@ async function loadHistory() {
 * purpose: Saves current student remarks and done status, supports offline queueing and online API update.
 ********************************************************/
 async function saveCurrent() {
-
+  showLoading("Please wait, saving remarks...");
   if (!state.selected) return;
 
   if (state.me.role === "student") {
+    hideLoading();
     toast("Students cannot edit remarks.");
     return;
   }
 
-  showLoading("Please wait, saving remarks...");
+  if (!dRemarks.value) {
+    hideLoading();
+    toast("Please input a remarks or message.");
+    return;
+  }
 
   const body = {
     email: state.selected.email,
@@ -10002,6 +10569,7 @@ async function saveCurrent() {
   };
 
   if (!navigator.onLine) {
+    hideLoading();
     const pending = loadPendingUpdates();
     pending.push({
       type: "update",
@@ -10018,10 +10586,7 @@ async function saveCurrent() {
     return;
   }
 
-  const res = await apiPost(
-    { action: "update", idToken: state.idToken },
-    body
-  );
+  const res = await apiPost("update", body);
 
   if (res.status !== "success") {
     hideLoading();
@@ -10029,7 +10594,6 @@ async function saveCurrent() {
     return;
   }
 
-  hideLoading();
   toast("Saved!");
   // ✅ stay on details screen
   showScreen(screenDetails);
@@ -10040,6 +10604,7 @@ async function saveCurrent() {
   // reopen same student details para updated values
   openStudentDetailsByEmail(state.selected.email);
   clearRemarksBox(); // ✅ auto clear after save
+  hideLoading();
 }
 
 /*******************************************************
@@ -10138,11 +10703,12 @@ async function loadSeatPhotosInGrid() {
       }
 
       // API fetch
-      const res = await apiGet({
+      /*const res = await apiGet({
         action: "photo",
         idToken: state.idToken,
         fileId
-      });
+      });*/
+      const res = await apiPost("photo", { fileId });
 
       if (res.status !== "success") continue;
 
@@ -10174,26 +10740,29 @@ async function openStudentDetailsByEmail(email) {
   }
 
   try {
-    const res = await apiGet({
+    /*const res = await apiGet({
       action: "recordByEmail",
       idToken: state.idToken,
       email: email
-    });
+    });*/
+    const res = await apiPost("recordByEmail", { email: email });
 
-    hideLoading();
     if (!res || res.status !== "success" || !res.item) {
       toast(res?.message || "Student not found.");
       return;
     }
 
     const item = res.item;
+
     if (!lastScreenBeforeDetails) {
       lastScreenBeforeDetails = state.currentScreen;
     }
     await openDetails(item, 0);
     clearRemarksBox();
+    hideLoading();
   } catch (err) {
     toast("Open student error: " + err.toString());
+    hideLoading();
   }
 }
 
@@ -10354,6 +10923,240 @@ function goToMainMenu() {
   showScreen(screenMenu);
 }
 
+/* ===========================
+   DASHBOARD
+=========================== */
+/*******************************************************
+* function name: buildDashboardData
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function buildDashboardData() {
+  const students = state.list.items || [];
+  const seats = state.seat.seats || [];
+
+  const total = students.length;
+
+  const seatMap = new Map();
+  seats.forEach(s => {
+    if (s.studentEmail) {
+      seatMap.set(s.studentEmail.toLowerCase(), s);
+    }
+  });
+
+  let failing = [];
+  let passing = [];
+  let pending = [];
+
+  let withSeat = 0;
+  let withoutSeat = 0;
+
+  let pendingBreakdown = {
+    noRemarks: 0,
+    notDone: 0,
+    noProof: 0
+  };
+
+  students.forEach(stu => {
+    const email = (stu.email || "").toLowerCase();
+
+    // SEAT
+    if (seatMap.has(email)) withSeat++;
+    else withoutSeat++;
+
+    // GRADES
+    const grade = Number(stu.finalGrade || 0);
+
+    if (grade && grade < 75) failing.push(stu);
+    else if (grade >= 75) passing.push(stu);
+
+    // PENDING
+    const issues = [];
+
+    if (!stu.remarks) {
+      issues.push("No remarks");
+      pendingBreakdown.noRemarks++;
+    }
+
+    if (!stu.done) {
+      issues.push("Not done");
+      pendingBreakdown.notDone++;
+    }
+
+    if (!stu.enrollmentProof) {
+      issues.push("No proof");
+      pendingBreakdown.noProof++;
+    }
+
+    if (issues.length) {
+      pending.push({
+        ...stu,
+        issues
+      });
+    }
+  });
+
+  return {
+    total,
+    failing,
+    passing,
+    pending,
+    withSeat,
+    withoutSeat,
+    pendingBreakdown
+  };
+}
+
+/*******************************************************
+* function name: renderDashboard
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function renderDashboard() {
+  const wrap = document.getElementById("dashboardWrap");
+  if (!wrap) return;
+
+  const d = buildDashboardData();
+
+  const passRate = d.total ? ((d.passing.length / d.total) * 100).toFixed(1) : 0;
+  const failRate = d.total ? ((d.failing.length / d.total) * 100).toFixed(1) : 0;
+
+  wrap.innerHTML = `
+    <div class="dashboardAnalytics">
+
+      ${renderKPI("Total Students", d.total)}
+      ${renderKPI("Passing", d.passing.length, passRate + "%")}
+      ${renderKPI("Failing", d.failing.length, failRate + "%")}
+      ${renderKPI("Pending", d.pending.length)}
+
+      ${renderProgress("Pass Rate", passRate)}
+      ${renderProgress("Fail Rate", failRate)}
+
+      ${renderSeatAnalytics(d)}
+      ${renderPendingBreakdown(d)}
+
+      ${renderTopList("⚠️ Failing Students", d.failing)}
+      ${renderTopList("📝 Pending Students", d.pending, true)}
+
+    </div>
+  `;
+}
+
+function renderKPI(title, value, sub = "") {
+  return `
+    <div class="kpiCard">
+      <div class="kpiTitle">${title}</div>
+      <div class="kpiValue">${value}</div>
+      ${sub ? `<div class="kpiSub">${sub}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderProgress(title, percent) {
+  return `
+    <div class="progressCard">
+      <div class="progressTitle">${title} (${percent}%)</div>
+      <div class="progressBar">
+        <div class="progressFill" style="width:${percent}%"></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSeatAnalytics(d) {
+  const total = d.withSeat + d.withoutSeat;
+
+  const assigned = total ? ((d.withSeat / total) * 100).toFixed(1) : 0;
+
+  return `
+    <div class="dashboardCard">
+      <div class="dashboardTitle">Seat Assignment</div>
+
+      <div class="progressBar">
+        <div class="progressFill" style="width:${assigned}%"></div>
+      </div>
+
+      <div class="muted">
+        ${d.withSeat} assigned / ${d.withoutSeat} unassigned
+      </div>
+    </div>
+  `;
+}
+
+function renderPendingBreakdown(d) {
+  const p = d.pendingBreakdown;
+
+  return `
+    <div class="dashboardCard">
+      <div class="dashboardTitle">Pending Breakdown</div>
+
+      <div class="muted">No Remarks: ${p.noRemarks}</div>
+      <div class="muted">Not Done: ${p.notDone}</div>
+      <div class="muted">No Proof: ${p.noProof}</div>
+    </div>
+  `;
+}
+
+function renderTopList(title, list, showIssues = false) {
+  return `
+    <div class="dashboardCard">
+      <div class="dashboardTitle">${title}</div>
+
+      <div class="dashboardList">
+        ${list.slice(0, 10).map(stu => `
+          <div class="dashboardItem"
+            onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
+
+            <b>${stu.fullName || stu.studentName}</b><br>
+            <span>${stu.studentId || ""}</span>
+
+            ${showIssues && stu.issues ? `
+              <div style="color:#ef4444;font-size:11px;">
+                ${stu.issues.join(", ")}
+              </div>
+            ` : ""}
+
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+/*******************************************************
+* function name: renderDashCard
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function renderDashCard(title, list, clickable = false, showIssues = false) {
+  return `
+    <div class="dashboardCard">
+      <div class="dashboardTitle">${title}</div>
+      <div class="dashboardCount">${list.length}</div>
+
+      <div class="dashboardList">
+        ${list.slice(0, 20).map(stu => `
+          <div class="dashboardItem"
+            onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
+
+            <b>${stu.fullName || stu.studentName || "-"}</b><br>
+            <span>${stu.studentId || ""}</span>
+
+            ${showIssues && stu.issues ? `
+              <div style="color:#ef4444;font-size:11px;">
+                ${stu.issues.join(", ")}
+              </div>
+            ` : ""}
+
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
 
 /* ===========================
    EVENTS
@@ -10446,6 +11249,7 @@ if (btnResetApp) btnResetApp.onclick = async () => {
 
   toast("Reset done. Reloading app...");
   location.reload();
+  forceLogout();
 };
 
 if (netBadge) {
@@ -10541,8 +11345,8 @@ if (btnLogout) {
     if (syncBadge) syncBadge.classList.add("hidden");
 
     // hide grading summary, learner dev
-    document.getElementById('tabContentGrades')?.classList.add('hidden');
-    document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
+    //document.getElementById('tabContentGrades')?.classList.add('hidden');
+    //document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
     document.body.classList.remove("student-mode");
 
     // go back to login/setup screen
@@ -10573,10 +11377,12 @@ if (fTerm) {
     await loadCascadeOptions();
   };
 }
+
 if (fCourseSubject) {
   fCourseSubject.onchange = async () => {
     state.filters.courseSubject = fCourseSubject.value;
     await loadCascadeOptions();
+    saveSession();
   };
 }
 
@@ -10606,16 +11412,23 @@ if (btnGoList) {
 }
 
 if (btnChangeFilter) btnChangeFilter.onclick = () => showScreen(screenFilters);
-if (btnRefresh) btnRefresh.onclick = async () => await loadList(false);
+if (btnRefresh) btnRefresh.onclick = async () => await loadList(true);
 
 if (inpSearch) {
+  setupAutocomplete(inpSearch, "name");
   inpSearch.oninput = () => {
     clearTimeout(searchTimer);
 
     searchTimer = setTimeout(async () => {
-      state.ui.search = inpSearch.value || "";
+      const value = inpSearch.value.trim();
+
+      // Do not call API if short text (prevents quota error)
+      if (value.length < 2) return;
+
+      state.ui.search = value || "";
+
       await loadList(true);
-    }, 300); // 300ms wait after typing
+    }, 0); // 100ms wait after typing
   };
 }
 
@@ -10642,33 +11455,45 @@ if (chkNotDone) {
 
 if (btnPrev) {
   btnPrev.onclick = async () => {
+    showLoading();
+    if (state.list.page <= 1) return;
     if (state.list.page > 1) {
       state.list.page--;
       await loadList(false);
+      hideLoading();
     }
   };
 }
 
 if (btnNext) {
   btnNext.onclick = async () => {
+    showLoading();
+    if (state.list.page >= state.list.maxPage) return;
     state.list.page++;
     await loadList(false);
+    hideLoading();
   };
 }
 
 if (btnPrevTop) {
   btnPrevTop.onclick = async () => {
+    showLoading();
+    if (state.list.page <= 1) return;
     if (state.list.page > 1) {
       state.list.page--;
       await loadList(false);
+      hideLoading();
     }
   };
 }
 
 if (btnNextTop) {
   btnNextTop.onclick = async () => {
+    showLoading();
+    if (state.list.page >= state.list.maxPage) return;
     state.list.page++;
     await loadList(false);
+    hideLoading();
   };
 }
 
@@ -10693,27 +11518,43 @@ if (btnGrades) btnGrades.onclick = () => openDetailsTab("grades");
 if (btnUploadEvidence) {
   btnUploadEvidence.onclick = async () => {
     try {
-      if (!state.selected) return;
-      const file = inpEvidenceFile ? inpEvidenceFile.files[0] : null;
-      if (!file) {
-        toast("Please choose a file first.");
+      if (!state.selected) {
+        toast("No student selected.");
         return;
       }
-      showLoading("Please wait, uploading evidence...");
+      const file = inpEvidenceFile ? inpEvidenceFile.files[0] : null;
+      /*if (!file) {
+        hideLoading();
+        toast("Please choose a file first.");
+        return;
+      }*/
+
       await handleUploadEvidence(file);
       await loadEvidenceList();
-      hideLoading();
     } catch (err) {
-      hideLoading();
       toast("Upload error: " + err.toString());
     }
   };
 }
+
 if (btnaddTaskRow) btnaddTaskRow.onclick = () => addTaskRow();
 if (btnsaveTaskGrades) btnsaveTaskGrades.onclick = () => saveTaskGrades();
 if (btnresetGradesUI) btnresetGradesUI.onclick = () => resetGradeUI();   //resetGradesUI -> resetGradeUI
 if (btnaddLearnerDev) btnaddLearnerDev.onclick = () => addLearnerDev();
 if (btnsaveLearnerDev) btnsaveLearnerDev.onclick = () => saveLearnerDev();
+
+if (btnrunExport) btnrunExport.onclick = () => {
+  showLoading("Exporting GRADES. Please wait...");
+  runExport();
+}
+
+if (btnclosescreenExport) btnclosescreenExport.onclick = () => closescreenExport();
+
+if (btnhandleJsonUpload) btnhandleJsonUpload.onclick = () => handleJsonUpload();
+if (btndownloadAddin) btndownloadAddin.onclick = () => downloadAddin();
+if (btnclosescreenImport) btnclosescreenImport.onclick = () => closescreenImport();
+
+if (btngoToMainMenu) btngoToMainMenu.onclick = () => goToMainMenu();
 
 if (btnPvSave) {
   btnPvSave.onclick = async () => {
@@ -10724,14 +11565,20 @@ if (btnPvSave) {
     if (!state.seat.currentSeat) return;
 
     const text = document.getElementById("pvRemarks").value.trim();
+    if (!text) {
+      toast("Please input a remarks or message.");
+      return;
+    }
+
     const seat = state.seat.currentSeat;
 
     // 🔥 get real record first (with timestamp)
-    const recRes = await apiGet({
+    /*const recRes = await apiGet({
       action: "recordByEmail",
       idToken: state.idToken,
       email: seat.studentEmail
-    });
+    });*/
+    const recRes = await apiPost("recordByEmail", { email: seat.studentEmail });
 
     if (recRes.status !== "success" || !recRes.item) {
       toast("Record not found");
@@ -10768,13 +11615,19 @@ if (btnPvMSave) {
     if (!state.seat.currentSeat) return;
 
     const text = document.getElementById("pvMRemarks").value.trim();
+    if (!text) {
+      toast("Please input a remarks or message.");
+      return;
+    }
+
     const seat = state.seat.currentSeat;
 
-    const recRes = await apiGet({
+    /*const recRes = await apiGet({
       action: "recordByEmail",
       idToken: state.idToken,
       email: seat.studentEmail
-    });
+    });*/
+    const recRes = await apiPost("recordByEmail", { email: seat.studentEmail });
 
     if (recRes.status !== "success" || !recRes.item) {
       toast("Record not found");
@@ -10844,8 +11697,9 @@ if (btnOpenSeatMap) {
 if (btnLoadSeatRoom) {
   btnLoadSeatRoom.onclick = async () => {
     const room = selSeatRoom ? (selSeatRoom.value || "").trim() : "";
-
+    showLoading("Loading Room " + room + "...");
     if (!room) {
+      hideLoading();
       toast("Select a room.");
       if (btnAddTable) btnAddTable.classList.add("hidden");
       if (seatRoomLabel) seatRoomLabel.textContent = "Room: -";
@@ -10853,11 +11707,10 @@ if (btnLoadSeatRoom) {
       return;
     }
 
-    // ✅ IMPORTANT: SET CURRENT ROOM STATE
+    // ✅ SET CURRENT ROOM STATE
     state.seat.room = room;
 
     // Loading room
-    showLoading("Loading Room...");
 
     // ✅ UPDATE ROOM LABEL SA UI
     if (seatRoomLabel) seatRoomLabel.textContent = `Room: ${room}`;
@@ -10918,7 +11771,7 @@ if (menuExport) {
 
 if (menuExportMainList) {
   menuExportMainList.onclick = async () => {
-    showLoading();
+    showLoading("Exporting student main list");
     //showScreen(screenSeatMap); // Seat map screen
     const studList = await getStudentsForExport("", "", "");
 
@@ -11130,13 +11983,6 @@ if (editStudentEmail) {
   };
 }*/
 
-if (fCourseSubject) {
-  fCourseSubject.onchange = async () => {
-    state.filters.courseSubject = fCourseSubject.value;
-    saveSession();
-  };
-}
-
 if (btnCloseSeatEdit) {
   btnCloseSeatEdit.onclick = () => closeSeatEditModal(true);
 }
@@ -11147,6 +11993,9 @@ if (btnSeatEditCancel) {
 if (btnDeleteRoom) btnDeleteRoom.onclick = deleteRoom;
 
 if (seatEditModal) {
+  setupAutocomplete(editStudentName, "name");
+  setupAutocomplete(editStudentId, "id");
+  setupAutocomplete(editStudentEmail, "email");
   seatEditModal.addEventListener("click", e => {
     if (e.target === seatEditModal) {
       closeSeatEditModal(true);
@@ -11263,26 +12112,26 @@ if (btnSeatEditDelete) {
 * purpose: Enables autofill linking between student ID, name, and email fields in add-seat form.
 ********************************************************/
 /*function setupAddTableAutofill() {
-
+ 
   const inpId = document.getElementById("inpAddStudentId");
   const inpName = document.getElementById("inpTableStudentName"); // ✅ correct
   const inpEmail = document.getElementById("inpAddStudentEmail");
-
+ 
   if (!inpId || !inpName || !inpEmail) return;
-
+ 
   const students = state.seat.masterStudents || [];
   let lock = false;
-
+ 
   const findById = (id) => {
     const key = String(id || "").trim().toLowerCase();
     return students.find(s => String(s.studentId || "").trim().toLowerCase() === key);
   };
-
+ 
   const findByName = (name) => {
     const key = String(name || "").trim().toLowerCase();
     return students.find(s => String(s.studentName || "").trim().toLowerCase() === key);
   };
-
+ 
   inpId.oninput = () => {
     if (lock) return;
     const match = findById(inpId.value);
@@ -11293,7 +12142,7 @@ if (btnSeatEditDelete) {
       lock = false;
     }
   };
-
+ 
   inpName.oninput = () => {
     if (lock) return;
     const match = findByName(inpName.value);
@@ -11424,12 +12273,14 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
         showLoading("Loading, after refresh");
         refreshNetBadgeNow();
 
-        let me = await apiGet({ action: "me", idToken: state.idToken });
+        //let me = await apiGet({ action: "me", idToken: state.idToken });
+        let me = await apiPost("me", {});
 
         if (me.status === "network_error") {
           console.warn("me() network error — retrying once...");
           await new Promise(r => setTimeout(r, 800));
-          me = await apiGet({ action: "me", idToken: state.idToken });
+          //me = await apiGet({ action: "me", idToken: state.idToken });
+          me = await apiPost("me", {});
         }
 
         if (!me || me.status !== "success") {
@@ -11541,22 +12392,23 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
         loadSeatMapMaster();
         renderPendingUI();
 
-        if (state.idToken) {
-          //console.log("Preloading Seat Master");
+        //if (state.idToken) {
+        //console.log("Preloading Seat Master");
 
-          const res = await apiGet({
-            action: "seatmapMaster",
-            idToken: state.idToken
-          });
+        /*const res = await apiGet({
+          action: "seatmapMaster",
+          idToken: state.idToken
+        });
+ 
+        if (res?.status === "success") {
+          state.seat.masterStudents = res.students || [];*/
 
-          if (res?.status === "success") {
-            state.seat.masterStudents = res.students || [];
-
-            setupAutocomplete(editStudentName, "name");
-            setupAutocomplete(editStudentId, "id");
-            setupAutocomplete(editStudentEmail, "email");
-          }
-        }
+        ensureMasterStudentsLoaded();
+        setupAutocomplete(editStudentName, "name");
+        setupAutocomplete(editStudentId, "id");
+        setupAutocomplete(editStudentEmail, "email");
+        //}
+        //}
 
         // ✅ RESTORE CURRENT SCREEN (default: list)
         const target = sess.currentScreen || "menu";
@@ -11664,9 +12516,9 @@ document.getElementById("exportCourse").addEventListener("change", () => {
 
 /* OBSOLETE */
 /*document.getElementById("exportScope").addEventListener("change", () => {
-
+ 
   const scope = document.getElementById("exportScope").value;
-
+ 
   if (scope === "student") {
     // ✅ show ALL students immediately
     loadStudents(ALL_STUDENTS);
