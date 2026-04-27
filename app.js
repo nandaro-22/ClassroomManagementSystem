@@ -594,8 +594,9 @@ async function apiPost(actionOrParams, payload = {}) {
       method: "POST",
       body: fd,
       mode: "cors",
-      signal: controller.signal,
-      credentials: "omit"
+      credentials: "omit",
+      headers: { "Accept": "application/json" },
+      signal: controller.signal
     });
 
     clearTimeout(timeout);
@@ -9727,11 +9728,22 @@ async function loadList(resetPage = false) {
 
   } catch (err) {
 
-    if (err.name === "AbortError") return;
+    clearTimeout(timeout);
 
-    console.error("loadList error:", err);
+    console.error("API ERROR FULL:", err);
 
-    toast("Network error: ", err.toString());
+    if (!navigator.onLine) {
+      return { status: "offline", message: "No internet connection" };
+    }
+
+    if (err.name === "AbortError") {
+      return { status: "timeout", message: "Request timeout" };
+    }
+
+    return {
+      status: "network_error",
+      message: "Network blocked (CORS / mobile restriction)"
+    };
   }
 }
 
