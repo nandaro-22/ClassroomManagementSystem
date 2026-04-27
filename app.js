@@ -9462,7 +9462,7 @@ async function loadCascadeOptions() {
 * return: <void>
 * purpose: Loads filtered record list with cache-first strategy, renders results, and updates cache and session.
 ********************************************************/
-async function loadList(resetPage = false) {
+/*async function loadList(resetPage = false) {
 
   if (resetPage) state.list.page = 1;
 
@@ -9517,61 +9517,267 @@ async function loadList(resetPage = false) {
     courseSubject: state.filters.courseSubject || "",
     program: state.filters.program || ""
   });*/
-  const res = await apiPost("list", {
-    page: state.list.page,
-    pageSize: state.list.pageSize,
+/*const res = await apiPost("list", {
+  page: state.list.page,
+  pageSize: state.list.pageSize,
 
-    q: state.ui.search || "",
-    noRemarks: state.ui.noRemarks ? "true" : "false",
-    onlyAssigned: state.ui.onlyAssigned ? "true" : "false",
-    notDone: state.ui.notDone ? "true" : "false",
+  q: state.ui.search || "",
+  noRemarks: state.ui.noRemarks ? "true" : "false",
+  onlyAssigned: state.ui.onlyAssigned ? "true" : "false",
+  notDone: state.ui.notDone ? "true" : "false",
 
-    schoolYear: state.filters.schoolYear || "",
-    term: state.filters.term || "",
-    courseSubject: state.filters.courseSubject || "",
-    program: state.filters.program || ""
+  schoolYear: state.filters.schoolYear || "",
+  term: state.filters.term || "",
+  courseSubject: state.filters.courseSubject || "",
+  program: state.filters.program || ""
+});
+
+if (res.status !== "success") {
+  toast(res.message || "List load failed");
+  return;
+}
+
+state.list.total = res.total || 0;
+state.list.items = res.items || [];
+state.list.page = res.page;
+state.list.maxPage = res.maxPage;
+
+// ✅ SORT 
+state.list.items.sort((a, b) => {
+  const getLast = (name) => String(name || "").split(",")[0].trim().toUpperCase();
+  return getLast(a.fullName).localeCompare(getLast(b.fullName));
+});
+
+// ✅ RENDER LIST 
+renderList();
+
+if (res.status === "success" && state.currentScreen === "menu") {
+  // ✅ RENDER DASHBOARD
+  renderDashboard();
+}
+
+// ✅ SAVE STATE
+saveSession();
+
+if (!noFilter) {
+  // 3) SAVE TO CACHE (NEXT OPEN = FAST)
+  await cacheSet(cacheKey, {
+    total: state.list.total,
+    items: state.list.items,
+    savedAt: new Date().toISOString()
   });
+}
 
-  if (res.status !== "success") {
-    toast(res.message || "List load failed");
-    return;
-  }
+btnNextTop.disabled = state.list.page >= state.list.maxPage;
+btnNext.disabled = state.list.page >= state.list.maxPage;
+btnPrevTop.disabled = state.list.page <= 1;
+btnPrev.disabled = state.list.page <= 1;
+}*/
+let LIST_ABORT = null;
+let LIST_REQUEST_ID = 0;
 
-  state.list.total = res.total || 0;
-  state.list.items = res.items || [];
-  state.list.page = res.page;
-  state.list.maxPage = res.maxPage;
+async function loadList(resetPage = false) {
 
-  // ✅ SORT 
-  state.list.items.sort((a, b) => {
-    const getLast = (name) => String(name || "").split(",")[0].trim().toUpperCase();
-    return getLast(a.fullName).localeCompare(getLast(b.fullName));
-  });
+  if (resetPage) state.list.page = 1;
 
-  // ✅ RENDER LIST 
-  renderList();
+  const requestId = ++LIST_REQUEST_ID;
 
-  if (res.status === "success" && state.currentScreen === "menu") {
-    // ✅ RENDER DASHBOARD
-    renderDashboard();
-  }
+  const noFilter =
+    !state.filters.schoolYear &&
+    !state.filters.term &&
+    !state.filters.courseSubject &&
+    !state.filters.program &&
+    !state.ui.search;
 
-  // ✅ SAVE STATE
-  saveSession();
+  const cacheKey =
+    `list_sy${state.filters.schoolYear}_t${state.filters.term}_c${state.filters.courseSubject}_p${state.filters.program}` +
+    `_p${state.list.page}_s${state.list.pageSize}` +
+    `_q${state.ui.search}_nr${state.ui.noRemarks}_oa${state.ui.onlyAssigned}_nd${state.ui.notDone}`;
 
+  // ======================================
+  // 1. INSTANT CACHE RENDER (NON-BLOCKING)
+  // ======================================
   if (!noFilter) {
-    // 3) SAVE TO CACHE (NEXT OPEN = FAST)
-    await cacheSet(cacheKey, {
-      total: state.list.total,
-      items: state.list.items,
-      savedAt: new Date().toISOString()
+    cacheGet(cacheKey).then(cached => {
+      if (requestId !== LIST_REQUEST_ID) return;
+
+      if (cached?.items?.length) {
+        state.list.total = cached.total || 0;
+        state.list.items = cached.items;
+
+        sortList();
+        renderList();
+      }
     });
   }
 
-  btnNextTop.disabled = state.list.page >= state.list.maxPage;
-  btnNext.disabled = state.list.page >= state.list.maxPage;
-  btnPrevTop.disabled = state.list.page <= 1;
-  btnPrev.disabled = state.list.page <= 1;
+  // ======================================
+  // 2. CANCEL PREVIOUS REQUEST
+  // ======================================
+  if (LIST_ABORT) {
+    LIST_ABORT.abort();
+  }
+
+  LIST_ABORT = new AbortController();
+
+  try {
+
+    // ======================================
+    // 3. FETCH (MAIN DATA)
+    // ======================================
+    const res = await apiPost("list", {
+      page: state.list.page,
+      pageSize: state.list.pageSize,
+
+      q: state.ui.search || "",
+      noRemarks: state.ui.noRemarks ? "true" : "false",
+      onlyAssigned: state.ui.onlyAssigned ? "true" : "false",
+      notDone: state.ui.notDone ? "true" : "false",
+
+      schoolYear: state.filters.schoolYear || "",
+      term: state.filters.term || "",
+      courseSubject: state.filters.courseSubject || "",
+      program: state.filters.program || ""
+    });
+
+    // ❌ outdated request protection
+    if (requestId !== LIST_REQUEST_ID) return;
+
+    if (res.status !== "success") {
+      toast(res.message || "List load failed");
+      return;
+    }
+
+    // ======================================
+    // 4. UPDATE STATE (SAFE)
+    // ======================================
+    state.list.total = res.total || 0;
+    state.list.items = res.items || [];
+    state.list.page = res.page || 1;
+    state.list.maxPage = res.maxPage || 1;
+
+    // ======================================
+    // 5. SORT ONCE (FAST)
+    // ======================================
+    sortList();
+
+    // ======================================
+    // 6. RENDER LIST IMMEDIATELY
+    // ======================================
+    renderList();
+
+    // ✅ (non-blocking grade injection)
+    injectGradesToList();
+
+    // ======================================
+    // 7. DASHBOARD (ASYNC, NON-BLOCKING)
+    // ======================================
+    if (state.currentScreen === "menu") {
+      requestIdleCallback?.(async () => {
+        await injectGradesToList();   // ensure grades exist
+        renderDashboard();
+      });
+
+      // fallback
+      if (!window.requestIdleCallback) {
+        setTimeout(async () => {
+          await injectGradesToList();
+          renderDashboard();
+        }, 0);
+      }
+    }
+
+    // ======================================
+    // 8. SAVE CACHE (BACKGROUND)
+    // ======================================
+    if (!noFilter) {
+      cacheSet(cacheKey, {
+        total: state.list.total,
+        items: state.list.items,
+        savedAt: new Date().toISOString()
+      });
+    }
+
+    // ======================================
+    // 9. UPDATE PAGINATION BUTTONS
+    // ======================================
+    updatePaginationButtons();
+
+    // ======================================
+    // 10. SAVE SESSION
+    // ======================================
+    saveSession();
+
+  } catch (err) {
+
+    if (err.name === "AbortError") return;
+
+    console.error("loadList error:", err);
+    toast("Network error");
+  }
+}
+
+/*******************************************************
+* function name: sortList
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function sortList() {
+  state.list.items.sort((a, b) => {
+    const getLast = (name) =>
+      String(name || "").split(",")[0].trim().toUpperCase();
+
+    return getLast(a.fullName).localeCompare(getLast(b.fullName));
+  });
+}
+
+/*******************************************************
+* function name: updatePaginationButtons
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function updatePaginationButtons() {
+  const p = state.list.page;
+  const max = state.list.maxPage;
+
+  if (btnNextTop) btnNextTop.disabled = p >= max;
+  if (btnNext) btnNext.disabled = p >= max;
+  if (btnPrevTop) btnPrevTop.disabled = p <= 1;
+  if (btnPrev) btnPrev.disabled = p <= 1;
+}
+
+/*******************************************************
+* function name: injectGradesToList
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function injectGradesToList() {
+  console.log("called injectGradesToList");
+  const students = state.list.items || [];
+
+  if (!students.length) return;
+
+  try {
+
+    const res = await apiPost("gradesBulkLoad", {
+      studentIds: students.map(s => s.studentId)
+    });
+    console.log("res: ", res);
+    if (res.status !== "success") return;
+
+    const map = res.map || {};
+
+    // ✅ inject WITHOUT breaking structure
+    students.forEach(stu => {
+      stu.finalGrade = Number(map[stu.studentId] || 0);
+    });
+
+  } catch (e) {
+    console.warn("Grade injection failed:", e);
+  }
 }
 
 /*******************************************************
@@ -10971,7 +11177,8 @@ function buildDashboardData() {
     notDone: 0,
     noProof: 0
   };
-
+  console.log("students: ", students);
+  console.log("seats: ", seats);
   students.forEach(stu => {
     const email = (stu.email || "").toLowerCase();
 
@@ -11042,8 +11249,8 @@ function renderDashboard() {
 
       ${renderKPI("Total Students", d.total)}
       ${renderKPI("Passing", d.passing.length, passRate + "%")}
-      ${renderKPI("Failing", d.failing.length, failRate + "%")}
       ${renderKPI("Pending", d.pending.length)}
+      ${renderKPI("Failing", d.failing.length, failRate + "%")}
 
       ${renderProgress("Pass Rate", passRate)}
       ${renderProgress("Fail Rate", failRate)}
