@@ -7993,12 +7993,21 @@ function showScreen(el) {
   // ✅ Track current screen for refresh restore
   if (el === screenMenu) {
     state.currentScreen = "menu";
-    //selPageSize.value = 999999;
-    //const n = parseInt(selPageSize.value, 10);
+    state.filters.schoolYear = "";
+    state.filters.term = "";
+    state.filters.courseSubject = "";
+    state.filters.program = "";
+    inpSearch.value = "";
+    state.ui.search = "";
+
+    state.list.page = 1;
+
     state.list.pageSize = isNaN(999999) ? 20 : 999999;
     loadList(false);
-    selPageSize.value = 20; // reset
+    // reset
+    selPageSize.value = 20;
     state.list.pageSize = 20
+
     document.getElementById("screenDash")?.classList.remove("hidden");
   }
   else if (el === screenFilters) state.currentScreen = "filters";
@@ -11654,6 +11663,8 @@ if (btnGoList) {
     state.filters.term = fTerm ? fTerm.value : "";
     state.filters.courseSubject = fCourseSubject ? fCourseSubject.value : "";
     state.filters.program = fProgram ? fProgram.value : "";
+    state.ui.search = "";
+    inpSearch.value = "";
 
     state.list.page = 1;
 
