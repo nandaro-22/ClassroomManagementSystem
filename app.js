@@ -9673,16 +9673,24 @@ async function loadList(resetPage = false) {
     // 7. DASHBOARD (ASYNC, NON-BLOCKING)
     // ======================================
     if (state.currentScreen === "menu") {
+
       requestIdleCallback?.(async () => {
-        await injectGradesToList();   // ensure grades exist
+
+        await injectGradesToList(); // already added
+        await injectSeatsToState(); // 🔥 ADD THIS
+
         renderDashboard();
+
       });
 
-      // fallback
       if (!window.requestIdleCallback) {
         setTimeout(async () => {
+
           await injectGradesToList();
+          await injectSeatsToState();
+
           renderDashboard();
+
         }, 0);
       }
     }
@@ -9777,6 +9785,32 @@ async function injectGradesToList() {
 
   } catch (e) {
     console.warn("Grade injection failed:", e);
+  }
+}
+
+let seatLoaded = false;
+
+/*******************************************************
+* function name: injectSeatsToState
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function injectSeatsToState() {
+
+  if (seatLoaded) return;
+
+  try {
+    const res = await apiPost("seatBulkLoad", {});
+    console.log("res: ", res);
+    if (res.status !== "success") return;
+
+    state.seat.seats = res.seats || [];
+
+    seatLoaded = true;
+
+  } catch (e) {
+    console.warn("Seat load failed:", e);
   }
 }
 
