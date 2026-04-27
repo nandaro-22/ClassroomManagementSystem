@@ -594,9 +594,8 @@ async function apiPost(actionOrParams, payload = {}) {
       method: "POST",
       body: fd,
       mode: "cors",
-      credentials: "omit",
-      headers: { "Accept": "application/json" },
-      signal: controller.signal
+      signal: controller.signal,
+      credentials: "omit"
     });
 
     clearTimeout(timeout);
@@ -9728,22 +9727,10 @@ async function loadList(resetPage = false) {
 
   } catch (err) {
 
-    clearTimeout(timeout);
+    if (err.name === "AbortError") return;
 
-    console.error("API ERROR FULL:", err);
-
-    if (!navigator.onLine) {
-      return { status: "offline", message: "No internet connection" };
-    }
-
-    if (err.name === "AbortError") {
-      return { status: "timeout", message: "Request timeout" };
-    }
-
-    return {
-      status: "network_error",
-      message: "Network blocked (CORS / mobile restriction)"
-    };
+    console.error("loadList error:", err);
+    toast("Network error");
   }
 }
 
@@ -11383,14 +11370,18 @@ function renderTopList(title, list, showIssues = false) {
 
       <div class="dashboardList">
         ${list.slice(0, 10).map(stu => `
-          <div class="dashboardItem" onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
+          <div class="dashboardItem"
+            onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
 
             <b>${stu.fullName || stu.studentName}</b><br>
             <span>${stu.studentId || ""}</span>
 
             ${showIssues && stu.issues ? `
-              <div style="color:#ef4444;font-size:11px;">${stu.issues.join(", ")}</div>
+              <div style="color:#ef4444;font-size:11px;">
+                ${stu.issues.join(", ")}
+              </div>
             ` : ""}
+
           </div>
         `).join("")}
       </div>
@@ -11412,14 +11403,18 @@ function renderDashCard(title, list, clickable = false, showIssues = false) {
 
       <div class="dashboardList">
         ${list.slice(0, 20).map(stu => `
-          <div class="dashboardItem" onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
+          <div class="dashboardItem"
+            onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
 
             <b>${stu.fullName || stu.studentName || "-"}</b><br>
             <span>${stu.studentId || ""}</span>
 
             ${showIssues && stu.issues ? `
-              <div style="color:#ef4444;font-size:11px;">${stu.issues.join(", ")}</div>
+              <div style="color:#ef4444;font-size:11px;">
+                ${stu.issues.join(", ")}
+              </div>
             ` : ""}
+
           </div>
         `).join("")}
       </div>
