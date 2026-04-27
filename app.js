@@ -585,10 +585,17 @@ async function apiPost(actionOrParams, payload = {}) {
     const fd = new FormData();
     fd.append("payload", JSON.stringify(payload || {}));
 
-    const res = await fetch(url, {
+    /*const res = await fetch(url, {
       method: "POST",
       body: fd,
       signal: controller.signal
+    });*/
+    const res = await fetch(url, {
+      method: "POST",
+      body: fd,
+      mode: "cors",
+      signal: controller.signal,
+      credentials: "omit"
     });
 
     clearTimeout(timeout);
@@ -7986,7 +7993,12 @@ function showScreen(el) {
   // ✅ Track current screen for refresh restore
   if (el === screenMenu) {
     state.currentScreen = "menu";
-    loadList(true);
+    //selPageSize.value = 999999;
+    //const n = parseInt(selPageSize.value, 10);
+    state.list.pageSize = isNaN(999999) ? 20 : 999999;
+    loadList(false);
+    selPageSize.value = 20; // reset
+    state.list.pageSize = 20
     document.getElementById("screenDash")?.classList.remove("hidden");
   }
   else if (el === screenFilters) state.currentScreen = "filters";
@@ -9539,8 +9551,10 @@ async function loadList(resetPage = false) {
   // ✅ RENDER LIST 
   renderList();
 
-  // ✅ RENDER DASHBOARD
-  renderDashboard();
+  if (res.status === "success" && state.currentScreen === "menu") {
+    // ✅ RENDER DASHBOARD
+    renderDashboard();
+  }
 
   // ✅ SAVE STATE
   saveSession();
