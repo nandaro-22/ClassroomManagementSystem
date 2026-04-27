@@ -9730,7 +9730,8 @@ async function loadList(resetPage = false) {
     if (err.name === "AbortError") return;
 
     console.error("loadList error:", err);
-    toast("Network error");
+
+    toast("Network error: ", err.toString());
   }
 }
 
@@ -11370,18 +11371,14 @@ function renderTopList(title, list, showIssues = false) {
 
       <div class="dashboardList">
         ${list.slice(0, 10).map(stu => `
-          <div class="dashboardItem"
-            onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
+          <div class="dashboardItem" onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
 
             <b>${stu.fullName || stu.studentName}</b><br>
             <span>${stu.studentId || ""}</span>
 
             ${showIssues && stu.issues ? `
-              <div style="color:#ef4444;font-size:11px;">
-                ${stu.issues.join(", ")}
-              </div>
+              <div style="color:#ef4444;font-size:11px;">${stu.issues.join(", ")}</div>
             ` : ""}
-
           </div>
         `).join("")}
       </div>
@@ -11403,18 +11400,14 @@ function renderDashCard(title, list, clickable = false, showIssues = false) {
 
       <div class="dashboardList">
         ${list.slice(0, 20).map(stu => `
-          <div class="dashboardItem"
-            onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
+          <div class="dashboardItem" onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
 
             <b>${stu.fullName || stu.studentName || "-"}</b><br>
             <span>${stu.studentId || ""}</span>
 
             ${showIssues && stu.issues ? `
-              <div style="color:#ef4444;font-size:11px;">
-                ${stu.issues.join(", ")}
-              </div>
+              <div style="color:#ef4444;font-size:11px;">${stu.issues.join(", ")}</div>
             ` : ""}
-
           </div>
         `).join("")}
       </div>
