@@ -8002,7 +8002,7 @@ function showScreen(el) {
 
     state.list.page = 1;
 
-    state.list.pageSize = isNaN(999999) ? 20 : 999999;
+    state.list.pageSize = isNaN(50) ? 20 : 50;
     loadList(false);
     // reset
     selPageSize.value = 20;
@@ -11373,7 +11373,7 @@ function renderTopList(title, list, showIssues = false) {
           <div class="dashboardItem"
             onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
 
-            <b>${stu.fullName || stu.studentName}</b><br>
+            <b>${(stu.fullName || stu.studentName).toUpperCase()}</b><br>
             <span>${stu.studentId || ""}</span>
 
             ${showIssues && stu.issues ? `
@@ -11406,7 +11406,7 @@ function renderDashCard(title, list, clickable = false, showIssues = false) {
           <div class="dashboardItem"
             onclick='openDetails(${JSON.stringify(stu).replace(/'/g, "&apos;")})'>
 
-            <b>${stu.fullName || stu.studentName || "-"}</b><br>
+            <b>${(stu.fullName || stu.studentName || "-").toUpperCase()}</b><br>
             <span>${stu.studentId || ""}</span>
 
             ${showIssues && stu.issues ? `
