@@ -130,7 +130,6 @@
 			<h2>Dashboard</h2>
 
 			<div id="dashboardWrap" class="dashboardWrap"></div>
-
 		</section>
 
 		<!-- SCREEN: LIST -->
@@ -483,12 +482,8 @@
 						<div class="muted">Final Grade</div>
 						<div style="font-size:22px;font-weight:900;" id="finalGradeValue">—</div>
 
-						<div id="finalGradeNote" style="
-						margin-top: 6px;
-						font-size: 12px;
-						color: #64748b;
-						font-style: italic;
-						">
+						<div id="finalGradeNote"
+							style="margin-top: 6px; font-size: 12px; color: #64748b;font-style: italic;">
 						</div>
 					</div>
 
@@ -531,7 +526,9 @@
 			<div class="toolbar seatToolbar" style="margin-top:14px;">
 				<div class="seatRoomSelect">
 					<label>Room</label>
-					<select id="selSeatRoom"></select>
+					<select id="selSeatRoom">
+						<option value="">-- Select --</option>
+					</select>
 				</div>
 
 				<button id="btnLoadSeatRoom" class="btnPrimary">Load Room</button>
