@@ -493,7 +493,7 @@ const state = {
 
   list: {
     page: 1,
-    pageSize: 999999,  // ✅ show ALL students
+    pageSize: "ALL",  // ✅ show ALL students
     total: 0,
     items: []
   },
@@ -8002,7 +8002,7 @@ function showScreen(el) {
 
     state.list.page = 1;
 
-    state.list.pageSize = isNaN(50) ? 20 : 50;
+    state.list.pageSize = "ALL";
     loadList(false);
     // reset
     selPageSize.value = 20;
@@ -9636,7 +9636,7 @@ async function loadList(resetPage = false) {
     // ======================================
     const res = await apiPost("list", {
       page: state.list.page,
-      pageSize: state.list.pageSize,
+      pageSize: state.list.pageSize === "ALL" ? "ALL" : state.list.pageSize,
 
       q: state.ui.search || "",
       noRemarks: state.ui.noRemarks ? "true" : "false",
@@ -9833,14 +9833,23 @@ function renderList() {
 
   if (!listWrap) return;
 
-  listWrap.innerHTML = "";
+  let start, end;
 
-  const start = (state.list.page - 1) * state.list.pageSize + 1;
-  const end = Math.min(start + state.list.items.length - 1, state.list.total);
+  if (state.list.pageSize === "ALL") {
+    start = state.list.total > 0 ? 1 : 0;
+    end = state.list.total;
+  } else {
+    const pageSize = Number(state.list.pageSize || 0);
+    const page = Number(state.list.page || 1);
+    const total = Number(state.list.total || 0);
+
+    start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+    end = Math.min(start + pageSize - 1, total);
+  }
 
   if (lblRecordCount) {
     //lblRecordCount.textContent = `Record ${state.list.items.length} of ${state.list.total}`;
-    lblRecordCount.textContent = `Showing ${start} to ${end} of ${state.list.total}`;
+    lblRecordCount.textContent = `Showing ${start || 0} to ${end || 0} of ${state.list.total || 0}`;
   }
   if (lblPage) lblPage.textContent = `Page ${state.list.page}`;
   if (lblPageTop) lblPageTop.textContent = `Page ${state.list.page}`;
@@ -11443,9 +11452,13 @@ if (btnSaveConfig) {
 
 if (selPageSize) {
   selPageSize.onchange = async () => {
-    const n = parseInt(selPageSize.value, 10);
+    /*const n = parseInt(selPageSize.value, 10);
     state.list.pageSize = isNaN(n) ? 20 : n;
-    state.list.page = 1; // reset to first page
+    state.list.page = 1; // reset to first page*/
+    const val = selPageSize.value;
+
+    state.list.pageSize = (val === "ALL") ? "ALL" : parseInt(val, 10);
+    state.list.page = 1;
     saveSession();
     await loadList(true);
   };
