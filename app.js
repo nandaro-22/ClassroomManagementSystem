@@ -472,7 +472,7 @@ const state = {
   idToken: "",
   me: null,
 
-  currentScreen: "menu", //config
+  currentScreen: "config",
 
   nav: {
     backTo: "menu" // "menu" | "list" | "seatmap"
@@ -585,17 +585,10 @@ async function apiPost(actionOrParams, payload = {}) {
     const fd = new FormData();
     fd.append("payload", JSON.stringify(payload || {}));
 
-    /*const res = await fetch(url, {
-      method: "POST",
-      body: fd,
-      signal: controller.signal
-    });*/
     const res = await fetch(url, {
       method: "POST",
       body: fd,
-      mode: "cors",
-      signal: controller.signal,
-      credentials: "omit"
+      signal: controller.signal
     });
 
     clearTimeout(timeout);
@@ -2258,7 +2251,6 @@ async function saveTaskGrades() {
     if (!res || res.status !== "success") {
       hideLoading();
       toast("❌ Save failed. " || res?.message);
-      console.warn("❌ Save failed. " || res?.message);
       return;
     }
 
@@ -2271,7 +2263,6 @@ async function saveTaskGrades() {
     hideLoading();
     //console.error(e);
     toast("❌ Save Failed: ", e.toString());
-    console.warn("❌ Save Failed: ", e.toString());
   }
 }
 
@@ -2682,7 +2673,6 @@ async function processImportJSON(text) {
     hideLoading();
     //console.error(err);
     toast("Invalid file format. " || err.message);
-    console.warn("Invalid file format. " || err.message);
   }
 }
 
@@ -3108,7 +3098,6 @@ async function addRoom() {
     if (res.status !== "success") {
       hideLoading();
       toast(res.message || "Add room failed");
-      console.warn(res.message || "Add room failed");
       return;
     }
 
@@ -3146,14 +3135,12 @@ async function loadRooms() {
 
     if (res.status !== "success") {
       console.warn("Rooms endpoint not ready:", res.message);
-      toast("Rooms endpoint not ready:", res.message);
       return;
     }
 
     fillSelect(selSeatRoom, res.rooms || []);
   } catch (e) {
     console.warn("loadRooms failed:", e.toString());
-    toast("loadRooms failed:", e.toString());
   }
 }
 
@@ -3196,7 +3183,6 @@ async function deleteRoom() {
     if (res.status !== "success") {
       hideLoading();
       toast("Delete room failed. " || res.message);
-      console.warn("Delete room failed. " || res.message);
       return;
     }
 
@@ -3213,11 +3199,10 @@ async function deleteRoom() {
 
     hideLoading();
     toast(`Room deleted! Seats removed: ${res.deleted || 0}`);
-    console.warn(`Room deleted! Seats removed: ${res.deleted || 0}`);
+
   } catch (e) {
     hideLoading();
     toast("Delete room error: " + e.toString());
-    console.warn("Delete room error: " + e.toString());
   }
 }
 
@@ -3289,7 +3274,6 @@ async function removeLastSeat() {
     if (res.status !== "success") {
       hideLoading();
       toast(res.message || "Failed to remove seat.");
-      console.warn(res.message || "Failed to remove seat.");
       return;
     }
 
@@ -3302,7 +3286,6 @@ async function removeLastSeat() {
 
   } catch (err) {
     toast("Error removing seat: " + err.message);
-    console.warn("Error removing seat: " + err.message);
   }
 }
 
@@ -3917,7 +3900,6 @@ async function saveLearnerDev() {
   } catch (err) {
     hideLoading();
     toast("Save error: " + err.toString());
-    console.warn("Save error: " + err.toString());
   }
 }
 
@@ -4117,7 +4099,6 @@ async function handleUploadEvidence(file) {
     hideLoading();
     //toast("Upload error: " + err.toString());
     toast("Upload error: " + err.toString());
-    console.warn("Upload error: " + err.toString());
   }
 }
 
@@ -4404,7 +4385,6 @@ async function onGoogleCredential(resp) {
 
       } catch (e) {
         toast(e.stack);
-        console.warn(e.stack);
       }
       return;
     } else {
@@ -5958,7 +5938,7 @@ async function exportPDF(students) {
     /*******************************************************
      * ERROR HANDLING
      *******************************************************/
-    console.warn("PDF Export Error:", err);
+    //console.error("PDF Export Error:", err);
     toast("PDF failed. " + err.toString());
   }
 }
@@ -7991,6 +7971,11 @@ function showScreen(el) {
   //document.getElementById('tabContentGrades')?.classList.add('hidden');
   //document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
 
+  // ✅ update Delete Room button visibility ONLY when seat map is shown
+  if (el === screenSeatMap) {
+    updateDeleteRoomButtonVisibility();
+  }
+
   // ✅ FIX: hide Online badge when logged out (Setup/Login screen)
   if (el === screenConfig) {
     hideNetBadge();
@@ -8007,17 +7992,11 @@ function showScreen(el) {
   else if (el === screenFilters) state.currentScreen = "filters";
   else if (el === screenList) state.currentScreen = "list";
   else if (el === screenDetails) state.currentScreen = "details";
-  else if (el === screenSeatMap) {   // ✅ update Delete Room button visibility ONLY when seat map is shown
-    state.currentScreen = "seatmap";
-    selSeatRoom.value = "";
-    //await loadRooms();
-    updateDeleteRoomButtonVisibility();
-  }
+  else if (el === screenSeatMap) state.currentScreen = "seatmap";
   else if (el === screenExport) state.currentScreen = "export"
   else if (el === screenImport) state.currentScreen = "import"
-  else if (el === screenConfig) state.currentScreen = "config"; //Log in
-  //else state.currentScreen = "config";
-  else state.currentScreen = "menu";
+  else if (el === screenConfig) state.currentScreen = "config";
+  else state.currentScreen = "config";
   /*else {
     state.currentScreen = "menu";
     loadList(true);
@@ -8933,14 +8912,10 @@ function saveSession() {
       selectedEmail: state.selected?.email || "",
       selectedIdx: state.selected?.idxInList ?? 0,
       lastScreenBeforeDetails: lastScreenBeforeDetails || "",
-      currentScreen: state.currentScreen || "menu",
-
-      room: state.seat.room || ""
+      currentScreen: state.currentScreen || "menu"
     };
     localStorage.setItem(LS_SESSION, JSON.stringify(data));
-  } catch (e) {
-    console.error("saveSession error: ", e);
-  }
+  } catch (e) { }
 }
 
 /*******************************************************
@@ -9383,7 +9358,6 @@ async function loadInitialFilters() {
 
   if (res.status !== "success") {
     toast(res.message || "Failed loading dropdown filters");
-    console.warn(res.message || "Failed loading dropdown filters");
     return;
   }
 
@@ -9476,7 +9450,7 @@ async function loadCascadeOptions() {
 * return: <void>
 * purpose: Loads filtered record list with cache-first strategy, renders results, and updates cache and session.
 ********************************************************/
-/*async function loadList(resetPage = false) {
+async function loadList(resetPage = false) {
 
   if (resetPage) state.list.page = 1;
 
@@ -9531,215 +9505,56 @@ async function loadCascadeOptions() {
     courseSubject: state.filters.courseSubject || "",
     program: state.filters.program || ""
   });*/
-/*const res = await apiPost("list", {
-  page: state.list.page,
-  pageSize: state.list.pageSize,
+  const res = await apiPost("list", {
+    page: state.list.page,
+    pageSize: state.list.pageSize === "ALL" ? "ALL" : state.list.pageSize,
 
-  q: state.ui.search || "",
-  noRemarks: state.ui.noRemarks ? "true" : "false",
-  onlyAssigned: state.ui.onlyAssigned ? "true" : "false",
-  notDone: state.ui.notDone ? "true" : "false",
+    q: state.ui.search || "",
+    noRemarks: state.ui.noRemarks ? "true" : "false",
+    onlyAssigned: state.ui.onlyAssigned ? "true" : "false",
+    notDone: state.ui.notDone ? "true" : "false",
 
-  schoolYear: state.filters.schoolYear || "",
-  term: state.filters.term || "",
-  courseSubject: state.filters.courseSubject || "",
-  program: state.filters.program || ""
-});
-
-if (res.status !== "success") {
-  toast(res.message || "List load failed");
-  return;
-}
-
-state.list.total = res.total || 0;
-state.list.items = res.items || [];
-state.list.page = res.page;
-state.list.maxPage = res.maxPage;
-
-// ✅ SORT 
-state.list.items.sort((a, b) => {
-  const getLast = (name) => String(name || "").split(",")[0].trim().toUpperCase();
-  return getLast(a.fullName).localeCompare(getLast(b.fullName));
-});
-
-// ✅ RENDER LIST 
-renderList();
-
-if (res.status === "success" && state.currentScreen === "menu") {
-  // ✅ RENDER DASHBOARD
-  renderDashboard();
-}
-
-// ✅ SAVE STATE
-saveSession();
-
-if (!noFilter) {
-  // 3) SAVE TO CACHE (NEXT OPEN = FAST)
-  await cacheSet(cacheKey, {
-    total: state.list.total,
-    items: state.list.items,
-    savedAt: new Date().toISOString()
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || "",
+    courseSubject: state.filters.courseSubject || "",
+    program: state.filters.program || ""
   });
-}
 
-btnNextTop.disabled = state.list.page >= state.list.maxPage;
-btnNext.disabled = state.list.page >= state.list.maxPage;
-btnPrevTop.disabled = state.list.page <= 1;
-btnPrev.disabled = state.list.page <= 1;
-}*/
-let LIST_ABORT = null;
-let LIST_REQUEST_ID = 0;
-
-async function loadList(resetPage = false) {
-
-  if (resetPage) state.list.page = 1;
-
-  const requestId = ++LIST_REQUEST_ID;
-
-  const noFilter =
-    !state.filters.schoolYear &&
-    !state.filters.term &&
-    !state.filters.courseSubject &&
-    !state.filters.program &&
-    !state.ui.search;
-
-  const cacheKey =
-    `list_sy${state.filters.schoolYear}_t${state.filters.term}_c${state.filters.courseSubject}_p${state.filters.program}` +
-    `_p${state.list.page}_s${state.list.pageSize}` +
-    `_q${state.ui.search}_nr${state.ui.noRemarks}_oa${state.ui.onlyAssigned}_nd${state.ui.notDone}`;
-
-  // ======================================
-  // 1. INSTANT CACHE RENDER (NON-BLOCKING)
-  // ======================================
-  if (!noFilter) {
-    cacheGet(cacheKey).then(cached => {
-      if (requestId !== LIST_REQUEST_ID) return;
-
-      if (cached?.items?.length) {
-        state.list.total = cached.total || 0;
-        state.list.items = cached.items;
-
-        sortList();
-        renderList();
-      }
-    });
+  if (res.status !== "success") {
+    toast(res.message || "List load failed");
+    return;
   }
 
-  // ======================================
-  // 2. CANCEL PREVIOUS REQUEST
-  // ======================================
-  if (LIST_ABORT) {
-    LIST_ABORT.abort();
-  }
+  state.list.total = res.total || 0;
+  state.list.items = res.items || [];
+  state.list.page = res.page;
+  state.list.maxPage = res.maxPage;
 
-  LIST_ABORT = new AbortController();
-
-  try {
-
-    // ======================================
-    // 3. FETCH (MAIN DATA)
-    // ======================================
-    const res = await apiPost("list", {
-      page: state.list.page,
-      pageSize: state.list.pageSize === "ALL" ? "ALL" : state.list.pageSize,
-
-      q: state.ui.search || "",
-      noRemarks: state.ui.noRemarks ? "true" : "false",
-      onlyAssigned: state.ui.onlyAssigned ? "true" : "false",
-      notDone: state.ui.notDone ? "true" : "false",
-
-      schoolYear: state.filters.schoolYear || "",
-      term: state.filters.term || "",
-      courseSubject: state.filters.courseSubject || "",
-      program: state.filters.program || ""
-    });
-
-    // ❌ outdated request protection
-    if (requestId !== LIST_REQUEST_ID) return;
-
-    if (res.status !== "success") {
-      toast(res.message || "List load failed");
-      console.warn(res.message || "List load failed");
-      return;
-    }
-
-    // ======================================
-    // 4. UPDATE STATE (SAFE)
-    // ======================================
-    state.list.total = res.total || 0;
-    state.list.items = res.items || [];
-    state.list.page = res.page || 1;
-    state.list.maxPage = res.maxPage || 1;
-
-    // ======================================
-    // 5. SORT ONCE (FAST)
-    // ======================================
-    sortList();
-
-    // ======================================
-    // 6. RENDER LIST IMMEDIATELY
-    // ======================================
-    renderList();
-
-    // ======================================
-    // 7. SAVE CACHE (BACKGROUND)
-    // ======================================
-    if (!noFilter) {
-      cacheSet(cacheKey, {
-        total: state.list.total,
-        items: state.list.items,
-        savedAt: new Date().toISOString()
-      });
-    }
-
-    // ======================================
-    // 8. UPDATE PAGINATION BUTTONS
-    // ======================================
-    updatePaginationButtons();
-
-    // ======================================
-    // 9. SAVE SESSION
-    // ======================================
-    saveSession();
-
-  } catch (err) {
-
-    if (err.name === "AbortError") return;
-
-    console.error("loadList error:", err);
-    toast("Network error");
-  }
-}
-
-/*******************************************************
-* function name: sortList
-* parameter: 
-* return: 
-* purpose: 
-********************************************************/
-function sortList() {
+  // ✅ SORT 
   state.list.items.sort((a, b) => {
-    const getLast = (name) =>
-      String(name || "").split(",")[0].trim().toUpperCase();
-
+    const getLast = (name) => String(name || "").split(",")[0].trim().toUpperCase();
     return getLast(a.fullName).localeCompare(getLast(b.fullName));
   });
-}
 
-/*******************************************************
-* function name: updatePaginationButtons
-* parameter: 
-* return: 
-* purpose: 
-********************************************************/
-function updatePaginationButtons() {
-  const p = state.list.page;
-  const max = state.list.maxPage;
+  // ✅ RENDER LIST 
+  renderList();
 
-  if (btnNextTop) btnNextTop.disabled = p >= max;
-  if (btnNext) btnNext.disabled = p >= max;
-  if (btnPrevTop) btnPrevTop.disabled = p <= 1;
-  if (btnPrev) btnPrev.disabled = p <= 1;
+  // ✅ SAVE STATE
+  saveSession();
+
+  if (!noFilter) {
+    // 3) SAVE TO CACHE (NEXT OPEN = FAST)
+    await cacheSet(cacheKey, {
+      total: state.list.total,
+      items: state.list.items,
+      savedAt: new Date().toISOString()
+    });
+  }
+
+  btnNextTop.disabled = state.list.page >= state.list.maxPage;
+  btnNext.disabled = state.list.page >= state.list.maxPage;
+  btnPrevTop.disabled = state.list.page <= 1;
+  btnPrev.disabled = state.list.page <= 1;
 }
 
 /*******************************************************
@@ -9749,8 +9564,11 @@ function updatePaginationButtons() {
 * purpose: Renders the main record list UI with photo thumbnails, tags, and click handlers for details view.
 ********************************************************/
 function renderList() {
+  lastScreenBeforeDetails = "screenList";
 
   if (!listWrap) return;
+
+  listWrap.innerHTML = "";
 
   let start, end;
 
@@ -10071,8 +9889,8 @@ function renderFacebookField(label, value) {
 async function openDetails(item, idxInList = 0) {
 
   try {
-    //document.getElementById('tabContentGrades')?.classList.add('hidden');
-    //document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
+    document.getElementById('tabContentGrades')?.classList.add('hidden');
+    document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
 
     state.selected = { ...item, recordKey: buildRecordKey(item), idxInList };
 
@@ -10081,7 +9899,7 @@ async function openDetails(item, idxInList = 0) {
     state.selectedEmail = item.email;
 
     //updateGradeSeat();
-    //saveSession();
+    saveSession();
 
     renderRecordNav(idxInList);
 
@@ -10145,7 +9963,6 @@ async function openDetails(item, idxInList = 0) {
 
           if (!fileId) {
             toast("No Proof of Enrollment file found.");
-            hideLoading();
             return;
           }
 
@@ -10156,10 +9973,7 @@ async function openDetails(item, idxInList = 0) {
           });*/
           const res = await apiPost("photo", { fileId: fileId });
 
-          if (res.status !== "success") {
-            hideLoading();
-            throw new Error(res.message || "Failed to load proof");
-          }
+          if (res.status !== "success") throw new Error(res.message || "Failed to load proof");
 
           const mime = res.mimeType || "image/jpeg";
           const dataUrl = `data:${mime};base64,${res.base64}`;
@@ -10168,7 +9982,6 @@ async function openDetails(item, idxInList = 0) {
         } catch (err) {
           hideLoading();
           toast("Proof open failed: " + err.toString());
-          console.warn("Proof open failed: " + err.toString());
         }
       };
     }
@@ -10294,7 +10107,6 @@ if (btnSeatPreviewUpload) {
 
     } catch (err) {
       toast("Upload error: " + err.message);
-      console.warn("Upload error: " + err.message);
     }
   };
 }
@@ -10649,7 +10461,6 @@ async function loadEvidenceList() {
 
         if (res.status !== "success") {
           toast(res.message || "Failed to load evidence image.");
-          console.warn(res.message || "Failed to load evidence image.");
           return;
         }
 
@@ -10682,7 +10493,6 @@ async function loadEvidenceList() {
       } catch (err) {
         hideLoading();
         toast("Evidence view error: " + err.toString());
-        console.warn("Evidence view error: " + err.toString());
       }
     };
   });
@@ -10713,7 +10523,6 @@ async function loadHistory() {
 
   if (res.status !== "success") {
     toast(res.message || "History load failed");
-    console.warn(res.message || "History load failed");
     return;
   }
 
@@ -10791,7 +10600,6 @@ async function saveCurrent() {
   if (res.status !== "success") {
     hideLoading();
     toast(res.message || "Save failed");
-    console.warn(res.message || "Save failed");
     return;
   }
 
@@ -10923,7 +10731,6 @@ async function loadSeatPhotosInGrid() {
   } catch (err) {
     //console.warn("Seat photo load failed:", err);
     toast("Seat photo load failed: " + err.toString());
-    console.warn("Seat photo load failed: " + err.toString());
   }
 }
 
@@ -10951,7 +10758,6 @@ async function openStudentDetailsByEmail(email) {
 
     if (!res || res.status !== "success" || !res.item) {
       toast(res?.message || "Student not found.");
-      console.warn(res?.message || "Student not found.");
       return;
     }
 
@@ -10965,7 +10771,6 @@ async function openStudentDetailsByEmail(email) {
     hideLoading();
   } catch (err) {
     toast("Open student error: " + err.toString());
-    console.warn("Open student error: " + err.toString());
     hideLoading();
   }
 }
@@ -11003,7 +10808,6 @@ async function saveSeat() {
 
     if (res.status !== "success") {
       toast(res.message || "Save seat failed");
-      console.warn(res.message || "Save seat failed");
       hideLoading();
       return;
     }
@@ -11013,7 +10817,6 @@ async function saveSeat() {
     hideLoading();
   } catch (e) {
     toast("Save seat error: " + e.toString());
-    console.warn("Save seat error: " + e.toString());
     hideLoading();
   }
 }
@@ -11133,6 +10936,53 @@ function goToMainMenu() {
    DASHBOARD
 =========================== */
 /*******************************************************
+* function name: loadDashboard
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function loadDashboard() {
+
+  const wrap = document.getElementById("dashboardWrap");
+  if (!wrap) return;
+
+  // show loading text while waiting
+  if (wrap) wrap.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;color:#94a3b8;">
+          Loading...
+        </td>
+      </tr>
+    `;
+
+  const res = await apiPost("dashboardAll", {
+    schoolYear: state.filters.schoolYear || "",
+    term: state.filters.term || "",
+    courseSubject: state.filters.courseSubject || ""
+  });
+
+  if (res.status !== "success") {
+    toast(res.message || "Dashboard load failed");
+    console.warn("Dashboard load failed: ", res.message);
+    return;
+  }
+
+  state.dashboard = res.students || [];
+
+  // 🔥 IMPORTANT FIX
+  state.list.items = res.students.map(s => ({
+    studentId: s.studentId,
+    fullName: s.fullName,
+    email: s.email || "",        // must exist (see backend fix below)
+    remarks: s.hasRemarks ? "✔" : "",
+    done: s.done,
+    enrollmentProof: s.hasProof ? "✔" : ""
+  }));
+
+  renderDashboard();
+}
+
+/*******************************************************
 * function name: buildDashboardData
 * parameter: 
 * return: 
@@ -11215,6 +11065,12 @@ function buildDashboardData() {
 ********************************************************/
 function renderDashboard() {
 
+  const students = state.dashboard || [];
+  const pending = students.filter(s => !s.done || !s.hasRemarks || !s.hasProof);
+  const failing = students.filter(s => s.finalGrade > 0 && s.finalGrade < 75);
+  state.dashboardCtx = { pending, failing };
+  console.log({ students, pending, failing });
+
   const wrap = document.getElementById("dashboardWrap");
   if (!wrap) return;
 
@@ -11238,8 +11094,8 @@ function renderDashboard() {
       ${renderSeatAnalytics(d)}
       ${renderPendingBreakdown(d)}
 
-      ${renderTopList("⚠️ Failing Students", d.failing)}
-      ${renderTopList("📝 Pending Students", d.pending, true)}
+      ${renderTopList("⚠️ " + d.failing.length + " Failing Students", d.failing)}
+      ${renderTopList("📝 " + d.pending.length + " Pending Students", d.pending, true)}
 
     </div>
   `;
@@ -11307,8 +11163,8 @@ function renderTopList(title, list, showIssues = false) {
       <div class="dashboardTitle">${title}</div>
 
       <div class="dashboardList">
-        ${list.slice(0, 10).map(stu => `
-          <div class="dashboardItem" onclick="openStudentDetailsByEmail('${stu.email}')">
+        ${list.slice(0, 10).map((stu, index) => `
+          <div class="dashboardItem" onclick="openDashboardStudent('${title}',${index})">
 
             <b>${(stu.fullName || stu.studentName).toUpperCase()}</b><br>
             <span>${stu.studentId || ""}</span>
@@ -11322,50 +11178,21 @@ function renderTopList(title, list, showIssues = false) {
 }
 
 /*******************************************************
-* function name: loadDashboard
+* function name: openDashboardStudent
 * parameter: 
 * return: 
 * purpose: 
 ********************************************************/
-async function loadDashboard() {
+async function openDashboardStudent(type, index) {
 
-  const wrap = document.getElementById("dashboardWrap");
-  if (!wrap) return;
+  let list = type.includes("Pending") ? state.dashboardCtx.pending : state.dashboardCtx.failing;
 
-  // show loading text while waiting
-  if (wrap) wrap.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align:center;color:#94a3b8;">
-          Loading...
-        </td>
-      </tr>
-    `;
+  state.list.items = list;
 
-  const res = await apiPost("dashboardAll", {
-    schoolYear: state.filters.schoolYear || "",
-    term: state.filters.term || "",
-    courseSubject: state.filters.courseSubject || ""
-  });
+  showScreen(screenDetails);
 
-  if (res.status !== "success") {
-    toast(res.message || "Dashboard load failed");
-    console.warn("Dashboard load failed: ", res.message);
-    return;
-  }
+  openDetailsByIndex(index);
 
-  state.dashboard = res.students || [];
-
-  // 🔥 IMPORTANT FIX
-  state.list.items = res.students.map(s => ({
-    studentId: s.studentId,
-    fullName: s.fullName,
-    email: s.email || "",        // must exist (see backend fix below)
-    remarks: s.hasRemarks ? "✔" : "",
-    done: s.done,
-    enrollmentProof: s.hasProof ? "✔" : ""
-  }));
-
-  renderDashboard();
 }
 
 /* ===========================
@@ -11387,6 +11214,15 @@ if (btnSaveConfig) {
   };
 }
 
+/*if (selPageSize) {
+  selPageSize.onchange = async () => {
+    const n = parseInt(selPageSize.value, 10);
+    state.list.pageSize = isNaN(n) ? 20 : n;
+    state.list.page = 1; // reset to first page
+    saveSession();
+    await loadList(true);
+  };
+}*/
 if (selPageSize) {
   selPageSize.onchange = async () => {
     /*const n = parseInt(selPageSize.value, 10);
@@ -11583,14 +11419,12 @@ if (fSchoolYear) {
   fSchoolYear.onchange = async () => {
     state.filters.schoolYear = fSchoolYear.value;
     await loadCascadeOptions();
-    saveSession();
   };
 }
 if (fTerm) {
   fTerm.onchange = async () => {
     state.filters.term = fTerm.value;
     await loadCascadeOptions();
-    saveSession();
   };
 }
 
@@ -11606,7 +11440,6 @@ if (fProgram) {
   fProgram.onchange = async () => {
     state.filters.program = fProgram.value;
     await loadCascadeOptions();
-    saveSession();
   };
 }
 
@@ -11616,8 +11449,6 @@ if (btnGoList) {
     state.filters.term = fTerm ? fTerm.value : "";
     state.filters.courseSubject = fCourseSubject ? fCourseSubject.value : "";
     state.filters.program = fProgram ? fProgram.value : "";
-    state.ui.search = "";
-    inpSearch.value = "";
 
     state.list.page = 1;
 
@@ -11726,6 +11557,8 @@ if (btnBackToList) {
     } else if (lastScreenBeforeDetails === "menu") {
       //document.getElementById('tabContentGrades')?.classList.add('hidden');
       showScreen(screenMenu);
+      lastScreenBeforeDetails = null;
+      return;
     } else {
       //document.getElementById('tabContentGrades')?.classList.add('hidden');
       showScreen(screenList);
@@ -11755,7 +11588,6 @@ if (btnUploadEvidence) {
       await loadEvidenceList();
     } catch (err) {
       toast("Upload error: " + err.toString());
-      console.warn("Upload error: " + err.toString());
     }
   };
 }
@@ -11824,7 +11656,6 @@ if (btnPvSave) {
       toast("Remarks saved ✔");
     } else {
       toast("Save failed. " || res.message);
-      console.warn("Save failed. " || res.message);
     }
   };
 }
@@ -11874,7 +11705,6 @@ if (btnPvMSave) {
       toast("Remarks saved ✔");
     } else {
       toast("Save failed. " || res.message);
-      console.warn("Save failed. " || res.message);
     }
   };
 }
@@ -11922,9 +11752,7 @@ if (btnOpenSeatMap) {
 if (btnLoadSeatRoom) {
   btnLoadSeatRoom.onclick = async () => {
     const room = selSeatRoom ? (selSeatRoom.value || "").trim() : "";
-
     showLoading("Loading Room " + room + "...");
-
     if (!room) {
       hideLoading();
       toast("Select a room.");
@@ -11936,7 +11764,6 @@ if (btnLoadSeatRoom) {
 
     // ✅ SET CURRENT ROOM STATE
     state.seat.room = room;
-    selSeatRoom.value = room;
 
     // Loading room
 
@@ -11947,7 +11774,7 @@ if (btnLoadSeatRoom) {
     if (btnAddTable) btnAddTable.classList.remove("hidden");
 
     // show loading text while waiting
-    if (seatGrid) seatGrid.innerHTML = `<div class="muted">Loading seats from Room ${room}...</div>`;
+    if (seatGrid) seatGrid.innerHTML = `<div class="muted">Loading seats...</div>`;
 
     updateDeleteRoomButtonVisibility();
 
@@ -11960,8 +11787,6 @@ if (btnLoadSeatRoom) {
     // refresh debug info if open
     refreshDebugInfo();
 
-    saveSession();
-
     hideLoading();
   };
 }
@@ -11970,16 +11795,6 @@ if (btnSeatBack) {
   btnSeatBack.onclick = () => {
     state.nav.backTo = "menu";
     showScreen(screenMenu);
-
-    // reset room label until loaded
-    if (seatRoomLabel) seatRoomLabel.textContent = "Room: -";
-
-    // clear state
-    state.seat.room = "";
-    state.seat.seats = [];
-
-    // clear grid
-    if (seatGrid) seatGrid.innerHTML = "";
   };
 }
 
@@ -12087,7 +11902,6 @@ if (btnAddTable) {
       if (res.status !== "success") {
         hideLoading();
         toast(res.message || "Failed adding seat.");
-        console.warn(res.message || "Failed adding seat.");
         return;
       }
 
@@ -12100,7 +11914,6 @@ if (btnAddTable) {
     } catch (err) {
       hideLoading();
       toast("Add seat error: " + err.toString());
-      console.warn("Add seat error: " + err.toString());
     }
   };
 }
@@ -12141,7 +11954,6 @@ if (btnSaveTable) {
 
       if (res.status !== "success") {
         toast(res.message || "Failed saving table.");
-        console.warn(res.message || "Failed saving table.");
         return;
       }
 
@@ -12157,7 +11969,6 @@ if (btnSaveTable) {
 
     } catch (err) {
       toast("Save table error: " + err.toString());
-      console.warn("Save table error: " + err.toString());
     }
   };
 }
@@ -12170,6 +11981,20 @@ if (selSeatRoom) {
       if (state.me && state.me.role === "admin") btnAddTable.classList.remove("hidden");
       else btnAddTable.classList.add("hidden");
     }
+
+    if (addTableWrap) addTableWrap.classList.add("hidden");
+
+    // reset room label until loaded
+    if (seatRoomLabel) seatRoomLabel.textContent = "Room: -";
+
+    // clear state
+    state.seat.room = "";
+    state.seat.seats = [];
+
+    // clear grid
+    if (seatGrid) seatGrid.innerHTML = "";
+
+    refreshDebugInfo();
   };
 }
 
@@ -12275,7 +12100,6 @@ if (btnSeatEditSave) {
 
     } catch (err) {
       toast("Save error: " + err.toString());
-      console.warn("Save error: " + err.toString());
     } finally {
       setSeatEditLocked(false); // ✅ Always unlock
     }
@@ -12329,7 +12153,6 @@ if (btnSeatEditDelete) {
 
     } catch (err) {
       toast("Clear error: " + err.toString());
-      console.warn("Clear error: " + err.toString());
     } finally {
       setSeatEditLocked(false); // ✅ Always unlock
     }
@@ -12471,7 +12294,7 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
 
   if (sess.apiUrl) state.apiUrl = sess.apiUrl;
   if (sess.clientId) state.clientId = sess.clientId;
-  if (sess.idToken) state.idToken = sess.idToken;
+  //if (sess.idToken) state.idToken = sess.idToken;
 
   if (sess.filters) state.filters = sess.filters;
   if (sess.ui) state.ui = sess.ui;
@@ -12479,9 +12302,9 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
   if (sess.list?.page) state.list.page = sess.list.page;
   if (sess.list?.pageSize) state.list.pageSize = sess.list.pageSize;
 
-  if (selPageSize) selPageSize.value = String(state.list.pageSize || 20);
-
-  if (sess.room) state.seat.room = sess.room;
+  if (selPageSize) {
+    selPageSize.value = String(state.list.pageSize || 20);
+  }
 
   // reflect restored config in inputs
   if (inpApiUrl) inpApiUrl.value = state.apiUrl;
@@ -12619,7 +12442,7 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
         }
 
         // ✅ Load in background (faster)
-        await loadRooms();
+        loadRooms();
         loadInitialFilters();
         loadSeatMapMaster();
         renderPendingUI();
@@ -12664,8 +12487,7 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
           showScreen(screenImport);
         }
         else {
-          //showScreen(screenList);
-          showScreen(screenMenu);
+          showScreen(screenList);
         }
 
         // ✅ Load list if screen needs it
