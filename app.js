@@ -10961,6 +10961,8 @@ async function loadDashboard() {
     courseSubject: state.filters.courseSubject || ""
   });
 
+  console.log("DEBUG BACKEND: ", res.debug);
+
   if (res.status !== "success") {
     toast(res.message || "Dashboard load failed");
     console.warn("Dashboard load failed: ", res.message);
@@ -11067,9 +11069,24 @@ function renderDashboard() {
 
   const students = state.dashboard || [];
   const pending = students.filter(s => !s.done || !s.hasRemarks || !s.hasProof);
-  const failing = students.filter(s => s.finalGrade > 0 && s.finalGrade < 75);
+
+  const passing = [];
+  const failing = [];
+
+  students.forEach(s => {
+    const grade = Number(s.finalGrade);
+
+    if (!grade || grade === 0) {
+      // ✅ NO GRADE → treat as pending
+      pending.push(s);
+    } else if (grade >= 75) {
+      passing.push(s);
+    } else {
+      failing.push(s);
+    }
+  });
   state.dashboardCtx = { pending, failing };
-  console.log({ students, pending, failing });
+  console.log({ students, pending, failing, passing });
 
   const wrap = document.getElementById("dashboardWrap");
   if (!wrap) return;
@@ -11167,7 +11184,10 @@ function renderTopList(title, list, showIssues = false) {
           <div class="dashboardItem" onclick="openDashboardStudent('${title}',${index})">
 
             <b>${(stu.fullName || stu.studentName).toUpperCase()}</b><br>
-            <span>${stu.studentId || ""}</span>
+            <span>${stu.studentId || ""}</span><br>
+
+            ${title.includes("Failing") ? `<b>Final Grade:</b>
+              <span style="color:#ef4444;font-size:12px;">${Number(stu.finalGrade || 0).toFixed(2)}</span>` : ""}
 
             ${showIssues && stu.issues ? `<div style="color:#ef4444;font-size:11px;">${stu.issues.join(", ")}</div>` : ""}
           </div>
