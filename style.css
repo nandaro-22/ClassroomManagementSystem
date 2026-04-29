@@ -2660,7 +2660,7 @@ button:disabled {
   border-top-right-radius: 20px;
   box-shadow: 0 -12px 36px rgba(0, 0, 0, .22);
   padding: 16px 16px 20px;
-  z-index: 9999999;
+  z-index: 999999;
   font-size: 16px;
 }
 
@@ -3395,4 +3395,14 @@ button:disabled {
     height: 44px !important;
     font-size: 15px !important;
   }
+}
+
+.tag-success {
+  background: #16a34a;
+  color: white;
+}
+
+.tag-danger {
+  background: #dc2626;
+  color: white;
 }

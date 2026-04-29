@@ -7646,7 +7646,7 @@ function toast(msg) {
       el.style.padding = "10px 16px";
       el.style.borderRadius = "8px";
       el.style.fontSize = "14px";
-      el.style.zIndex = "999999";
+      el.style.zIndex = "9999999";
       el.style.opacity = "0";
       el.style.transition = "opacity 0.3s ease";
 
@@ -9603,6 +9603,8 @@ function renderList() {
 
     const nameCaps = String(item.fullName || "").toUpperCase();
     const tagRemarks = (item.remarks || "").trim() ? "WITH REMARKS" : "NO REMARKS";
+    const tagDone = item.done ? "DONE" : "NOT DONE";
+    const tagProgram = item.program || "-";
 
     // ✅ NEW: Right side date/time label
     const rightDate = item.timestamp || item.dateSubmitted || item.submittedAt || "";
@@ -9623,9 +9625,11 @@ function renderList() {
 			  <div class="list-sub muted">${escapeHtml(item.email)} • ${escapeHtml(item.studentId)}</div>
 
 			  <div class="list-tags">
+        <span class="tag">${escapeHtml(tagProgram)}</span>
 				<span class="tag">${escapeHtml(item.courseSubject || "-")}</span>
 				<span class="tag">${escapeHtml(item.term || "-")}</span>
 				<span class="tag">${escapeHtml(tagRemarks)}</span>
+        <span class="tag ${item.done ? 'tag-success' : 'tag-danger'}">${escapeHtml(tagDone)}</span>
 			  </div>
 			</div>
 
@@ -10173,10 +10177,10 @@ async function openMobilePreview(seat) {
       rec.mobileNumber ||
       rec.contactNumber ||
       "—";
-  }
-} catch (e) {
-  console.warn("Mobile preview phone load failed:", e);
-}*/
+    }
+  } catch (e) {
+    console.warn("Mobile preview phone load failed:", e);
+  }*/
 
   document.getElementById("pvMPhone").textContent = seat.cellphoneNumber;
   document.getElementById("pvMRemarks").value = seat.remarks || "";
@@ -10961,7 +10965,7 @@ async function loadDashboard() {
     courseSubject: state.filters.courseSubject || ""
   });
 
-  console.log("DEBUG BACKEND: ", res.debug);
+  //console.log("DEBUG BACKEND: ", res.debug);
 
   if (res.status !== "success") {
     toast(res.message || "Dashboard load failed");
@@ -11086,7 +11090,7 @@ function renderDashboard() {
     }
   });
   state.dashboardCtx = { pending, failing };
-  console.log({ students, pending, failing, passing });
+  //console.log({ students, pending, failing, passing });
 
   const wrap = document.getElementById("dashboardWrap");
   if (!wrap) return;
