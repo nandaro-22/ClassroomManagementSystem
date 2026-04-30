@@ -2040,7 +2040,7 @@ async function loadTaskGrades(studentId) {
       //loadGradeCourses(student, res.items);
       renderTaskGrades();
       recomputeTaskFinal();
-      applyRoleUI();
+      //applyRoleUI();
       hideLoading();
       return;
     }
@@ -2081,7 +2081,7 @@ async function loadTaskGrades(studentId) {
     //loadGradeCourses(student, res.items);
     renderTaskGrades();
     recomputeTaskFinal();
-    applyRoleUI();
+    //applyRoleUI();
     //}
     hideLoading();
   } catch (err) {
@@ -2089,7 +2089,7 @@ async function loadTaskGrades(studentId) {
     state.gradeTasks = getDefaultGradeTemplate();
     renderTaskGrades();
     recomputeTaskFinal();
-    applyRoleUI();
+    //applyRoleUI();
     hideLoading();
   }
 }
@@ -4324,26 +4324,29 @@ async function onGoogleCredential(resp) {
 
     localStorage.setItem("sf_id_token", state.idToken);
     localStorage.setItem("sf_user_email", me.email || "");
-    document.body.classList.remove("student-mode");
 
-    if (state.me?.role === "student") {
+    localStorage.setItem("sf_login_time", Date.now());
+
+    // ✅ SHOW SAFE TOP BUTTONS
+    if (btnHelp) btnHelp.classList.remove("hidden");
+    if (btnAbout) btnAbout.classList.remove("hidden");
+    if (btnSupport) btnSupport.classList.remove("hidden");
+    if (btnChangelog) btnChangelog.classList.remove("hidden");
+    if (btnResetApp) btnResetApp.classList.remove("hidden");
+    if (btnLogout) btnLogout.classList.remove("hidden");
+
+    // ✅ SHOW BADGE
+    const displayName = (me.name || "").trim() || me.email;
+    if (userBadge) {
+      userBadge.textContent = `${displayName} (${me.role})`;
+      userBadge.classList.remove("hidden");
+    }
+
+    //document.body.classList.remove("student-mode");
+
+    /*if (state.me?.role === "student") {
       document.body.classList.add("student-mode");
       try {
-
-        // ✅ SHOW BADGE
-        const displayName = (me.name || "").trim() || me.email;
-        if (userBadge) {
-          userBadge.textContent = `${displayName} (${me.role})`;
-          userBadge.classList.remove("hidden");
-        }
-
-        // ✅ SHOW SAFE TOP BUTTONS
-        if (btnHelp) btnHelp.classList.remove("hidden");
-        if (btnAbout) btnAbout.classList.remove("hidden");
-        if (btnSupport) btnSupport.classList.remove("hidden");
-        if (btnChangelog) btnChangelog.classList.remove("hidden");
-        if (btnResetApp) btnResetApp.classList.remove("hidden");
-        if (btnLogout) btnLogout.classList.remove("hidden");
 
         // ❌ KEEP ADMIN TOOLS HIDDEN
         if (seatAdminTools) seatAdminTools.classList.add("hidden");
@@ -4413,23 +4416,7 @@ async function onGoogleCredential(resp) {
       if (ldAdminControls) ldAdminControls.classList.remove("hidden");
 
       //if (dPhoto) dPhoto.classList.remove("hidden");
-    }
-
-    localStorage.setItem("sf_login_time", Date.now());
-
-    const displayName = (me.name || "").trim() || me.email;
-    if (userBadge) {
-      userBadge.textContent = `${displayName} (${me.role})`;
-      userBadge.classList.remove("hidden");
-    }
-
-    // show buttons
-    if (btnHelp) btnHelp.classList.remove("hidden");
-    if (btnAbout) btnAbout.classList.remove("hidden");
-    if (btnSupport) btnSupport.classList.remove("hidden");
-    if (btnChangelog) btnChangelog.classList.remove("hidden");
-    if (btnResetApp) btnResetApp.classList.remove("hidden");
-    if (btnLogout) btnLogout.classList.remove("hidden");
+    }*/
 
     // admin tools
     if (seatAdminTools) {
@@ -4452,7 +4439,12 @@ async function onGoogleCredential(resp) {
     await loadInitialFilters();
     await loadSeatMapMaster();
 
-    showScreen(screenMenu);
+    if (state.me?.role === "admin") showScreen(screenMenu);
+    else {
+      await openStudentDetailsByEmail(state.me.email);
+      showScreen(screenDetails);
+    }
+
     updateSeatEditUI();
     showNetBadge();
     saveSession();
@@ -7971,11 +7963,6 @@ function showScreen(el) {
   //document.getElementById('tabContentGrades')?.classList.add('hidden');
   //document.getElementById('tabContentLearnerDev')?.classList.add('hidden');
 
-  // ✅ update Delete Room button visibility ONLY when seat map is shown
-  if (el === screenSeatMap) {
-    updateDeleteRoomButtonVisibility();
-  }
-
   // ✅ FIX: hide Online badge when logged out (Setup/Login screen)
   if (el === screenConfig) {
     hideNetBadge();
@@ -7986,21 +7973,24 @@ function showScreen(el) {
   // ✅ Track current screen for refresh restore
   if (el === screenMenu) {
     state.currentScreen = "menu";
-    loadDashboard();
-    document.getElementById("screenDash")?.classList.remove("hidden");
+    if (state.me?.role === "admin") {
+      loadDashboard();
+      document.getElementById("screenDash")?.classList.remove("hidden");
+    }
   }
   else if (el === screenFilters) state.currentScreen = "filters";
   else if (el === screenList) state.currentScreen = "list";
   else if (el === screenDetails) state.currentScreen = "details";
-  else if (el === screenSeatMap) state.currentScreen = "seatmap";
-  else if (el === screenExport) state.currentScreen = "export"
-  else if (el === screenImport) state.currentScreen = "import"
+  else if (el === screenSeatMap) {   // ✅ update Delete Room button visibility ONLY when seat map is shown
+    state.currentScreen = "seatmap";
+    updateDeleteRoomButtonVisibility();
+  }
+  else if (el === screenExport) state.currentScreen = "export";
+  else if (el === screenImport) state.currentScreen = "import";
   else if (el === screenConfig) state.currentScreen = "config";
   else state.currentScreen = "config";
   /*else {
     state.currentScreen = "menu";
-    loadList(true);
-    document.getElementById("screenDash")?.classList.remove("hidden");
   }*/
 
   // ✅ Save session every time screen changes
@@ -9275,7 +9265,7 @@ function forceLogout(message) {
       scores: {}
     };
 
-    if (userBadge) userBadge.classList.add("hidden");
+    /*if (userBadge) userBadge.classList.add("hidden");
     if (btnHelp) btnHelp.classList.add("hidden");
     if (btnAbout) btnAbout.classList.add("hidden");
     if (btnSupport) btnSupport.classList.add("hidden");
@@ -9291,7 +9281,7 @@ function forceLogout(message) {
     if (menuStudentInfo) menuStudentInfo.classList.add("hidden");
     if (menuSeatMapInfo) menuSeatMapInfo.classList.add("hidden");
     if (menuExport) menuExport.classList.add("hidden");
-    if (menuImportDownload) menuImportDownload.classList.add("hidden");
+    if (menuImportDownload) menuImportDownload.classList.add("hidden");*/
 
     showScreen(screenConfig);
     hideNetBadge();
@@ -9571,6 +9561,7 @@ function renderList() {
   listWrap.innerHTML = "";
 
   let start, end;
+  const totalPages = state.list.pageSize === 0 || state.list.pageSize === "ALL" ? 1 : Math.ceil(state.list.total / state.list.pageSize);
 
   if (state.list.pageSize === "ALL") {
     start = state.list.total > 0 ? 1 : 0;
@@ -9588,8 +9579,8 @@ function renderList() {
     //lblRecordCount.textContent = `Record ${state.list.items.length} of ${state.list.total}`;
     lblRecordCount.textContent = `Showing ${start || 0} to ${end || 0} of ${state.list.total || 0}`;
   }
-  if (lblPage) lblPage.textContent = `Page ${state.list.page}`;
-  if (lblPageTop) lblPageTop.textContent = `Page ${state.list.page}`;
+  if (lblPage) lblPage.textContent = `Page ${state.list.page} of ${totalPages}`;
+  if (lblPageTop) lblPageTop.textContent = `Page ${state.list.page} of ${totalPages}`;
 
 
   if (!state.list.items.length) {
@@ -9966,6 +9957,7 @@ async function openDetails(item, idxInList = 0) {
           const fileId = extractDriveFileId(proofRaw);
 
           if (!fileId) {
+            hideLoading();
             toast("No Proof of Enrollment file found.");
             return;
           }
@@ -10081,7 +10073,7 @@ async function openDetails(item, idxInList = 0) {
 
     // load evidence in background (no blocking)
     loadEvidenceList();
-    applyRoleUI();
+    //applyRoleUI();
   } catch (e) {
     console.error("🔥 openDetails crash:", e.stack);
     toast(e.stack);
@@ -10306,8 +10298,9 @@ async function openDetailsTab(tab) {
     setTimeout(renderLearnerDevChart, 50);
   }
   if (tab === "grades") {
-    applyRoleUI();
+    //applyRoleUI();
     const student = state.currentStudent;
+
     if (!student) return;
     // Load courses first
     await preloadStudentCourses(student);
@@ -10761,6 +10754,7 @@ async function openStudentDetailsByEmail(email) {
     const res = await apiPost("recordByEmail", { email: email });
 
     if (!res || res.status !== "success" || !res.item) {
+      hideLoading();
       toast(res?.message || "Student not found.");
       return;
     }
@@ -10847,11 +10841,69 @@ function clearSeatEditor() {
 function applyRoleUI() {
 
   if (!state.me) return;
-
   const role = String(state.me.role || "").toLowerCase();
 
   // ===== STUDENT MODE =====
+  /*if (role === "student") {
+ 
+    // hide left record nav
+    document.querySelectorAll(".recordNav").forEach(el => el.classList.add("hidden"));
+ 
+    // hide header nav buttons
+    document.querySelectorAll(".detailsHeaderBtns").forEach(el => el.classList.add("hidden"));
+ 
+    // hide photo card
+    document.querySelectorAll(".photo-card").forEach(el => el.classList.add("hidden"));
+ 
+    // force single-column layout
+    document.querySelectorAll(".details-grid").forEach(el => el.classList.add("student-mode"));
+ 
+    // disable admin inputs
+    if (dRemarks) dRemarks.disabled = true;
+    if (dDone) dDone.disabled = true;
+ 
+    // hide admin buttons
+    if (btnSave) btnSave.classList.add("hidden");
+    if (btnHistory) btnHistory.classList.add("hidden");
+    if (btnLDev) btnLDev.classList.add("hidden");
+ 
+    //disable grade inputs
+    document.querySelectorAll(".gradeInput").forEach(input => {
+      input.setAttribute("readonly", true);
+    });
+ 
+    //Hide editting buttons
+    if (btnsaveTaskGrades) btnsaveTaskGrades.style.display = "none";
+    if (btnaddTaskRow) btnaddTaskRow.style.display = "none";
+    if (btnresetGradesUI) btnresetGradesUI.style.display = "none";
+ 
+  }
+ 
+  // ===== REVIEWER / ADMIN =====
+  else {
+ 
+    document.querySelectorAll(".recordNav").forEach(el => el.classList.remove("hidden"));
+ 
+    document.querySelectorAll(".detailsHeaderBtns").forEach(el => el.classList.remove("hidden"));
+ 
+    document.querySelectorAll(".photo-card").forEach(el => el.classList.remove("hidden"));
+ 
+    document.querySelectorAll(".details-grid").forEach(el => el.classList.remove("student-mode"));
+ 
+    if (dRemarks) dRemarks.disabled = false;
+    if (dDone) dDone.disabled = false;
+ 
+    if (btnSave) btnSave.classList.remove("hidden");
+    if (btnHistory) btnHistory.classList.remove("hidden");
+    if (btnLDev) btnLDev.classList.remove("hidden");
+  }*/
+  // ===== STUDENT MODE =====
   if (role === "student") {
+    state.currentScreen = "details";
+    document.body.classList.add("student-mode");
+
+    // ❌ KEEP ADMIN TOOLS HIDDEN
+    if (seatAdminTools) seatAdminTools.classList.add("hidden");
 
     // hide left record nav
     document.querySelectorAll(".recordNav").forEach(el => el.classList.add("hidden"));
@@ -10865,29 +10917,39 @@ function applyRoleUI() {
     // force single-column layout
     document.querySelectorAll(".details-grid").forEach(el => el.classList.add("student-mode"));
 
-    // disable admin inputs
-    if (dRemarks) dRemarks.disabled = true;
-    if (dDone) dDone.disabled = true;
+    // hide grade admin tools
+    const newTaskPeriod = document.getElementById("newTaskPeriod");
+    if (newTaskPeriod) newTaskPeriod.classList.add("hidden");
+    const newTaskCategory = document.getElementById("newTaskCategory");
+    if (newTaskCategory) newTaskCategory.classList.add("hidden");
+    const newTaskMax = document.getElementById("newTaskMax");
+    if (newTaskMax) newTaskMax.classList.add("hidden");
+    if (btnaddTaskRow) btnaddTaskRow.classList.add("hidden");
+    //Hide Grdades editting buttons
+    if (btnsaveTaskGrades) btnsaveTaskGrades.classList.add("hidden");
+    if (btnresetGradesUI) btnresetGradesUI.classList.add("hidden");
+    //disable grade inputs
+    document.querySelectorAll(".gradeInput").forEach(input => { input.setAttribute("readonly", true); });
 
     // hide admin buttons
     if (btnSave) btnSave.classList.add("hidden");
     if (btnHistory) btnHistory.classList.add("hidden");
-    if (btnLDev) btnLDev.classList.add("hidden");
+    // disable admin inputs
+    if (dRemarks) dRemarks.disabled = true;
+    if (dDone) dDone.disabled = true;
 
-    //disable grade inputs
-    document.querySelectorAll(".gradeInput").forEach(input => {
-      input.setAttribute("readonly", true);
-    });
-
+    // hide Learner Development tools
+    const ldAdminControls = document.getElementById("ldAdminControls");
+    if (ldAdminControls) ldAdminControls.classList.add("hidden");
     //Hide editting buttons
-    if (btnsaveTaskGrades) btnsaveTaskGrades.style.display = "none";
-    if (btnaddTaskRow) btnaddTaskRow.style.display = "none";
-    if (btnresetGradesUI) btnresetGradesUI.style.display = "none";
-
+    if (btnaddLearnerDev) btnaddLearnerDev.classList.add("hidden");
+    if (btnsaveLearnerDev) btnsaveLearnerDev.classList.add("hidden");
   }
 
   // ===== REVIEWER / ADMIN =====
   else {
+    state.currentScreen = "menu";
+    document.body.classList.remove("student-mode");
 
     document.querySelectorAll(".recordNav").forEach(el => el.classList.remove("hidden"));
 
@@ -10897,12 +10959,24 @@ function applyRoleUI() {
 
     document.querySelectorAll(".details-grid").forEach(el => el.classList.remove("student-mode"));
 
+    // hide admin buttons
+    if (btnSave) btnSave.classList.remove("hidden");
+    if (btnHistory) btnHistory.classList.remove("hidden");
+    // disable admin inputs
     if (dRemarks) dRemarks.disabled = false;
     if (dDone) dDone.disabled = false;
 
-    if (btnSave) btnSave.classList.remove("hidden");
-    if (btnHistory) btnHistory.classList.remove("hidden");
-    if (btnLDev) btnLDev.classList.remove("hidden");
+    // unhide grade admin tools
+    const newTaskPeriod = document.getElementById("newTaskPeriod");
+    if (!newTaskPeriod) newTaskPeriod.classList.remove("hidden");
+    const newTaskCategory = document.getElementById("newTaskCategory");
+    if (!newTaskCategory) newTaskCategory.classList.remove("hidden");
+    const newTaskMax = document.getElementById("newTaskMax");
+    if (!newTaskMax) newTaskMax.classList.remove("hidden");
+    if (!btnaddTaskRow) btnaddTaskRow.classList.remove("hidden");
+    //Hide Grdades editting buttons
+    if (!btnsaveTaskGrades) btnsaveTaskGrades.classList.remove("hidden");
+    if (!btnresetGradesUI) btnresetGradesUI.classList.remove("hidden");
   }
 }
 
@@ -10933,7 +11007,9 @@ function applyStudentToModal(stu) {
 ********************************************************/
 function goToMainMenu() {
 
-  showScreen(screenMenu);
+  if (state.me?.role === "admin") {
+    showScreen(screenMenu);
+  }
 }
 
 /* ===========================
@@ -11249,6 +11325,7 @@ if (btnSaveConfig) {
 }*/
 if (selPageSize) {
   selPageSize.onchange = async () => {
+    showLoading();
     /*const n = parseInt(selPageSize.value, 10);
     state.list.pageSize = isNaN(n) ? 20 : n;
     state.list.page = 1; // reset to first page*/
@@ -11258,6 +11335,7 @@ if (selPageSize) {
     state.list.page = 1;
     saveSession();
     await loadList(true);
+    hideLoading();
   };
 }
 
@@ -12399,36 +12477,36 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
         if (state.me?.role === "student") {
           try {
             // ❌ KEEP ADMIN TOOLS HIDDEN
-            if (seatAdminTools) seatAdminTools.classList.add("hidden");
+            /*if (seatAdminTools) seatAdminTools.classList.add("hidden");
             if (btnSeatAddRoom) btnSeatAddRoom.classList.add("hidden");
             if (btnSeatEditToggle) btnSeatEditToggle.classList.add("hidden");
-
+ 
             // ❌ KEEP RECORD BUTTONS HIDDEN
             if (btnPrevRecord) btnPrevRecord.classList.add("hidden");
             if (btnNextRecord) btnNextRecord.classList.add("hidden");
             if (btnBackToList) btnBackToList.classList.add("hidden");
-
+ 
             // ❌ KEEP RECORD LIST PANEL HIDDEN
             const recordNav = document.querySelector(".recordNav");
             if (recordNav) recordNav.classList.add("hidden");
-
+ 
             // student flow
             //showScreen(screenDetails);
-
+ 
             // ❌ KEEP MENU CARDS HIDDEN
             if (menuStudentInfo) menuStudentInfo.classList.add("hidden");
             if (menuSeatMapInfo) menuSeatMapInfo.classList.add("hidden");
             if (btnOpenSeatMap) btnOpenSeatMap.classList.add("hidden");
             if (btnGoList) btnGoList.classList.add("hidden");
-
+ 
             const gradeAdminTools = document.getElementById("gradeAdminTools");
             if (gradeAdminTools) gradeAdminTools.classList.add("hidden");
-
+ 
             const gradeAdminButtons = document.getElementById("gradeAdminButtons");
             if (gradeAdminButtons) gradeAdminButtons.classList.add("hidden");
-
+ 
             const ldAdminControls = document.getElementById("ldAdminControls");
-            if (ldAdminControls) ldAdminControls.classList.add("hidden");
+            if (ldAdminControls) ldAdminControls.classList.add("hidden");*/
 
             await loadTransmutationTables();
             //if (dPhoto) dPhoto.classList.add("hidden");
@@ -12440,7 +12518,7 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
             hideLoading();
           }
           return;
-        } else {
+        } /*else {
           if (menuStudentInfo) menuStudentInfo.classList.remove("hidden");
           if (menuSeatMapInfo) menuSeatMapInfo.classList.remove("hidden");
           if (btnOpenSeatMap) btnOpenSeatMap.classList.remove("hidden");
@@ -12463,7 +12541,7 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
           if (ldAdminControls) ldAdminControls.classList.remove("hidden");
 
           //if (dPhoto) dPhoto.classList.remove("hidden");
-        }
+        }*/
 
         // ✅ Load in background (faster)
         loadRooms();
@@ -12494,6 +12572,7 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
 
         if (target === "details" && sess.selectedEmail) {
           await openStudentDetailsByEmail(sess.selectedEmail);
+          showScreen(screenDetails);
         }
         else if (target === "menu") {
           showScreen(screenMenu);
@@ -12526,7 +12605,9 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
 
       } catch (e) {
         console.warn("Init me() failed:", e);
-        showScreen(screenMenu); // stay inside app
+        // stay inside app
+        if (state.me?.role === "admin") showScreen(screenMenu);
+        else showScreen(screenDetails);
         hideLoading();
       }
     })();

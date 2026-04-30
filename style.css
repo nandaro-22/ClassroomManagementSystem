@@ -3177,7 +3177,7 @@ button:disabled {
   overflow-x: auto;
 }
 
-@media (max-width:768px) {
+@media (max-width:480px) {
   .gradeTable {
     font-size: 12px;
   }
@@ -3283,6 +3283,121 @@ button:disabled {
    MOBILE FIX: GRADES SCREEN (PRO LEVEL)
 ========================================= */
 @media (max-width: 600px) {
+
+  /* =====================
+     COMPACT HEADER
+  ===================== */
+  .gradingHeader,
+  .gradeHeader {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* =====================
+     DROPDOWNS COMPACT
+  ===================== */
+  .gradingHeader select,
+  .gradingHeader input,
+  .gradeHeader select,
+  .gradeHeader input {
+    height: 42px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+  }
+
+  /* =====================
+     ADD ITEM ROW (INLINE)
+  ===================== */
+  .gradeAddRow {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    gap: 8px !important;
+    align-items: center;
+  }
+
+  .gradeAddRow input {
+    width: 100% !important;
+    height: 40px !important;
+    font-size: 14px !important;
+  }
+
+  .gradeAddRow .btn {
+    height: 40px !important;
+    padding: 0 12px !important;
+    font-size: 14px !important;
+  }
+
+  /* =====================
+     SECTION HEADERS
+  ===================== */
+  .gradeSectionTitle {
+    font-size: 14px !important;
+    padding: 8px 10px !important;
+  }
+
+  .gradeCategoryTitle {
+    font-size: 13px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* =====================
+     GRADE ROWS → STACKED
+  ===================== */
+  .gradeRow {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+    padding: 10px !important;
+  }
+
+  .gradeRow .date,
+  .gradeRow .category,
+  .gradeRow .task {
+    font-size: 13px !important;
+    width: 100% !important;
+  }
+
+  /* =====================
+     FINAL GRADE (PRIORITY)
+  ===================== */
+  .finalGradeBox {
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    padding: 12px;
+    border-top: 2px solid #e2e8f0;
+    z-index: 20;
+  }
+
+  .finalGradeValue {
+    font-size: 28px !important;
+  }
+
+  .gradeStatus {
+    font-size: 13px !important;
+    padding: 6px 12px !important;
+  }
+
+  /* =====================
+     BUTTONS SIDE BY SIDE
+  ===================== */
+  .gradeActions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin-top: 10px;
+  }
+
+  .gradeActions .btn {
+    width: 100% !important;
+    height: 44px !important;
+    font-size: 15px !important;
+  }
+}
+
+@media (max-width: 420px) {
 
   /* =====================
      COMPACT HEADER
