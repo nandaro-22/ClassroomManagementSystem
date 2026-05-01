@@ -1258,7 +1258,7 @@ function setupAutocomplete(inputEl, type) {
 
     Object.assign(wrapper.style, {
       position: "relative",
-      width: "50%"
+      //width: "100%"
     });
 
     inputEl.parentNode.insertBefore(wrapper, inputEl);
