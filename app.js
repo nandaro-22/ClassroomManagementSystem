@@ -10844,97 +10844,21 @@ function applyRoleUI() {
   const role = String(state.me.role || "").toLowerCase();
 
   // ===== STUDENT MODE =====
-  /*if (role === "student") {
- 
-    // hide left record nav
-    document.querySelectorAll(".recordNav").forEach(el => el.classList.add("hidden"));
- 
-    // hide header nav buttons
-    document.querySelectorAll(".detailsHeaderBtns").forEach(el => el.classList.add("hidden"));
- 
-    // hide photo card
-    document.querySelectorAll(".photo-card").forEach(el => el.classList.add("hidden"));
- 
-    // force single-column layout
-    document.querySelectorAll(".details-grid").forEach(el => el.classList.add("student-mode"));
- 
-    // disable admin inputs
-    if (dRemarks) dRemarks.disabled = true;
-    if (dDone) dDone.disabled = true;
- 
-    // hide admin buttons
-    if (btnSave) btnSave.classList.add("hidden");
-    if (btnHistory) btnHistory.classList.add("hidden");
-    if (btnLDev) btnLDev.classList.add("hidden");
- 
-    //disable grade inputs
-    document.querySelectorAll(".gradeInput").forEach(input => {
-      input.setAttribute("readonly", true);
-    });
- 
-    //Hide editting buttons
-    if (btnsaveTaskGrades) btnsaveTaskGrades.style.display = "none";
-    if (btnaddTaskRow) btnaddTaskRow.style.display = "none";
-    if (btnresetGradesUI) btnresetGradesUI.style.display = "none";
- 
-  }
- 
-  // ===== REVIEWER / ADMIN =====
-  else {
- 
-    document.querySelectorAll(".recordNav").forEach(el => el.classList.remove("hidden"));
- 
-    document.querySelectorAll(".detailsHeaderBtns").forEach(el => el.classList.remove("hidden"));
- 
-    document.querySelectorAll(".photo-card").forEach(el => el.classList.remove("hidden"));
- 
-    document.querySelectorAll(".details-grid").forEach(el => el.classList.remove("student-mode"));
- 
-    if (dRemarks) dRemarks.disabled = false;
-    if (dDone) dDone.disabled = false;
- 
-    if (btnSave) btnSave.classList.remove("hidden");
-    if (btnHistory) btnHistory.classList.remove("hidden");
-    if (btnLDev) btnLDev.classList.remove("hidden");
-  }*/
-  // ===== STUDENT MODE =====
   if (role === "student") {
     state.currentScreen = "details";
     document.body.classList.add("student-mode");
 
-    // hide left record nav
-    document.querySelectorAll(".recordNav").forEach(el => el.classList.add("hidden"));
-
-    // hide header nav buttons
-    document.querySelectorAll(".detailsHeaderBtns").forEach(el => el.classList.add("hidden"));
-
-    // hide photo card
-    document.querySelectorAll(".photo-card").forEach(el => el.classList.add("hidden"));
-
-    // force single-column layout
-    document.querySelectorAll(".details-grid").forEach(el => el.classList.add("student-mode"));
-
-    //disable grade inputs
     document.querySelectorAll(".gradeInput").forEach(input => { input.setAttribute("readonly", true); });
 
     // disable admin inputs
     if (dRemarks) dRemarks.disabled = true;
     if (dDone) dDone.disabled = true;
-
   }
 
   // ===== REVIEWER / ADMIN =====
   else {
     state.currentScreen = "menu";
     document.body.classList.remove("student-mode");
-
-    document.querySelectorAll(".recordNav").forEach(el => el.classList.remove("hidden"));
-
-    document.querySelectorAll(".detailsHeaderBtns").forEach(el => el.classList.remove("hidden"));
-
-    document.querySelectorAll(".photo-card").forEach(el => el.classList.remove("hidden"));
-
-    document.querySelectorAll(".details-grid").forEach(el => el.classList.remove("student-mode"));
 
     document.querySelectorAll(".gradeInput").forEach(input => { input.setAttribute("readonly", false); });
 
