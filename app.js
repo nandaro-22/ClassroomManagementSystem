@@ -10931,7 +10931,7 @@ function applyRoleUI() {
     //disable grade inputs
     document.querySelectorAll(".gradeInput").forEach(input => { input.setAttribute("readonly", true); });
 
-    // hide admin buttons
+    // hide admin buttons ` 
     if (btnSave) btnSave.classList.add("hidden");
     if (btnHistory) btnHistory.classList.add("hidden");
     // disable admin inputs
@@ -10944,6 +10944,11 @@ function applyRoleUI() {
     //Hide editting buttons
     if (btnaddLearnerDev) btnaddLearnerDev.classList.add("hidden");
     if (btnsaveLearnerDev) btnsaveLearnerDev.classList.add("hidden");
+
+    // KEEP RECORD BUTTONS HIDDEN
+    if (btnPrevRecord) btnPrevRecord.classList.add("hidden");
+    if (btnNextRecord) btnNextRecord.classList.add("hidden");
+    if (btnBackToList) btnBackToList.classList.add("hidden");
   }
 
   // ===== REVIEWER / ADMIN =====
@@ -10977,6 +10982,11 @@ function applyRoleUI() {
     //Hide Grdades editting buttons
     if (!btnsaveTaskGrades) btnsaveTaskGrades.classList.remove("hidden");
     if (!btnresetGradesUI) btnresetGradesUI.classList.remove("hidden");
+
+    // KEEP RECORD BUTTONS HIDDEN
+    if (btnPrevRecord) btnPrevRecord.classList.remove("hidden");
+    if (btnNextRecord) btnNextRecord.classList.remove("hidden");
+    if (btnBackToList) btnBackToList.classList.remove("hidden");
   }
 }
 
