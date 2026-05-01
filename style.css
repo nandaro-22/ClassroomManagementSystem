@@ -2984,7 +2984,12 @@ button:disabled {
 
 /* hide left nav + photo only */
 .student-mode .recordNav,
-.student-mode .photo-card {
+.student-mode .photo-card,
+.student-mode #btnPrevRecord,
+.student-mode #btnNextRecord,
+.student-mode #btnNextRecord,
+.student-mode #btnSave,
+.student-mode #btnHistory {
   display: none !important;
 }
 

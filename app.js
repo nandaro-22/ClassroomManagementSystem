@@ -10902,9 +10902,6 @@ function applyRoleUI() {
     state.currentScreen = "details";
     document.body.classList.add("student-mode");
 
-    // ❌ KEEP ADMIN TOOLS HIDDEN
-    if (seatAdminTools) seatAdminTools.classList.add("hidden");
-
     // hide left record nav
     document.querySelectorAll(".recordNav").forEach(el => el.classList.add("hidden"));
 
@@ -10917,38 +10914,13 @@ function applyRoleUI() {
     // force single-column layout
     document.querySelectorAll(".details-grid").forEach(el => el.classList.add("student-mode"));
 
-    // hide grade admin tools
-    const newTaskPeriod = document.getElementById("newTaskPeriod");
-    if (newTaskPeriod) newTaskPeriod.classList.add("hidden");
-    const newTaskCategory = document.getElementById("newTaskCategory");
-    if (newTaskCategory) newTaskCategory.classList.add("hidden");
-    const newTaskMax = document.getElementById("newTaskMax");
-    if (newTaskMax) newTaskMax.classList.add("hidden");
-    if (btnaddTaskRow) btnaddTaskRow.classList.add("hidden");
-    //Hide Grdades editting buttons
-    if (btnsaveTaskGrades) btnsaveTaskGrades.classList.add("hidden");
-    if (btnresetGradesUI) btnresetGradesUI.classList.add("hidden");
     //disable grade inputs
     document.querySelectorAll(".gradeInput").forEach(input => { input.setAttribute("readonly", true); });
 
-    // hide admin buttons ` 
-    if (btnSave) btnSave.classList.add("hidden");
-    if (btnHistory) btnHistory.classList.add("hidden");
     // disable admin inputs
     if (dRemarks) dRemarks.disabled = true;
     if (dDone) dDone.disabled = true;
 
-    // hide Learner Development tools
-    const ldAdminControls = document.getElementById("ldAdminControls");
-    if (ldAdminControls) ldAdminControls.classList.add("hidden");
-    //Hide editting buttons
-    if (btnaddLearnerDev) btnaddLearnerDev.classList.add("hidden");
-    if (btnsaveLearnerDev) btnsaveLearnerDev.classList.add("hidden");
-
-    // KEEP RECORD BUTTONS HIDDEN
-    if (btnPrevRecord) btnPrevRecord.classList.add("hidden");
-    if (btnNextRecord) btnNextRecord.classList.add("hidden");
-    if (btnBackToList) btnBackToList.classList.add("hidden");
   }
 
   // ===== REVIEWER / ADMIN =====
@@ -10964,29 +10936,11 @@ function applyRoleUI() {
 
     document.querySelectorAll(".details-grid").forEach(el => el.classList.remove("student-mode"));
 
-    // hide admin buttons
-    if (btnSave) btnSave.classList.remove("hidden");
-    if (btnHistory) btnHistory.classList.remove("hidden");
+    document.querySelectorAll(".gradeInput").forEach(input => { input.setAttribute("readonly", false); });
+
     // disable admin inputs
     if (dRemarks) dRemarks.disabled = false;
     if (dDone) dDone.disabled = false;
-
-    // unhide grade admin tools
-    const newTaskPeriod = document.getElementById("newTaskPeriod");
-    if (!newTaskPeriod) newTaskPeriod.classList.remove("hidden");
-    const newTaskCategory = document.getElementById("newTaskCategory");
-    if (!newTaskCategory) newTaskCategory.classList.remove("hidden");
-    const newTaskMax = document.getElementById("newTaskMax");
-    if (!newTaskMax) newTaskMax.classList.remove("hidden");
-    if (!btnaddTaskRow) btnaddTaskRow.classList.remove("hidden");
-    //Hide Grdades editting buttons
-    if (!btnsaveTaskGrades) btnsaveTaskGrades.classList.remove("hidden");
-    if (!btnresetGradesUI) btnresetGradesUI.classList.remove("hidden");
-
-    // KEEP RECORD BUTTONS HIDDEN
-    if (btnPrevRecord) btnPrevRecord.classList.remove("hidden");
-    if (btnNextRecord) btnNextRecord.classList.remove("hidden");
-    if (btnBackToList) btnBackToList.classList.remove("hidden");
   }
 }
 
