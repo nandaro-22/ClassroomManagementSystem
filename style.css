@@ -2597,7 +2597,7 @@ button:disabled {
   border-radius: 18px;
   box-shadow: 0 22px 48px rgba(0, 0, 0, .20);
   padding: 16px;
-  z-index: 9999999;
+  z-index: 99999;
 }
 
 .seatPreviewHeader {
@@ -3483,4 +3483,53 @@ body.student-mode .gradeInput {
     white-space: normal !important;
     padding: 10px 8px !important;
   }
+}
+
+.fb-link {
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.valueLink {
+  display: inline;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+/* =========================
+   FIX GRADE TOOLBAR (FINAL)
+========================= */
+.gradeToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ALL INPUTS */
+.gradeToolbar select,
+.gradeToolbar input {
+  height: 42px;
+  border-radius: 10px;
+}
+
+/* BUTTON */
+.gradeToolbar button {
+  height: 42px;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .gradeToolbar {
+    flex-direction: column;
+  }
+
+  .gradeToolbar select,
+  .gradeToolbar input,
+  .gradeToolbar button {
+    width: 100%;
+  }
+}
+
+.gradeTableWrap {
+  overflow-x: auto;
 }

@@ -56,6 +56,39 @@
 			</div>
 		</section>
 
+		<!-- SCREEN: MAIN MENU -->
+		<section id="screenMenu" class="card hidden">
+			<h2>Main Menu</h2>
+			<p class="muted">Choose what you want to open.</p>
+
+			<div class="menuGrid">
+				<div class="menuCard" id="menuStudentInfo">
+					<div class="menuTitle">Student Information</div>
+					<div class="menuSub">Choose Class Filter</div>
+				</div>
+
+				<div class="menuCard" id="menuSeatMapInfo">
+					<div class="menuTitle">Room / Seat Map Information</div>
+					<div class="menuSub">Seat Map</div>
+				</div>
+
+				<div class="menuCard" id="menuExport">
+					<div class="menuTitle">Export Student Grades</div>
+					<div class="menuSub">Choose Export Option</div>
+				</div>
+
+				<div class="menuCard" id="menuImportDownload">
+					<div class="menuTitle">Import Student Grades</div>
+					<div class="menuSub">Choose Import Option, Download Add-ins template</div>
+				</div>
+
+				<div class="menuCard" id="menuExportMainList">
+					<div class="menuTitle">Export Student List</div>
+					<div class="menuSub">Student List for exporting Student Grades in Excel</div>
+				</div>
+			</div>
+		</section>
+
 		<!-- SCREEN: FILTERS -->
 		<section id="screenFilters" class="card hidden">
 			<h2>Choose Class Filter</h2>
@@ -89,39 +122,6 @@
 
 			<div class="hint">
 				Dropdown values are automatically loaded from your sheet.
-			</div>
-		</section>
-
-		<!-- SCREEN: MAIN MENU -->
-		<section id="screenMenu" class="card hidden">
-			<h2>Main Menu</h2>
-			<p class="muted">Choose what you want to open.</p>
-
-			<div class="menuGrid">
-				<div class="menuCard" id="menuStudentInfo">
-					<div class="menuTitle">Student Information</div>
-					<div class="menuSub">Choose Class Filter</div>
-				</div>
-
-				<div class="menuCard" id="menuSeatMapInfo">
-					<div class="menuTitle">Room / Seat Map Information</div>
-					<div class="menuSub">Seat Map</div>
-				</div>
-
-				<div class="menuCard" id="menuExport">
-					<div class="menuTitle">Export Student Grades</div>
-					<div class="menuSub">Choose Export Option</div>
-				</div>
-
-				<div class="menuCard" id="menuImportDownload">
-					<div class="menuTitle">Import Student Grades</div>
-					<div class="menuSub">Choose Import Option, Download Add-ins template</div>
-				</div>
-
-				<div class="menuCard" id="menuExportMainList">
-					<div class="menuTitle">Export Student List</div>
-					<div class="menuSub">Student List for exporting Student Grades in Excel</div>
-				</div>
 			</div>
 		</section>
 
@@ -453,7 +453,8 @@
 						<option value="EXERCISE">EXERCISE</option>
 					</select>
 
-					<input id="newTaskMax" type="number" class="gradeField gradeInputField" placeholder="Items">
+					<input id="newTaskMax" type="number" min="0" step="1" class="gradeField gradeInputField"
+						placeholder="Items">
 					<button id="btnaddTaskRow" class="btn btn-primary">Add Item</button>
 				</div>
 
@@ -938,7 +939,7 @@
 			<h3 style="margin-top:0;">Updates / Changelog</h3>
 
 			<div class="history-item">
-				<div><b>v5 FINAL</b></div>
+				<div><b>v7</b></div>
 				<div class="muted">
 					Google OAuth login, role-based access, pagination, offline sync, seat map, dynamic seat layout, and
 					evidence upload queue.
@@ -954,14 +955,215 @@
 			</div>
 
 			<div class="history-item">
-				<div><b>Seat Map Improvements</b></div>
+				<div><b>Seat Map Improvements, Integration & Behavior Fixes</b></div>
 				<div class="muted">
-					Add Seat, Remove Seat, Delete Room, dynamic grid columns, tooltip improvements.
+					Add Seat, Remove Seat, Delete Room, dynamic grid columns, tooltip improvements.<br>
+					Enhanced seat map interaction with proper student-mode restrictions and UI consistency. Fixed
+					navigation flow between seat preview and full profile. Improved data binding for student details
+					including photo, contact, and remarks. Mobile and desktop layouts now behave consistently with
+					better spacing and interaction feedback.
 				</div>
 			</div>
-
+			<div class="history-item">
+				<div><b>Grades System Enhancements</b></div>
+				<div class="muted">
+					Comprehensive grading engine upgrade including dynamic grade tables, real-time computation, and
+					strict subject-based grade matching. Fixed incorrect grade mapping issues, uppercase normalization
+					for subject/term matching, and removed unsafe fallback logic. Dashboard now reflects accurate grades
+					with correct passing/failing classification and improved mobile layout responsiveness.
+				</div>
+			</div>
+			<div class="history-item">
+				<div><b>Learner Development Module</b></div>
+				<div class="muted">
+					Introduced dynamic Learner Development system with customizable categories and radar chart
+					visualization. Supports multiple domains (Physical, Cognitive, Social, Emotional, etc.) with
+					scalable structure for future expansion. Includes save-ready data structure and improved chart
+					readability across desktop and mobile.
+				</div>
+			</div>
+			<div class="history-item">
+				<div><b>Student Mode UI & Access Control</b></div>
+				<div class="muted">
+					Implemented student-mode interface with restricted controls and simplified UI. Admin-only actions
+					(Save, History, Navigation controls) are hidden or disabled. Added CSS-based enforcement for
+					consistent behavior across desktop and mobile. Improved role-based rendering and ensured proper UI
+					isolation for student access.
+				</div>
+			</div>
 			<!-- ✅ Latest updates quick section -->
 			<div class="history-item">
+				<div><b>Release Notes (v7 • 05/01/2026 • Critical Fix Patch — Grades + Dashboard + State Sync)</b>
+				</div>
+				<div class="muted">
+					<ul>
+
+						<li>🧮 <b>Grade Key Matching Fix (Critical):</b> Fixed issue where grades returned <b>0</b> due
+							to mismatched key format between main sheet and grades sheet.</li>
+						<li>🔤 <b>Uppercase Normalization Fix:</b> Subject and term values now normalized to uppercase +
+							trimmed format to prevent mismatches (e.g., MATH vs Mathematics).</li>
+						<li>📚 <b>Subject Mapping Correction:</b> Fixed incorrect grade retrieval where students with
+							multiple subjects were pulling grades from the wrong subject.</li>
+						<li>⚠️ <b>Removed Unsafe Fallback Logic:</b> Eliminated fallback that retrieved “any subject
+							grade” — now strictly matches correct subject.</li>
+						<li>🧠 <b>Graceful No-Grade Handling:</b> Students without grade entries now correctly return
+							<b>0 without affecting other records</b>.
+						</li>
+						<li>📄 <b>Grades Sheet Structure Handling:</b> System now supports cases where <b>term column is
+								missing in grades sheet</b> without breaking grade mapping.</li>
+						<li>📊 <b>Dashboard Final Grade Accuracy:</b> Final grades in dashboard now reflect correct
+							subject-specific computed values.</li>
+						<li>📉 <b>Failing/Passing Classification Fix:</b> Corrected classification logic to avoid
+							marking zero-grade students incorrectly.</li>
+						<li>📝 <b>Done Status Sync Fix (Critical):</b> Fixed issue where “Mark as Done” updates in
+							Google Sheets were not reflected in dashboard.</li>
+						<li>🔄 <b>Pending List Refresh Fix:</b> Pending students list now updates immediately after
+							changes (remarks, done, proof).</li>
+						<li>📂 <b>Filter System Fix (Critical):</b> Fixed filtering bug where incorrect
+							course/term/school year results were returned.</li>
+						<li>🧠 <b>Filter Logic Standardization:</b> Filters now consistently apply across dashboard,
+							list view, and detail navigation.</li>
+						<li>📦 <b>Cache Handling Fix:</b> Fixed stale data issue caused by improper caching in
+							<code>loadList()</code>.
+						</li>
+						<li>🧭 <b>Record Navigation Sync Fix:</b> Navigating from dashboard now correctly loads
+							corresponding student list in <code>recordNav</code>.</li>
+						<li>🔗 <b>openDetails Consistency Fix:</b> Unified behavior between <code>openDetails</code>,
+							<code>openDashboardStudent</code>, and list navigation.
+						</li>
+						<li>📑 <b>State Synchronization Fix:</b> Fixed inconsistencies in <code>state.list.items</code>
+							to ensure correct student data loading.</li>
+						<li>📊 <b>Pagination Enhancement:</b> Added total page calculation (Page X of Y) for better
+							navigation clarity.</li>
+						<li>🚫 <b>Dashboard List Limit Fix:</b> Removed unintended <code>slice(10)</code> restriction —
+							now supports full navigation of all students.</li>
+						<li>🔍 <b>Debug Logging System:</b> Added optional <code>GRADE MISS</code> logging to trace key
+							mismatches during development.</li>
+						<li>🧪 <b>Console Debug Visibility Fix:</b> Ensured logs appear correctly in browser console for
+							easier debugging.</li>
+						<li>⚙️ <b>Backend-Frontend Alignment:</b> Standardized data structure between Apps Script and
+							frontend for consistent mapping.</li>
+					</ul>
+				</div>
+				<div><b>Release Notes (v6 • 02/10/2026 • System Optimization — Dashboard + Role System + Mobile UI)</b>
+				</div>
+				<div class="muted">
+					<ul>
+						<li>🧠 <b>Full System Refactor (Frontend Architecture):</b> Reorganized UI structure into stable
+							screen-based rendering (List / Details / Dashboard) to eliminate inconsistent behavior.</li>
+						<li>⚡ <b>Single Call Dashboard System:</b> Dashboard now loads all required student data in one
+							API call (<code>dashboardAll</code>) — significantly faster and reduces redundant requests.
+						</li>
+						<li>📊 <b>Accurate Grade Mapping Fix:</b> Final grade now correctly maps per <b>Student +
+								Subject + Term</b> instead of incorrect fallback values.</li>
+						<li>🔑 <b>Composite Key Grading Engine:</b> Introduced key format
+							<code>studentId|subject|term</code> to prevent cross-subject grade mismatch.
+						</li>
+						<li>🔤 <b>Case Normalization Fix:</b> All subject and term values now normalized (UPPERCASE +
+							trimmed) to ensure consistent matching across sheets.</li>
+						<li>🧮 <b>Grade Computation Stability:</b> Fixed issue where students with multiple subjects
+							pulled incorrect grades or returned zero values.</li>
+						<li>📉 <b>Failing / Passing Logic Fix:</b> Dashboard classification now correctly separates
+							<b>Passing (≥75)</b>, <b>Failing (&lt;75)</b>, and <b>Pending</b>.
+						</li>
+						<li>🧾 <b>Pending Logic Improved:</b> Pending now accurately reflects missing remarks,
+							incomplete status, or missing proof — updates instantly after changes.</li>
+						<li>🔄 <b>Live Dashboard Sync Fix:</b> “Mark as Done” now reflects immediately in dashboard
+							without requiring reload.</li>
+						<li>📥 <b>Record Navigation Sync:</b> Pending / Failing lists now correctly feed into
+							<code>recordNav</code> and <code>openDetails</code> with consistent indexing.
+						</li>
+						<li>📚 <b>State Management Fix:</b> Standardized use of <code>state.list.items</code> to prevent
+							mismatched data between dashboard and details view.</li>
+						<li>📧 <b>Email-Based Loading Fix:</b> Student details now reliably fetched using email (instead
+							of inconsistent ID mapping).</li>
+						<li>📄 <b>Multi-Entry Student Fix:</b> System now correctly handles students with multiple
+							subject entries without mixing data.</li>
+						<li>🪑 <b>Seat + Dashboard Sync:</b> Seat assignment and dashboard analytics now consistently
+							aligned across views.</li>
+						<li>📊 <b>Final Grade Visibility:</b> Failing students list now displays final grade directly
+							inside dashboard cards.</li>
+						<li>📱 <b>Dashboard Mobile Optimization:</b> KPI cards, progress bars, and lists now scale
+							properly on small screens.</li>
+						<li>📈 <b>Analytics UI Enhancements:</b> Improved readability of pass/fail rates and pending
+							breakdown sections.</li>
+					</ul>
+				</div>
+				<div><b>Release Notes (v6 • 02/08/2026 • UI System Cleanup — Buttons + Layout + Mobile Fixes)</b></div>
+				<div class="muted">
+					<ul>
+						<li>🎨 <b>Unified Button System:</b> Introduced centralized button styling for consistent size,
+							spacing, and behavior across all screens.</li>
+						<li>📱 <b>Mobile Button Layout Fix:</b> Action buttons now properly stack and resize on mobile —
+							no more overflow or uneven widths.</li>
+						<li>🧩 <b>Layout System Refactor:</b> Replaced unstable flex layouts with structured grid-based
+							layouts for predictable rendering.</li>
+						<li>🧱 <b>Action Group Standardization:</b> Introduced reusable action groups (actions-1 /
+							actions-2 / actions-3).</li>
+						<li>🚫 <b>Removed Layout Conflicts:</b> Eliminated multiple conflicting <code>.row.gap</code>
+							overrides causing UI inconsistencies.</li>
+						<li>📐 <b>Spacing & Alignment Fix:</b> Improved padding, margin, and alignment consistency
+							across cards and sections.</li>
+						<li>🧼 <b>CSS Cleanup:</b> Reduced redundant rules and improved maintainability of styles.</li>
+						<li>📲 <b>Responsive Grid Fix:</b> Details and list sections now adapt cleanly to all screen
+							sizes.</li>
+					</ul>
+				</div>
+				<div><b>Release Notes (v6 • 02/07/2026 • Role-Based UI System — Student Mode Lockdown)</b></div>
+				<div class="muted">
+					<ul>
+						<li>🔐 <b>Role-Based UI System Introduced:</b> UI now controlled via <code>student-mode</code>
+							and <code>admin-mode</code> classes.</li>
+						<li>🚫 <b>Student Mode Lockdown:</b> Save, History, Navigation, and Admin actions are now hidden
+							for student users.</li>
+						<li>👁️ <b>View-Only Mode:</b> Students can view data but cannot modify inputs (remarks, grades,
+							etc.).</li>
+						<li>🎯 <b>CSS-Based Access Control:</b> Replaced JS-based hiding with CSS-driven control for
+							reliability across mobile and desktop.</li>
+						<li>⚙️ <b>Input Interaction Disabled:</b> Inputs now blocked via CSS
+							(<code>pointer-events: none</code>) in student mode.</li>
+						<li>🧠 <b>Cleaner Role Logic:</b> Simplified role handling into single source of truth
+							(<code>body.classList</code>).</li>
+						<li>📱 <b>Mobile Role Consistency:</b> Role-based visibility now works correctly across all
+							devices.</li>
+					</ul>
+				</div>
+				<div><b>Release Notes (v6 • 02/06/2026 • Grades + Table + Mobile Responsiveness)</b></div>
+				<div class="muted">
+					<ul>
+						<li>📊 <b>Grades Table Mobile Fix:</b> Implemented horizontal scroll container to prevent layout
+							breaking on small screens.</li>
+						<li>📐 <b>Table Layout Stabilized:</b> Added minimum width and nowrap rules to preserve column
+							alignment.</li>
+						<li>🔢 <b>Input Size Fix:</b> Grade input fields resized for consistent alignment and usability.
+						</li>
+						<li>📱 <b>Mobile Table Scaling:</b> Font size and spacing adjusted for readability on mobile
+							devices.</li>
+						<li>🧩 <b>Overflow Handling Fix:</b> Prevented UI cut-off and overlapping elements in grading
+							section.</li>
+						<li>🧠 <b>Responsive Strategy Applied:</b> Desktop retains table view, mobile uses scroll-based
+							layout for better UX.</li>
+					</ul>
+				</div>
+				<div><b>Release Notes (v6 • 02/05/2026 • Performance + Rendering Optimization)</b></div>
+				<div class="muted">
+					<ul>
+						<li>⚡ <b>Rendering Performance Improved:</b> Switched to DocumentFragment for faster list
+							rendering.</li>
+						<li>🧠 <b>State Optimization:</b> Reduced redundant state updates and ensured consistent data
+							flow.</li>
+						<li>🔄 <b>Re-render Stability Fix:</b> Prevented UI flicker caused by repeated DOM rebuilds.
+						</li>
+						<li>📦 <b>Data Handling Cleanup:</b> Standardized object structures across frontend and backend.
+						</li>
+						<li>🧹 <b>Codebase Cleanup:</b> Removed duplicate logic, unused variables, and conflicting
+							handlers.</li>
+						<li>📉 <b>Reduced API Calls:</b> Consolidated multiple fetch operations into single optimized
+							calls.</li>
+						<li>🚀 <b>Overall System Speed Increased:</b> Faster load times and smoother UI interactions.
+						</li>
+					</ul>
+				</div>
 				<div><b>Release Notes (v5 • 02/05/2026 • Latest Patch — Grades + Learner Dev Update)</b></div>
 				<div class="muted">
 					<ul>
@@ -1176,10 +1378,10 @@
 		<textarea id="pvMRemarks" rows="3" class="seatPreviewRemarks" placeholder="Type remarks here..."></textarea>
 		<!-- Upload evidence-->
 		<div id="pvMTextRemarks" class="seatPreviewMeta">Evidence Upload</div>
-		<input type="file" id="seatPreviewEvidenceFile" accept="image/*,.pdf" />
+		<input type="file" id="seatPreviewMEvidenceFile" accept="image/*,.pdf" />
 		<div class="previewBtnRow">
 			<button id="btnPvMSaveRemarks" class="btn btn-primary">Save Remarks</button>
-			<button id="btnSeatPreviewUpload" class="btn btn-primary">Upload Evidence</button>
+			<button id="btnSeatPreviewMUpload" class="btn btn-primary">Upload Evidence</button>
 			<button id="btnOpenFullProfileMobile" class="btn btn-primary">Open Full Profile</button>
 		</div>
 	</div>

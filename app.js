@@ -246,8 +246,12 @@ const recordNavList = document.getElementById("recordNavList");
 const inpEvidenceFile = document.getElementById("inpEvidenceFile");
 const btnUploadEvidence = document.getElementById("btnUploadEvidence");
 const evidenceList = document.getElementById("evidenceList");
-const seatPreviewEvidenceFile = document.getElementById("seatPreviewEvidenceFile");
+// remarks preview - mobile
+const btnSeatPreviewMUpload = document.getElementById("btnSeatPreviewMUpload");
+const seatPreviewMEvidenceFile = document.getElementById("seatPreviewMEvidenceFile");
+// remarks preview - desktop
 const btnSeatPreviewUpload = document.getElementById("btnSeatPreviewUpload");
+const seatPreviewEvidenceFile = document.getElementById("seatPreviewEvidenceFile");
 
 /* ===========================
    DOM — DETAILS ACCORDIONS
@@ -1446,7 +1450,7 @@ function renderTaskGrades() {
             ${isMissing ? `<span class="notSubmitted" style="color:#b42318; font-weight:700; margin-left:8px;">⚠️ NOT SUBMITTED</span>` : ""}
           </td>
           <td>${t.max || 0}</td>
-          <td><input class="gradeInput" type="number" min="0" max="${t.max || 0}" value="${t.score !== undefined ? t.score : ""}" data-taskcode="${t.taskCode}" /></td>
+          <td><input class="gradeInput" type="number" min="0" max="${t.max || 0}" data-max="${t.max || 0}" value="${t.score !== undefined ? t.score : ""}" data-taskcode="${t.taskCode}" /></td>
           <td class="gradeReadonly" id="taskPct_${t.taskCode}">${percent.toFixed(1)}%</td>
         `;
         tbody.appendChild(tr);
@@ -1483,6 +1487,17 @@ function renderTaskGrades() {
   if (state.me?.role !== "student") {
     document.querySelectorAll(".gradeInput").forEach(input => {
       input.oninput = function () {
+
+        // input max validation
+        let val = Number(this.value);
+        let max = Number(this.dataset.max || 100);
+
+        if (isNaN(val)) val = 0;
+        if (val < 0) val = 0;
+        if (val > max) val = max;
+
+        this.value = val;
+
         updateGradeRealtime(this.dataset.taskcode, this);
         recomputeTaskFinal();
       };
@@ -3107,6 +3122,9 @@ async function addRoom() {
     if (selSeatRoom) selSeatRoom.value = room;
     await loadSeatRoom(room);
 
+    // ✅ UPDATE ROOM LABEL SA UI
+    if (seatRoomLabel) seatRoomLabel.textContent = `Room: ${room}`;
+
     if (seatAddRoomWrap) seatAddRoomWrap.classList.add("hidden");
 
     hideLoading();
@@ -4049,6 +4067,7 @@ async function uploadEvidenceChunked(payload, progressCb) {
 ********************************************************/
 async function handleUploadEvidence(file) {
   showLoading("Please wait, uploading evidence...");
+
   try {
     if (!file) {
       hideLoading();
@@ -4059,7 +4078,8 @@ async function handleUploadEvidence(file) {
     const student = {
       email: state.selected.email,
       timestamp: state.selected.timestamp,
-      studentId: state.selected.studentId
+      studentId: state.selected.studentId,
+      done: state.selected.done || false
     };
 
     if (!student.studentId || !student.email) {
@@ -4098,7 +4118,8 @@ async function handleUploadEvidence(file) {
   } catch (err) {
     hideLoading();
     //toast("Upload error: " + err.toString());
-    toast("Upload error: " + err.toString());
+
+    toast("Desktop upload error: " + err.toString());
   }
 }
 
@@ -9134,7 +9155,7 @@ const SEAT_PLACEHOLDER =
     <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">
       <rect width="100%" height="100%" fill="#e5e7eb"/>
       <text x="50%" y="52%" text-anchor="middle"
-        font-size="24" fill="#9ca3af">?</text>
+        font-size="24" fill="#9ca3af">👤</text>
     </svg>
   `);
 
@@ -9858,7 +9879,7 @@ function renderFacebookField(label, value) {
     return `
       <div class="history-item">
         <div><b>${escapeHtml(label)}</b></div>
-        <div class="muted" style="white-space:pre-wrap;">
+        <div class="muted fb-link">
           <a class="valueLink" href="${escapeHtml(v)}" target="_blank" rel="noopener noreferrer">
             ${escapeHtml(v)}
           </a>
@@ -10083,26 +10104,59 @@ async function openDetails(item, idxInList = 0) {
 
 if (btnSeatPreviewUpload) {
   btnSeatPreviewUpload.onclick = async () => {
+    showLoading("Uploading evidence. Please wait...");
     try {
       if (!state.selected) {
         toast("No student selected.");
         seatPreviewEvidenceFile.value = "";
+        hideLoading();
         return;
       }
 
       const file = seatPreviewEvidenceFile.files[0];
-      /*f (!file) {
+      if (!file) {
         hideLoading();
         toast("Please choose a file.");
         return;
-      }*/
+      }
 
       await handleUploadEvidence(file);
 
       seatPreviewEvidenceFile.value = "";
-
+      hideLoading();
     } catch (err) {
+      hideLoading();
       toast("Upload error: " + err.message);
+    }
+  };
+}
+
+if (btnSeatPreviewMUpload) {
+  btnSeatPreviewMUpload.onclick = async () => {
+    showLoading("Uploading evidence. Please wait...");
+
+    try {
+      if (!state.seat.currentSeat) {
+        toast("No student seat selected.");
+        seatPreviewMEvidenceFile.value = "";
+        hideLoading();
+        return;
+      }
+
+      const file = seatPreviewMEvidenceFile.files[0];
+      if (!file) {
+        hideLoading();
+        toast("Please choose a file.");
+        return;
+      }
+
+      await handleUploadEvidence(file);
+
+      seatPreviewMEvidenceFile.value = "";
+      hideLoading();
+    } catch (err) {
+      hideLoading();
+      toast("Mobile upload error: " + err.message);
     }
   };
 }
@@ -10150,29 +10204,29 @@ async function openMobilePreview(seat) {
   document.getElementById("pvMEmail").textContent = seat.studentEmail || "—";
   document.getElementById("pvMRemarks").value = ""; // clear remarks
   /*let phone = "—";
- 
+
   try {*/
   /*const res = await apiGet({
     action: "recordByEmail",
     idToken: state.idToken,
     email: email
   });*/
-  /*const res = await apiPost("recordByEmail", { email: email });
- 
+  const res = await apiPost("recordByEmail", { email: email });
+
   if (res.status === "success" && res.item) {
     const rec = res.item;
- 
-    phone =
+    state.selected = rec;
+    /*phone =
       rec.cellphoneNumber ||
       rec.cellphone ||
       rec.mobile ||
       rec.mobileNumber ||
       rec.contactNumber ||
       "—";
-    }
-  } catch (e) {
-    console.warn("Mobile preview phone load failed:", e);
-  }*/
+  }
+} catch (e) {
+  console.warn("Mobile preview phone load failed:", e);*/
+  }
 
   document.getElementById("pvMPhone").textContent = seat.cellphoneNumber;
   document.getElementById("pvMRemarks").value = seat.remarks || "";
@@ -10182,10 +10236,7 @@ async function openMobilePreview(seat) {
   );
 
   if (stu) {
-    const raw =
-      stu.picture2x2_direct ||
-      stu.picture2x2 ||
-      "";
+    const raw = stu.picture2x2_direct || stu.picture2x2 || "";
 
     const fileId = extractDriveFileId(raw);
 
@@ -11435,6 +11486,8 @@ if (fProgram) {
 
 if (btnGoList) {
   btnGoList.onclick = async () => {
+    showLoading("Loading Records...");
+    const value = inpSearch.value.trim();
     state.filters.schoolYear = fSchoolYear ? fSchoolYear.value : "";
     state.filters.term = fTerm ? fTerm.value : "";
     state.filters.courseSubject = fCourseSubject ? fCourseSubject.value : "";
@@ -11442,8 +11495,9 @@ if (btnGoList) {
 
     state.list.page = 1;
 
-    showLoading("Loading Records...");
-
+    if (value === "") {
+      state.ui.search = value || "";
+    }
     showScreen(screenList);
     await loadList(true);
 
@@ -11603,14 +11657,21 @@ if (btngoToMainMenu) btngoToMainMenu.onclick = () => goToMainMenu();
 
 if (btnPvSave) {
   btnPvSave.onclick = async () => {
+    showLoading("Saving remarks. Please wait...");
     if (state.me.role === "student") {
+      hideLoading();
       toast("Students cannot edit remarks.");
       return;
     }
-    if (!state.seat.currentSeat) return;
+
+    if (!state.seat.currentSeat) {
+      hideLoading();
+      return;
+    }
 
     const text = document.getElementById("pvRemarks").value.trim();
     if (!text) {
+      hideLoading();
       toast("Please input a remarks or message.");
       return;
     }
@@ -11626,6 +11687,7 @@ if (btnPvSave) {
     const recRes = await apiPost("recordByEmail", { email: seat.studentEmail });
 
     if (recRes.status !== "success" || !recRes.item) {
+      hideLoading();
       toast("Record not found");
       return;
     }
@@ -11644,7 +11706,9 @@ if (btnPvSave) {
       seat.remarks = text;
       document.getElementById("pvRemarks").value = "";
       toast("Remarks saved ✔");
+      hideLoading();
     } else {
+      hideLoading();
       toast("Save failed. " || res.message);
     }
   };
@@ -11652,15 +11716,22 @@ if (btnPvSave) {
 
 if (btnPvMSave) {
   btnPvMSave.onclick = async () => {
+    showLoading("Saving remarks. Please wait...");
     if (state.me.role === "student") {
+      hideLoading();
       toast("Students cannot edit remarks.");
       return;
     }
 
-    if (!state.seat.currentSeat) return;
+    if (!state.seat.currentSeat) {
+      toast("No student seat selected.");
+      hideLoading();
+      return;
+    }
 
     const text = document.getElementById("pvMRemarks").value.trim();
     if (!text) {
+      hideLoading();
       toast("Please input a remarks or message.");
       return;
     }
@@ -11675,6 +11746,7 @@ if (btnPvMSave) {
     const recRes = await apiPost("recordByEmail", { email: seat.studentEmail });
 
     if (recRes.status !== "success" || !recRes.item) {
+      hideLoading();
       toast("Record not found");
       return;
     }
@@ -11693,7 +11765,9 @@ if (btnPvMSave) {
       seat.remarks = text;
       document.getElementById("pvMRemarks").value = "";
       toast("Remarks saved ✔");
+      hideLoading();
     } else {
+      hideLoading();
       toast("Save failed. " || res.message);
     }
   };
@@ -12050,18 +12124,22 @@ if (seatEditModal) {
 
 if (btnSeatEditSave) {
   btnSeatEditSave.onclick = async () => {
+    showLoading("Updating seat no. " + editSeatNo.value + ". Please wait...");
     if (!state.me || state.me.role !== "admin") {
+      hideLoading();
       toast("Admin only.");
       return;
     }
 
     if (!state.seat.room) {
+      hideLoading();
       toast("No room loaded.");
       return;
     }
 
     const seatNo = editSeatNo ? editSeatNo.value.trim() : "";
     if (!seatNo) {
+      hideLoading();
       toast("Seat No is required.");
       return;
     }
@@ -12081,16 +12159,19 @@ if (btnSeatEditSave) {
       const res = await apiPost("seatmapSave", body);
 
       if (res.status !== "success") {
+        hideLoading();
         throw new Error("Save failed. " || res.message);
       }
 
       toast("✅ Seat updated!");
-      closeSeatEditModal();
       await loadSeatRoom(state.seat.room);
-
+      closeSeatEditModal(true);
+      hideLoading();
     } catch (err) {
+      hideLoading();
       toast("Save error: " + err.toString());
     } finally {
+      hideLoading();
       setSeatEditLocked(false); // ✅ Always unlock
     }
   };
@@ -12102,19 +12183,22 @@ if (btnSeatEditDelete) {
     // ✅ CONFIRMATION FIRST
     const ok = confirm("Are you sure you want to delete this seat assignment?\n\nThis will clear the student info from this seat.");
     if (!ok) return;
-
+    showLoading("Deleting seat no. " + editSeatNo.value + ". Please wait...");
     if (!state.me || state.me.role !== "admin") {
+      hideLoading();
       toast("Admin only.");
       return;
     }
 
     if (!state.seat.room) {
+      hideLoading();
       toast("No room loaded.");
       return;
     }
 
     const seatNo = editSeatNo ? editSeatNo.value.trim() : "";
     if (!seatNo) {
+      hideLoading();
       toast("Seat No is required.");
       return;
     }
@@ -12134,16 +12218,19 @@ if (btnSeatEditDelete) {
       const res = await apiPost("seatmapSave", body);
 
       if (res.status !== "success") {
+        hideLoading();
         throw new Error(res.message || "Clear failed");
       }
 
       toast("Seat cleared!");
-      closeSeatEditModal();
       await loadSeatRoom(state.seat.room);
-
+      closeSeatEditModal(true);
+      hideLoading();
     } catch (err) {
+      hideLoading();
       toast("Clear error: " + err.toString());
     } finally {
+      hideLoading();
       setSeatEditLocked(false); // ✅ Always unlock
     }
   };
