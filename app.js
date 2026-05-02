@@ -439,6 +439,13 @@ const gradeWeights = {
   }
 };
 
+const DASH_CACHE = {
+  key: null,
+  hash: null,
+  items: [],
+  ts: 0
+};
+
 /* ===========================
    OFFLINE SYNC STORAGE KEYS
 =========================== */
@@ -548,6 +555,7 @@ state.subjectType = "minor"; // default
 
 let masterPromise = null;
 let API_LOCK = false;
+let DASH_INIT = false;
 
 /*******************************************************
 * function name: apiPost
@@ -10960,19 +10968,37 @@ function goToMainMenu() {
 * return: 
 * purpose: 
 ********************************************************/
-async function loadDashboard() {
+/*async function loadDashboard() {
 
   const wrap = document.getElementById("dashboardWrap");
   if (!wrap) return;
 
-  // show loading text while waiting
-  if (wrap) wrap.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align:center;color:#94a3b8;">
-          Loading...
-        </td>
-      </tr>
-    `;
+  // show dashbopard skeleton
+  if (!DASH_INIT) {
+    renderDashboardSkeleton();
+    DASH_INIT = true;
+  }
+
+  const dashKey = `dash_sy${state.filters.schoolYear}_t${state.filters.term}_c${state.filters.courseSubject}`;
+
+  console.log("daskKey: ", dashKey);
+
+  // 1. Use existing list, best case
+  if (state.dashboard && state.dashboard.length) {
+    console.log("DASHBOARD state.dashboard");
+    renderDashboard(state.dashboard);
+    return;
+  }
+
+  // 2. Use dash cashe
+  if (DASH_CACHE.key === dashKey && DASH_CACHE.items.length) {
+    console.log("DASHBOARD using dashkey");
+    renderDashboard(DASH_CACHE.items);
+    return;
+  }
+
+  // 3. fetch only if needed
+  console.log("DASHBOARD fetching");
 
   const res = await apiPost("dashboardAll", {
     schoolYear: state.filters.schoolYear || "",
@@ -10980,13 +11006,17 @@ async function loadDashboard() {
     courseSubject: state.filters.courseSubject || ""
   });
 
-  //console.log("DEBUG BACKEND: ", res.debug);
-
+  console.log("res: ", res);
   if (res.status !== "success") {
     toast(res.message || "Dashboard load failed");
     console.warn("Dashboard load failed: ", res.message);
+    forceLogout();
     return;
   }
+
+  console.log("res: ", res);
+
+  const items = res.students || [];
 
   state.dashboard = res.students || [];
 
@@ -11000,7 +11030,191 @@ async function loadDashboard() {
     enrollmentProof: s.hasProof ? "✔" : ""
   }));
 
-  renderDashboard();
+  // SAVE CACHE
+  DASH_CACHE.key = dashKey;
+  DASH_CACHE.items = items;
+  DASH_CACHE.ts = Date.now();
+
+  renderDashboard(items);
+}*/
+async function loadDashboard() {
+
+  const wrap = document.getElementById("dashboardWrap");
+  if (!wrap) return;
+
+  // ✅ 0. BUILD KEY FIRST (VERY IMPORTANT)
+  const dashKey = buildDashKey();
+  console.log("dashKey:", dashKey);
+
+  // ✅ 1. FIRST LOAD → skeleton only once
+  if (!DASH_INIT) {
+    renderDashboardSkeleton();
+    DASH_INIT = true;
+  }
+
+  // ✅ 2. USE CACHE (FAST PATH)
+  if (DASH_CACHE.key === dashKey && DASH_CACHE.items.length) {
+    console.log("DASHBOARD from cache");
+
+    //state.dashboard = DASH_CACHE.items;
+    renderDashboard(DASH_CACHE.items);
+    return;
+  }
+
+  // ✅ 3. FETCH
+  console.log("DASHBOARD fetching");
+
+  const res = await apiPost("dashboardAll", {});
+  console.log("RESPONSE: ", res);
+  console.log("DEBUG: ", res.debug);
+
+  // ✅ 4. VALIDATE FIRST
+  if (res.status !== "success") {
+    toast("Dashboard load failed");
+    return;
+  }
+
+  const items = res.students || [];
+
+  // ✅ 5. SAVE STATE
+  state.dashboard = items;
+
+  // ✅ 6. BUILD HASH
+  const hash = hashDashboard(items);
+
+  // ✅ 7. STORE CACHE
+  DASH_CACHE.key = dashKey;
+  DASH_CACHE.items = items;
+  DASH_CACHE.hash = hash;
+  DASH_CACHE.ts = Date.now();
+
+  // ✅ 8. FINAL RENDER
+  renderDashboard(items);
+}
+
+/*******************************************************
+* function name: buildDashKey
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function buildDashKey() {
+  return JSON.stringify({
+    sy: state.filters.schoolYear || "",
+    term: (state.filters.term || "").toUpperCase(),
+    subject: (state.filters.courseSubject || "").toUpperCase().replace(/\s+/g, " ").trim()
+  });
+}
+
+/*******************************************************
+* function name: hashDashboard
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function hashDashboard(items) {
+  return JSON.stringify(items.map(s => ({
+    id: s.studentId,
+    grade: s.finalGrade,
+    done: s.done,
+    remarks: s.hasRemarks,
+    proof: s.hasProof,
+    // include only fields that matter for dashboard
+    pq: s.pendingDetails?.quiz?.length || 0,
+    pc: s.pendingDetails?.participation?.length || 0,
+    me: s.pendingDetails?.mexam?.length || 0,
+    fe: s.pendingDetails?.fexam?.length || 0,
+    av: s.pendingDetails?.augustinian?.length || 0
+  })));
+}
+
+/*******************************************************
+* function name: renderDashboardSkeleton
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+function renderDashboardSkeleton() {
+
+  const wrap = document.getElementById("dashboardWrap");
+  if (!wrap) return;
+
+  wrap.innerHTML = `
+    <div class="dashboardAnalytics">
+
+      <!-- ${renderKPI("Total Students", "--")} -->
+      ${renderKPI("Passing", "--")}
+      <!-- ${renderKPI("Pending", "--")} -->
+      ${renderKPI("Failing", "--")}
+
+      <!-- ${renderKPI("Pending Quiz", "--")} -->
+      <!-- ${renderKPI("Pending Class Participation", "--")} -->
+      <!-- ${renderKPI("Pending Midterm Exam", "--")} -->
+      <!-- ${renderKPI("Pending Final Exam", "--")} -->
+      <!-- ${renderKPI("Pending Augustinian Value", "--")} -->
+
+      ${renderProgress("Pass Rate", 0)}
+      ${renderProgress("Fail Rate", 0)}
+
+      <!-- <div id="seatAnalytics"></div> -->
+      <div id="pendingBreakdown"></div>
+
+      <div id="failingList"></div>
+      <div id="pendingList"></div>
+
+      <div id="avalueList"></div>
+      <div id="participationList"></div>
+      <div id="quizList"></div>
+      <div id="mexamList"></div>
+      <div id="fexamList"></div>
+
+    </div>
+  `;
+}
+
+/*******************************************************
+* function name: refreshDashboard
+* parameter: 
+* return: 
+* purpose: 
+********************************************************/
+async function refreshDashboard() {
+  console.log("🔄 Force refresh dashboard");
+
+  const dashKey = buildDashKey();
+
+  // ❗ skip if ibang filters (handled by loadDashboard)
+  if (DASH_CACHE.key !== dashKey) return;
+
+  try {
+    const res = await apiPost("dashboardAll", {});
+
+    if (res.status !== "success") return;
+
+    const newItems = res.students || [];
+
+    const newHash = hashDashboard(newItems);
+
+    // ✅ NO CHANGE → do nothing
+    if (newHash === DASH_CACHE.hash) {
+      console.log("🟢 Dashboard unchanged");
+      return;
+    }
+
+    // 🔥 CHANGED → update silently
+    console.log("🟡 Dashboard updated");
+
+    DASH_CACHE.hash = newHash;
+    DASH_CACHE.items = newItems;
+    DASH_CACHE.ts = Date.now();
+
+    state.dashboard = newItems;
+
+    renderDashboard(newItems); // reactive update
+
+  } catch (e) {
+    console.warn("Silent check failed", e);
+  }
 }
 
 /*******************************************************
@@ -11009,9 +11223,9 @@ async function loadDashboard() {
 * return: 
 * purpose: Build analytics from backend dashboardAll data
 ********************************************************/
-function buildDashboardData() {
+function buildDashboardData(items) {
 
-  const students = state.dashboard || [];
+  const students = items;
 
   const total = students.length;
 
@@ -11084,13 +11298,19 @@ function buildDashboardData() {
 * return: 
 * purpose: Render dashboard UI using backend data
 ********************************************************/
-function renderDashboard() {
-
-  const students = state.dashboard || [];
+function renderDashboard(items) {
+  console.log("items: ", items);
+  const students = items;
   const pending = students.filter(s => !s.done || !s.hasRemarks || !s.hasProof);
 
   const passing = [];
   const failing = [];
+
+  const pendingQuiz = [];
+  const pendingCParticipation = [];
+  const pendingMExam = [];
+  const pendingFExam = [];
+  const pendingAValue = [];
 
   students.forEach(s => {
     const grade = Number(s.finalGrade);
@@ -11104,25 +11324,49 @@ function renderDashboard() {
       failing.push(s);
     }
   });
-  state.dashboardCtx = { pending, failing };
+  //state.dashboardCtx = { pending, failing };
   //console.log({ students, pending, failing, passing });
+  state.dashboardCtx = {
+    all: students,
+    failing: failing,
+    formPending: pending
+  };
+
+  students.forEach(s => {
+    const hasItems = arr => Array.isArray(arr) && arr.length > 0;
+
+    if (hasItems(s.pendingDetails?.quiz)) pendingQuiz.push(s);
+    if (hasItems(s.pendingDetails?.participation)) pendingCParticipation.push(s);
+    if (hasItems(s.pendingDetails?.mexam)) pendingMExam.push(s);
+    if (hasItems(s.pendingDetails?.fexam)) pendingFExam.push(s);
+    if (hasItems(s.pendingDetails?.augustinian)) pendingAValue.push(s);
+  });
 
   const wrap = document.getElementById("dashboardWrap");
   if (!wrap) return;
 
-  const d = buildDashboardData();
+  const d = buildDashboardData(items);
 
   const passRate = d.total ? ((d.passing.length / d.total) * 100).toFixed(1) : 0;
 
   const failRate = d.total ? ((d.failing.length / d.total) * 100).toFixed(1) : 0;
 
-  wrap.innerHTML = `
+  // ===== KPI UPDATE =====
+  const kpis = document.querySelectorAll(".kpiCard");
+
+  /*wrap.innerHTML = `
     <div class="dashboardAnalytics">
 
       ${renderKPI("Total Students", d.total)}
       ${renderKPI("Passing", d.passing.length, passRate + "%")}
       ${renderKPI("Pending", d.pending.length)}
       ${renderKPI("Failing", d.failing.length, failRate + "%")}
+
+      ${renderKPI("Pending Quiz", pendingQuiz.length)}
+      ${renderKPI("Pending Class Participation", pendingCParticipation.length)}
+      ${renderKPI("Pending Midterm Exam", pendingMExam.length)}
+      ${renderKPI("Pending Final Exam", pendingFExam.length)}
+      ${renderKPI("Pending Augustinain Value", pendingAValue.length)}
 
       ${renderProgress("Pass Rate", passRate)}
       ${renderProgress("Fail Rate", failRate)}
@@ -11133,16 +11377,66 @@ function renderDashboard() {
       ${renderTopList("⚠️ " + d.failing.length + " Failing Students", d.failing)}
       ${renderTopList("📝 " + d.pending.length + " Pending Students", d.pending, true)}
 
+      ${renderTopList("📝 Pending Quiz", pendingQuiz, true)}
+      ${renderTopList("🧠 Pending Class Participation", pendingCParticipation, true)}
+      ${renderTopList("📊 Pending Midterm Exam", pendingMExam, true)}
+      ${renderTopList("📊 Pending Final Exam", pendingFExam, true)}
+      ${renderTopList("📊 Pending Augustinain Value", pendingAValue, true)}
+
     </div>
-  `;
+  `;*/
+
+  if (kpis.length >= 1) {
+    //kpis[0].querySelector(".kpiValue").textContent = d.total;
+    kpis[0].querySelector(".kpiValue").textContent = d.passing.length;
+    kpis[0].querySelector(".kpiSub").textContent = passRate + "%";
+    //kpis[2].querySelector(".kpiValue").textContent = d.pending.length;
+    kpis[1].querySelector(".kpiValue").textContent = d.failing.length;
+    kpis[1].querySelector(".kpiSub").textContent = failRate + "%";
+  }
+
+  // ===== PROGRESS UPDATE =====
+  document.querySelectorAll(".progressFill")[0].style.width = passRate + "%";
+  document.querySelectorAll(".progressTitle")[0].textContent = "Pass Rate (" + passRate + "%)";
+  document.querySelectorAll(".progressFill")[1].style.width = failRate + "%";
+  document.querySelectorAll(".progressTitle")[1].textContent = "Fail Rate (" + failRate + "%)";
+
+  // ===== SEAT =====
+  //document.getElementById("seatAnalytics").innerHTML = renderSeatAnalytics(d);
+
+  // ===== BREAKDOWN =====
+  document.getElementById("pendingBreakdown").innerHTML = renderPendingBreakdown(d);
+
+  // ===== LISTS =====
+  document.getElementById("failingList").innerHTML = renderTopList("⚠️ Failing Students", d.failing);
+
+  document.getElementById("pendingList").innerHTML = renderTopList("📝 Pending Students", d.pending, true);
+
+  document.getElementById("avalueList").innerHTML = renderTopList("📝 Pending Augustinain Value", pendingAValue, true, "augustinian");
+  document.getElementById("participationList").innerHTML = renderTopList("📝 Pending Class Participation", pendingCParticipation, true, "participation");
+  document.getElementById("quizList").innerHTML = renderTopList("📝 Pending Quiz", pendingQuiz, true, "quiz");
+  document.getElementById("mexamList").innerHTML = renderTopList("📝 Pending Midterm Exam", pendingMExam, true, "mexam");
+  document.getElementById("fexamList").innerHTML = renderTopList("📝 Pending Final Exam", pendingFExam, true, "fexam");
+  console.log("pendingAValue: ", pendingAValue);
+  console.log("pendingCParticipation: ", pendingCParticipation);
+  console.log("pendingQuiz: ", pendingQuiz);
+  console.log("pendingMExam: ", pendingMExam);
+  console.log("pendingFExam: ", pendingFExam);
 }
 
 function renderKPI(title, value, sub = "") {
-  return `
+  /*return `
     <div class="kpiCard">
       <div class="kpiTitle">${title}</div>
       <div class="kpiValue">${value}</div>
       ${sub ? `<div class="kpiSub">${sub}</div>` : ""}
+    </div>
+  `;*/
+  return `
+    <div class="kpiCard">
+      <div class="kpiTitle">${title}</div>
+      <div class="kpiValue">${value}</div>
+      <div class="kpiSub">${sub}</div>
     </div>
   `;
 }
@@ -11192,7 +11486,7 @@ function renderPendingBreakdown(d) {
   `;
 }
 
-function renderTopList(title, list, showIssues = false) {
+/*function renderTopList(title, list, showIssues = false) {
   lastScreenBeforeDetails = "menu";
   return `
     <div class="dashboardCard">
@@ -11214,6 +11508,69 @@ function renderTopList(title, list, showIssues = false) {
       </div>
     </div>
   `;
+}*/
+function renderTopList(title, list, showDetails = false, type = "") {
+  lastScreenBeforeDetails = "menu";
+
+  return `
+    <div class="dashboardCard">
+      <div class="dashboardTitle">${title}</div>
+  
+      <div class="dashboardList">
+        ${list.slice(0, 10).map((stu, index) => {
+
+    let details = "";
+
+    // ================================
+    // ✅ 1. CATEGORY DETAILS (quiz, exam, etc.)
+    // ================================
+    if (showDetails && type && stu.pendingDetails) {
+
+      const arr = stu.pendingDetails[type];
+
+      if (Array.isArray(arr) && arr.length > 0) {
+        //details = `Missing (${arr.length}): ${arr.join(", ")}`;
+        details = `<span style="font-weight:bold; color:#000;">Missing (${arr.length}):</span> ${arr.join(", ")}`;
+      }
+
+    }
+
+    // ================================
+    // ✅ 2. GENERAL PENDING (remarks, done, proof)
+    // ================================
+    else if (showDetails && Array.isArray(stu.issues) && stu.issues.length > 0) {
+
+      details = stu.issues.join(", ");
+
+    }
+
+    return `
+            <div class="dashboardItem" onclick="openDashboardStudent('${title}', '${stu.studentId}')">
+
+              <b>${(stu.fullName || stu.studentName || "").toUpperCase()}</b><br>
+              <span>${stu.studentId || ""}</span><br>
+
+              ${title.includes("Failing") ? `
+                  <b>Final Grade:</b>
+                  <span style="color:#ef4444;font-size:12px;">
+                     ${Number(stu.finalGrade || 0).toFixed(2)}
+                  </span><br>
+                ` : ""
+      }
+
+              ${details ? `
+                  <div style="color:#ef4444;font-size:11px;">
+                    ${details}
+                  </div>
+                ` : ""
+      }
+
+            </div>
+          `;
+  }).join("")}
+      </div>
+    </div>
+  `;
 }
 
 /*******************************************************
@@ -11222,7 +11579,7 @@ function renderTopList(title, list, showIssues = false) {
 * return: 
 * purpose: 
 ********************************************************/
-async function openDashboardStudent(type, index) {
+/*async function openDashboardStudent(type, index) {
 
   let list = type.includes("Pending") ? state.dashboardCtx.pending : state.dashboardCtx.failing;
 
@@ -11232,6 +11589,57 @@ async function openDashboardStudent(type, index) {
 
   openDetailsByIndex(index);
 
+}*/
+async function openDashboardStudent(type, studentId) {
+  lastScreenBeforeDetails = "menu";
+
+  let list;
+  const students = state.dashboardCtx.all;
+
+  if (type.includes("Pending")) {
+
+    const category = type.toLowerCase();
+
+    list = students.filter(s => {
+
+      if (!s.pendingDetails) return false;
+
+      const hasTaskPending =
+        (s.pendingDetails.quiz?.length || 0) > 0 ||
+        (s.pendingDetails.participation?.length || 0) > 0 ||
+        (s.pendingDetails.mexam?.length || 0) > 0 ||
+        (s.pendingDetails.fexam?.length || 0) > 0 ||
+        (s.pendingDetails.augustinian?.length || 0) > 0;
+
+      const hasFormPending =
+        !s.hasRemarks ||
+        !s.done ||
+        !s.hasProof;
+
+      if (category.includes("quiz")) return s.pendingDetails.quiz?.length > 0;
+      if (category.includes("participation")) return s.pendingDetails.participation?.length > 0;
+      if (category.includes("midterm")) return s.pendingDetails.mexam?.length > 0;
+      if (category.includes("final")) return s.pendingDetails.fexam?.length > 0;
+      if (category.includes("augustinian")) return s.pendingDetails.augustinian?.length > 0;
+
+      return hasTaskPending || hasFormPending;
+
+    });
+
+  } else {
+
+    // ✅ FAILING CONTEXT
+    list = state.dashboardCtx.failing;
+
+  }
+
+  state.list.items = list;
+
+  const index = list.findIndex(s => s.studentId === studentId);
+
+  showScreen(screenDetails);
+
+  openDetailsByIndex(index >= 0 ? index : 0);
 }
 
 /* ===========================
@@ -12687,6 +13095,29 @@ function refreshActivityStamp() {
     localStorage.setItem("sf_login_time", Date.now());
   }
 }
+
+// =========================
+// DASHBOARD AUTO REFRESH (1 MIN)
+// =========================
+setInterval(() => {
+
+  const dash = document.getElementById("screenDash");
+
+  if (!dash) return;
+
+  // ✅ check if dashboard is visible
+  const isHidden = dash.style.display === "none" ||
+    dash.classList.contains("hidden");
+
+  if (isHidden) return;
+
+  // ✅ only if cache expired (1 min)
+  if (Date.now() - DASH_CACHE.ts > 60000) {
+    console.log("⏱ Auto refreshing dashboard...");
+    refreshDashboard();
+  }
+
+}, 300000); // 🔥 every 1 minute
 
 document.addEventListener("click", refreshActivityStamp);
 document.addEventListener("keydown", refreshActivityStamp);
