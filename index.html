@@ -626,6 +626,48 @@
 				</div>
 			</div>
 
+			<!-- MOBILE SEAT EDIT -->
+			<div id="seatEditMobile" class="seatPreviewMobile hidden">
+				<div class="modal-inner" style="max-width:520px;">
+					<!-- <button id="btnCloseSeatEdit" class="btn btn-ghost modal-close">Close</button> -->
+
+					<h3 style="margin-top:0;">Edit Seat</h3>
+					<div class="muted" id="seatEditRoomLabelMobile">Room: -</div>
+
+					<hr class="sep" />
+
+					<div class="grid-4" style="grid-template-columns:1fr 1fr;">
+						<div>
+							<label>Seat No</label>
+							<input id="editSeatNoMobile" type="text" placeholder="e.g. 1001" />
+						</div>
+
+						<div>
+							<label>Student ID</label>
+							<input id="editStudentIdMobile" type="text" placeholder="e.g. 2025-0001" />
+						</div>
+					</div>
+
+					<div style="margin-top:10px;">
+						<label>Student Name</label>
+						<input id="editStudentNameMobile" type="text" placeholder="LASTNAME, FIRSTNAME" />
+					</div>
+
+					<div style="margin-top:10px;">
+						<label>Student Email</label>
+						<input id="editStudentEmailMobile" type="text" placeholder="student@email.com" />
+					</div>
+
+					<hr class="sep" />
+
+					<div class="row gap" style="justify-content:flex-start;">
+						<button id="btnSeatEditSaveMobile" class="btn btn-primary">Save</button>
+						<button id="btnSeatEditDeleteMobile" class="btn btn-danger">Delete</button>
+						<button id="btnSeatEditCancelMobile" class="btn btn-ghost">Cancel</button>
+					</div>
+				</div>
+			</div>
+
 			<!-- Keep seat editor if you still want it (optional) -->
 			<div id="seatEditorWrap" class="history hidden">
 				<h3>Edit Seat</h3>

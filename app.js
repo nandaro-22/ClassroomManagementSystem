@@ -319,6 +319,7 @@ const btnSeatEditToggle = document.getElementById("btnSeatEditToggle");
    DOM — SEAT EDIT MODAL
 =========================== */
 const seatEditModal = document.getElementById("seatEditModal");
+const seatEditMobile = document.getElementById("seatEditMobile");
 const btnCloseSeatEdit = document.getElementById("btnCloseSeatEdit");
 const seatEditRoomLabel = document.getElementById("seatEditRoomLabel");
 const editSeatNo = document.getElementById("editSeatNo");
@@ -328,6 +329,15 @@ const editStudentId = document.getElementById("editStudentId");
 const btnSeatEditSave = document.getElementById("btnSeatEditSave");
 const btnSeatEditDelete = document.getElementById("btnSeatEditDelete");
 const btnSeatEditCancel = document.getElementById("btnSeatEditCancel");
+//Mobile
+const seatEditRoomLabelMobile = document.getElementById("seatEditRoomLabelMobile");
+const editSeatNoMobile = document.getElementById("editSeatNoMobile");
+const editStudentNameMobile = document.getElementById("editStudentNameMobile");
+const editStudentEmailMobile = document.getElementById("editStudentEmailMobile");
+const editStudentIdMobile = document.getElementById("editStudentIdMobile");
+const btnSeatEditSaveMobile = document.getElementById("btnSeatEditSaveMobile");
+const btnSeatEditDeleteMobile = document.getElementById("btnSeatEditDeleteMobile");
+const btnSeatEditCancelMobile = document.getElementById("btnSeatEditCancelMobile");
 
 /* ===========================
    DOM — SEAT ADMIN TOOLS
@@ -1035,7 +1045,7 @@ async function ensureMasterStudentsLoaded() {
   window.addEventListener("resize", positionDropdown);
   window.addEventListener("scroll", positionDropdown);
 }*/
-function setupAutocomplete(inputEl, type) {
+/*function setupAutocomplete(inputEl, type) {
 
   if (!inputEl) return;
 
@@ -1248,6 +1258,322 @@ function setupAutocomplete(inputEl, type) {
       e.preventDefault();
       if (activeIndex >= 0) {
         selectItem(activeIndex, inputEl); // 🔥 FIXED
+      }
+    }
+
+    else if (e.key === "Escape") {
+      closeDropdown();
+    }
+  });
+
+  // =========================
+  // CLEAR BUTTON (FIXED WIDTH)
+  // =========================
+  if (!inputEl.dataset.clearAttached) {
+    inputEl.dataset.clearAttached = "true";
+
+    const wrapper = document.createElement("div");
+
+    Object.assign(wrapper.style, {
+      position: "relative",
+      //width: "100%"
+    });
+
+    inputEl.parentNode.insertBefore(wrapper, inputEl);
+    wrapper.appendChild(inputEl);
+
+    const btn = document.createElement("span");
+    btn.innerHTML = "✕";
+
+    Object.assign(btn.style, {
+      position: "absolute",
+      right: "10px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      cursor: "pointer",
+      fontSize: "14px",
+      color: "#999",
+      display: "none"
+    });
+
+    wrapper.appendChild(btn);
+
+    inputEl.addEventListener("input", () => {
+      btn.style.display = inputEl.value ? "block" : "none";
+    });
+
+    btn.onclick = async () => {
+      inputEl.value = "";
+      state.ui.search = "";
+      state.list.page = 1;
+
+      await loadList(true);
+
+      btn.style.display = "none";
+      inputEl.focus();
+    };
+  }
+
+  // =========================
+  // OUTSIDE CLICK
+  // =========================
+  document.addEventListener("click", (e) => {
+    if (!dropdown.contains(e.target) && e.target !== inputEl) {
+      closeDropdown();
+    }
+  });
+
+  window.addEventListener("resize", positionDropdown);
+  window.addEventListener("scroll", positionDropdown);
+}*/
+function setupAutocomplete(inputEl, type) {
+
+  if (!inputEl) return;
+
+  // 🔥 prevent duplicate attach
+  if (inputEl.dataset.autocompleteAttached === "true") return;
+  inputEl.dataset.autocompleteAttached = "true";
+
+  let dropdown = document.createElement("div");
+  dropdown.className = "autocomplete-dropdown";
+
+  Object.assign(dropdown.style, {
+    position: "fixed",
+    background: "#fff",
+    border: "1px solid #ccc",
+    borderRadius: "8px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+    maxHeight: "220px",
+    overflowY: "auto",
+    zIndex: "2147483647",
+    display: "none"
+  });
+
+  document.body.appendChild(dropdown);
+
+  let activeIndex = -1;
+  let currentList = [];
+  let debounceTimer = null;
+
+  // =========================
+  // 🔥 POSITION (FIXED + SMART)
+  // =========================
+  function positionDropdown() {
+
+    const rect = inputEl.getBoundingClientRect();
+
+    const dropdownHeight = 220; // same as maxHeight
+    const viewportHeight = window.innerHeight;
+
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    //const isMobile = window.innerWidth <= 768;
+    const isMobile = window.innerWidth <= 768;
+
+    let top;
+
+    // 🔥 KEY FIX LOGIC
+    if (isMobile && spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+      // 👉 SHOW ABOVE (mobile + keyboard case)
+      top = rect.top - dropdownHeight;
+    } else {
+      // 👉 DEFAULT BELOW
+      top = rect.bottom + 5;
+    }
+
+    // 🔥 prevent overflow (extra safety)
+    if (top < 5) top = 5;
+
+    dropdown.style.top = top + "px";
+    dropdown.style.left = rect.left + "px";
+    dropdown.style.width = rect.width + "px";
+  }
+
+  function closeDropdown() {
+    dropdown.style.display = "none";
+    dropdown.innerHTML = "";
+    activeIndex = -1;
+    currentList = [];
+  }
+
+  // =========================
+  // HIGHLIGHT
+  // =========================
+  function highlight(text, keyword) {
+    if (!keyword) return text;
+    const idx = text.toLowerCase().indexOf(keyword);
+    if (idx === -1) return text;
+
+    return text.substring(0, idx) +
+      "<strong>" + text.substring(idx, idx + keyword.length) + "</strong>" +
+      text.substring(idx + keyword.length);
+  }
+
+  // =========================
+  // RENDER
+  // =========================
+  function renderList(list, keyword) {
+
+    dropdown.innerHTML = "";
+    currentList = list;
+    activeIndex = -1;
+
+    list.forEach((stu, index) => {
+
+      const item = document.createElement("div");
+
+      item.innerHTML = `
+        <div>👤 ${highlight(stu.studentName || "", keyword)}</div>
+        <div style="font-size:12px;color:#64748b;">
+          📧 ${highlight(stu.studentEmail || "", keyword)} • 
+          🆔 ${highlight(stu.studentId || "", keyword)}
+        </div>
+      `;
+
+      item.style.padding = "10px";
+      item.style.cursor = "pointer";
+
+      item.onmouseenter = () => setActive(index);
+      item.onclick = () => selectItem(index, inputEl);
+
+      dropdown.appendChild(item);
+    });
+
+    dropdown.style.display = list.length ? "block" : "none";
+
+    // 🔥 re-position AFTER render (important)
+    positionDropdown();
+  }
+
+  function setActive(index) {
+
+    const items = dropdown.children;
+    if (!items.length) return;
+
+    [...items].forEach(el => el.style.background = "#fff");
+
+    activeIndex = index;
+
+    const activeItem = items[index];
+    activeItem.style.background = "#d2eafa";
+
+    activeItem.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth"
+    });
+  }
+
+  // =========================
+  // SELECT
+  // =========================
+  async function selectItem(index, inputEl) {
+
+    const stu = currentList[index];
+    if (!stu) return;
+
+    seatEditLock = true;
+
+    const name = stu.studentName || stu.fullName || "";
+
+    closeDropdown();
+
+    if (inputEl) inputEl.value = name;
+
+    state.ui.search = name;
+    state.list.page = 1;
+
+    applyStudentToModal(stu);
+
+    await loadList(true);
+
+    setTimeout(() => {
+      seatEditLock = false;
+    }, 0);
+  }
+
+  // =========================
+  // SEARCH
+  // =========================
+  function searchStudents(value) {
+
+    const students = state.seat.masterStudents || [];
+
+    const exact = [];
+    const partial = [];
+
+    students.forEach(s => {
+
+      const name = (s.studentName || "").toLowerCase();
+      const id = (s.studentId || "").toLowerCase();
+      const email = (s.studentEmail || "").toLowerCase();
+
+      if (name.startsWith(value) || id.startsWith(value) || email.startsWith(value)) {
+        exact.push(s);
+      } else if (
+        name.includes(value) ||
+        id.includes(value) ||
+        email.includes(value)
+      ) {
+        partial.push(s);
+      }
+    });
+
+    return [...exact, ...partial].slice(0, 10);
+  }
+
+  // =========================
+  // INPUT
+  // =========================
+  inputEl.addEventListener("input", () => {
+
+    if (seatEditLock) return;
+
+    const value = inputEl.value.trim().toLowerCase();
+
+    clearTimeout(debounceTimer);
+
+    if (!value) {
+      closeDropdown();
+      return;
+    }
+
+    debounceTimer = setTimeout(() => {
+
+      const results = searchStudents(value);
+
+      if (!results.length) return closeDropdown();
+
+      positionDropdown();
+      renderList(results, value);
+
+    }, 200);
+  });
+
+  // =========================
+  // KEYBOARD
+  // =========================
+  inputEl.addEventListener("keydown", (e) => {
+
+    const items = dropdown.children;
+    if (!items.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIndex = (activeIndex + 1) % items.length;
+      setActive(activeIndex);
+    }
+
+    else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIndex = (activeIndex - 1 + items.length) % items.length;
+      setActive(activeIndex);
+    }
+
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0) {
+        selectItem(activeIndex, inputEl);
       }
     }
 
@@ -2018,7 +2344,8 @@ async function loadTaskGrades(studentId) {
 
     // Stop API call if logged out
     if (!state.idToken) {
-      //console.log("Skipped grades load - no session.");
+      toast("Skipped grades load - no session.");
+      //log out here
       hideLoading();
       return;
     }
@@ -2196,6 +2523,10 @@ async function loadTransmutationTables() {
     action: "getTransmutationTables",
     idToken: state.idToken
   });
+
+  if (!res || res.status !== "success") {
+    console.log("❌ Load transmutation Tables failed. " || res?.message);
+  }
 
   state.transmutationMajor = res.major;
   state.transmutationMinor = res.minor;
@@ -3348,13 +3679,7 @@ function renderSeatGrid() {
     if (!s || !s.seatNo) return;
     const master = findStudentByEmail(s.studentEmail);
 
-    const phone =
-      master?.cellphoneNumber ||
-      master?.cellphone ||
-      master?.mobile ||
-      master?.mobileNumber ||
-      master?.contactNumber ||
-      "";
+    const phone = master?.cellphoneNumber || master?.cellphone || master?.mobile || master?.mobileNumber || master?.contactNumber || "";
 
     map.set(String(s.seatNo), {
       seatNo: String(s.seatNo),
@@ -3454,8 +3779,14 @@ function renderSeatGrid() {
 
     div.onclick = async (e) => {
       if (state.seat.editMode === true) {
-        openSeatEditModal(seat);
-        return;
+        if (isMobile()) {
+          openSeatEditMobile(seat);
+          console.log("open");
+          return;
+        } else {
+          openSeatEditModal(seat);
+          return;
+        }
       }
 
       const hasStudent = seat.studentEmail || seat.studentId || seat.studentName;
@@ -3599,6 +3930,36 @@ function openSeatEditModal(seat) {
 }
 
 /*******************************************************
+* function name: openSeatEditMobile
+* parameter: seat (object)
+* return: void
+* purpose: Opens the seat edit modal, populates form fields with selected seat data, and stores the editing reference in state.
+********************************************************/
+function openSeatEditMobile(seat) {
+
+  console.log("openSeatEditMobile");
+  const modal = document.getElementById("seatEditMobile");
+  if (!modal) return;
+
+  modal.classList.remove("hidden");
+
+  setSeatEditLocked(false); // ✅ unlock on open
+
+  // Show room label
+  if (seatEditRoomLabelMobile) seatEditRoomLabelMobile.textContent = `Room: ${state.seat.room || "-"}`;
+
+  // Fill inputs
+  if (editSeatNoMobile) editSeatNoMobile.value = seat.seatNo || "";
+  if (editStudentNameMobile) editStudentNameMobile.value = seat.studentName || "";
+  if (editStudentEmailMobile) editStudentEmailMobile.value = seat.studentEmail || "";
+  if (editStudentIdMobile) editStudentIdMobile.value = seat.studentId || "";
+
+  // Store currently editing seat reference
+  state.seat.editingSeat = { ...seat };
+
+}
+
+/*******************************************************
 * function name: setSeatEditLocked
 * parameter: isLocked (boolean)
 * return: void
@@ -3619,6 +3980,20 @@ function setSeatEditLocked(isLocked) {
   if (editStudentId) editStudentId.disabled = isLocked;
   if (editStudentName) editStudentName.disabled = isLocked;
   if (editStudentEmail) editStudentEmail.disabled = isLocked;
+
+  if (isMobile()) {
+
+    // disable buttons
+    if (btnSeatEditSaveMobile) btnSeatEditSaveMobile.disabled = isLocked;
+    if (btnSeatEditDeleteMobile) btnSeatEditDeleteMobile.disabled = isLocked;
+    if (btnSeatEditCancelMobile) btnSeatEditCancelMobile.disabled = isLocked;
+
+    // disable inputs
+    if (editSeatNoMobile) editSeatNoMobile.disabled = isLocked;
+    if (editStudentIdMobile) editStudentIdMobile.disabled = isLocked;
+    if (editStudentNameMobile) editStudentNameMobile.disabled = isLocked;
+    if (editStudentEmailMobile) editStudentEmailMobile.disabled = isLocked;
+  }
 }
 
 /*******************************************************
@@ -3629,13 +4004,14 @@ function setSeatEditLocked(isLocked) {
 ********************************************************/
 function closeSeatEditModal(force = false) {
 
-  if (!seatEditModal) return;
+  if (!seatEditModal || !seatEditMobile) return;
 
   // allow forced close
   if (seatEditLock && !force) return;
 
   seatEditLock = false; // 🔥 important
   seatEditModal.classList.add("hidden");
+  if (isMobile()) seatEditMobile.classList.add("hidden");
   state.seat.editingSeat = null;
 }
 
@@ -9294,7 +9670,7 @@ function forceLogout(message) {
       scores: {}
     };
 
-    /*if (userBadge) userBadge.classList.add("hidden");
+    if (userBadge) userBadge.classList.add("hidden");
     if (btnHelp) btnHelp.classList.add("hidden");
     if (btnAbout) btnAbout.classList.add("hidden");
     if (btnSupport) btnSupport.classList.add("hidden");
@@ -9302,7 +9678,7 @@ function forceLogout(message) {
     if (btnResetApp) btnResetApp.classList.add("hidden");
     if (btnLogout) btnLogout.classList.add("hidden");
 
-    if (seatAdminTools) seatAdminTools.classList.add("hidden");
+    /*if (seatAdminTools) seatAdminTools.classList.add("hidden");
     if (btnSeatAddRoom) btnSeatAddRoom.classList.add("hidden");
     if (btnSeatEditToggle) btnSeatEditToggle.classList.add("hidden");
 
@@ -10943,6 +11319,12 @@ function applyStudentToModal(stu) {
   if (editStudentEmail) editStudentEmail.value = stu.studentEmail || "";
   if (editStudentName) editStudentName.value = stu.studentName || "";
 
+  if (isMobile()) {
+    if (editStudentIdMobile) editStudentIdMobile.value = stu.studentId || "";
+    if (editStudentEmailMobile) editStudentEmailMobile.value = stu.studentEmail || "";
+    if (editStudentNameMobile) editStudentNameMobile.value = stu.studentName || "";
+  }
+
   seatEditLock = false;
 }
 
@@ -11042,9 +11424,15 @@ async function loadDashboard() {
   const wrap = document.getElementById("dashboardWrap");
   if (!wrap) return;
 
+  // Stop API call if logged out
+  if (!state.idToken) {
+    console.log("No Token. Logging out.");
+    forceLogout();
+    return;
+  }
+
   // ✅ 0. BUILD KEY FIRST (VERY IMPORTANT)
   const dashKey = buildDashKey();
-  console.log("dashKey:", dashKey);
 
   // ✅ 1. FIRST LOAD → skeleton only once
   if (!DASH_INIT) {
@@ -11062,11 +11450,9 @@ async function loadDashboard() {
   }
 
   // ✅ 3. FETCH
-  console.log("DASHBOARD fetching");
-
   const res = await apiPost("dashboardAll", {});
-  console.log("RESPONSE: ", res);
-  console.log("DEBUG: ", res.debug);
+  //console.log("RESPONSE: ", res);
+  //console.log("DEBUG: ", res.debug);
 
   // ✅ 4. VALIDATE FIRST
   if (res.status !== "success") {
@@ -11299,12 +11685,14 @@ function buildDashboardData(items) {
 * purpose: Render dashboard UI using backend data
 ********************************************************/
 function renderDashboard(items) {
-  console.log("items: ", items);
-  const students = items;
-  const pending = students.filter(s => !s.done || !s.hasRemarks || !s.hasProof);
 
+  const students = items;
+
+  // do not include done, meaning student or class/section is closed
+  const pending = students.filter(s => !s.done && !s.hasRemarks || !s.hasProof);
   const passing = [];
   const failing = [];
+  const pendingGrade = [];
 
   const pendingQuiz = [];
   const pendingCParticipation = [];
@@ -11316,16 +11704,15 @@ function renderDashboard(items) {
     const grade = Number(s.finalGrade);
 
     if (!grade || grade === 0) {
-      // ✅ NO GRADE → treat as pending
-      pending.push(s);
+      // ✅ NO GRADE → treat as pending grade
+      pendingGrade.push(s);
     } else if (grade >= 75) {
       passing.push(s);
     } else {
       failing.push(s);
     }
   });
-  //state.dashboardCtx = { pending, failing };
-  //console.log({ students, pending, failing, passing });
+
   state.dashboardCtx = {
     all: students,
     failing: failing,
@@ -11408,20 +11795,14 @@ function renderDashboard(items) {
   document.getElementById("pendingBreakdown").innerHTML = renderPendingBreakdown(d);
 
   // ===== LISTS =====
-  document.getElementById("failingList").innerHTML = renderTopList("⚠️ Failing Students", d.failing);
+  document.getElementById("failingList").innerHTML = renderTopList("⚠️ Failing Students (" + failing.length + ")", d.failing);
+  document.getElementById("pendingList").innerHTML = renderTopList("📝 Pending Students (" + pending.length + ")", d.pending, true);
 
-  document.getElementById("pendingList").innerHTML = renderTopList("📝 Pending Students", d.pending, true);
-
-  document.getElementById("avalueList").innerHTML = renderTopList("📝 Pending Augustinain Value", pendingAValue, true, "augustinian");
-  document.getElementById("participationList").innerHTML = renderTopList("📝 Pending Class Participation", pendingCParticipation, true, "participation");
-  document.getElementById("quizList").innerHTML = renderTopList("📝 Pending Quiz", pendingQuiz, true, "quiz");
-  document.getElementById("mexamList").innerHTML = renderTopList("📝 Pending Midterm Exam", pendingMExam, true, "mexam");
-  document.getElementById("fexamList").innerHTML = renderTopList("📝 Pending Final Exam", pendingFExam, true, "fexam");
-  console.log("pendingAValue: ", pendingAValue);
-  console.log("pendingCParticipation: ", pendingCParticipation);
-  console.log("pendingQuiz: ", pendingQuiz);
-  console.log("pendingMExam: ", pendingMExam);
-  console.log("pendingFExam: ", pendingFExam);
+  document.getElementById("avalueList").innerHTML = renderTopList("🙏 Pending Augustinain Value (" + pendingAValue.length + ")", pendingAValue, true, "augustinian");
+  document.getElementById("participationList").innerHTML = renderTopList("🧠 Pending Class Participation (" + pendingCParticipation.length + ")", pendingCParticipation, true, "participation");
+  document.getElementById("quizList").innerHTML = renderTopList("📝 Pending Quiz (" + pendingQuiz.length + ")", pendingQuiz, true, "quiz");
+  document.getElementById("mexamList").innerHTML = renderTopList("📝 Pending Midterm Exam (" + pendingMExam.length + ")", pendingMExam, true, "mexam");
+  document.getElementById("fexamList").innerHTML = renderTopList("📝 Pending Final Exam (" + pendingFExam.length + ")", pendingFExam, true, "fexam");
 }
 
 function renderKPI(title, value, sub = "") {
@@ -11611,10 +11992,7 @@ async function openDashboardStudent(type, studentId) {
         (s.pendingDetails.fexam?.length || 0) > 0 ||
         (s.pendingDetails.augustinian?.length || 0) > 0;
 
-      const hasFormPending =
-        !s.hasRemarks ||
-        !s.done ||
-        !s.hasProof;
+      const hasFormPending = !s.hasRemarks || !s.done || !s.hasProof;
 
       if (category.includes("quiz")) return s.pendingDetails.quiz?.length > 0;
       if (category.includes("participation")) return s.pendingDetails.participation?.length > 0;
@@ -12517,6 +12895,11 @@ if (btnCloseSeatEdit) {
 if (btnSeatEditCancel) {
   btnSeatEditCancel.onclick = () => closeSeatEditModal(true);
 }
+
+if (btnSeatEditCancelMobile) {
+  btnSeatEditCancelMobile.onclick = () => closeSeatEditModal(true);
+}
+
 if (btnDeleteRoom) btnDeleteRoom.onclick = deleteRoom;
 
 if (seatEditModal) {
@@ -12585,6 +12968,62 @@ if (btnSeatEditSave) {
   };
 }
 
+if (btnSeatEditSaveMobile) {
+  btnSeatEditSaveMobile.onclick = async () => {
+    showLoading("Updating seat no. " + editSeatNoMobile.value + ". Please wait...");
+    if (!state.me || state.me.role !== "admin") {
+      hideLoading();
+      toast("Admin only.");
+      return;
+    }
+
+    if (!state.seat.room) {
+      hideLoading();
+      toast("No room loaded.");
+      return;
+    }
+
+    const seatNo = editSeatNoMobile ? editSeatNoMobile.value.trim() : "";
+    if (!seatNo) {
+      hideLoading();
+      toast("Seat No is required.");
+      return;
+    }
+
+    const body = {
+      room: state.seat.room,
+      seatNo: seatNo,
+      studentEmail: editStudentEmailMobile ? editStudentEmailMobile.value.trim() : "",
+      studentId: editStudentIdMobile ? editStudentIdMobile.value.trim() : "",
+      studentName: editStudentNameMobile ? editStudentNameMobile.value.trim() : ""
+    };
+
+    try {
+
+      setSeatEditLocked(true); // ✅ lock
+
+      const res = await apiPost("seatmapSave", body);
+
+      if (res.status !== "success") {
+        hideLoading();
+        throw new Error("Save failed. " || res.message);
+      }
+
+      toast("✅ Seat updated!");
+      await loadSeatRoom(state.seat.room);
+      closeSeatEditModal(true);
+      hideLoading();
+    } catch (err) {
+      hideLoading();
+      toast("Save error: " + err.toString());
+      console.log("Save error: " + err.toString());
+    } finally {
+      hideLoading();
+      setSeatEditLocked(false); // ✅ Always unlock
+    }
+  };
+}
+
 if (btnSeatEditDelete) {
   btnSeatEditDelete.onclick = async () => {
 
@@ -12637,6 +13076,67 @@ if (btnSeatEditDelete) {
     } catch (err) {
       hideLoading();
       toast("Clear error: " + err.toString());
+      console.log("Desktop Clear error: " + err.toString());
+    } finally {
+      hideLoading();
+      setSeatEditLocked(false); // ✅ Always unlock
+    }
+  };
+}
+
+if (btnSeatEditDeleteMobile) {
+  btnSeatEditDeleteMobile.onclick = async () => {
+
+    // ✅ CONFIRMATION FIRST
+    const ok = confirm("Are you sure you want to delete this seat assignment?\n\nThis will clear the student info from this seat.");
+    if (!ok) return;
+    showLoading("Deleting seat no. " + editSeatNoMobile.value + ". Please wait...");
+    if (!state.me || state.me.role !== "admin") {
+      hideLoading();
+      toast("Admin only.");
+      return;
+    }
+
+    if (!state.seat.room) {
+      hideLoading();
+      toast("No room loaded.");
+      return;
+    }
+
+    const seatNo = editSeatNoMobile ? editSeatNoMobile.value.trim() : "";
+    if (!seatNo) {
+      hideLoading();
+      toast("Seat No is required.");
+      return;
+    }
+
+    // ✅ Clear student fields but keep seatNo
+    const body = {
+      room: state.seat.room,
+      seatNo: seatNo,
+      studentEmail: "",
+      studentId: "",
+      studentName: ""
+    };
+
+    try {
+      setSeatEditLocked(true); // ✅ lock
+
+      const res = await apiPost("seatmapSave", body);
+
+      if (res.status !== "success") {
+        hideLoading();
+        throw new Error(res.message || "Clear failed");
+      }
+
+      toast("Seat cleared!");
+      await loadSeatRoom(state.seat.room);
+      closeSeatEditModal(true);
+      hideLoading();
+    } catch (err) {
+      hideLoading();
+      toast("Clear error: " + err.toString());
+      console.log("Mobile Clear error: " + err.toString());
     } finally {
       hideLoading();
       setSeatEditLocked(false); // ✅ Always unlock
@@ -12947,6 +13447,10 @@ if (btnAddSeatOnly) btnAddSeatOnly.onclick = addSeatEmpty;
         setupAutocomplete(editStudentName, "name");
         setupAutocomplete(editStudentId, "id");
         setupAutocomplete(editStudentEmail, "email");
+        //mobile
+        setupAutocomplete(editStudentNameMobile, "name");
+        setupAutocomplete(editStudentIdMobile, "id");
+        setupAutocomplete(editStudentEmailMobile, "email");
         //}
         //}
 
