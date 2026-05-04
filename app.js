@@ -834,7 +834,7 @@ async function apiPostNoCors(action, payload = {}) {
 async function ensureMasterStudentsLoaded() {
 
   if (state.seat.masterStudents?.length) return;
-
+  console.log("state.seat.masterStudents: ", state.seat.masterStudents);
   if (masterPromise) return masterPromise;
 
   masterPromise = (async () => {
@@ -1655,7 +1655,7 @@ function setupAutocomplete(inputEl, type) {
 * return: -
 * purpose: Save all task grades for current student
 *******************************************************/
-function renderTaskGrades() {
+/*function renderTaskGrades() {
   const tbody = document.getElementById("gradeTableBody");
   if (!tbody) return;
   tbody.innerHTML = "";
@@ -1848,6 +1848,223 @@ function renderTaskGrades() {
       recomputeAllGrades();
     };
   });
+}*/
+function renderTaskGrades() {
+
+  const tbody = document.getElementById("gradeTableBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const tasks = state.gradeTasks || [];
+
+  if (!tasks.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#dc2626;">No grade items</td></tr>`;
+    return;
+  }
+
+  const categoryOrder = [
+    "AUGUSTINIAN VALUE",
+    "QUIZ",
+    "ASSIGNMENT",
+    "EXERCISE",
+    "PROJECT",
+    "MIDTERM EXAM",
+    "FINAL EXAM",
+    "CLASS PARTICIPATION",
+    "OTHERS"
+  ];
+
+  const periodGroups = {};
+
+  tasks.forEach(t => {
+    const period = (t.period || "MIDTERM PERIOD").toUpperCase();
+    if (!periodGroups[period]) periodGroups[period] = [];
+    periodGroups[period].push(t);
+  });
+
+  // 🔥 PERIOD STATE STORAGE
+  state.periodState = state.periodState || {};
+
+  Object.keys(periodGroups).forEach(period => {
+
+    const safePeriod = period.replace(/[^a-zA-Z0-9]/g, "_");
+
+    if (state.periodState[safePeriod] === undefined) {
+      state.periodState[safePeriod] = true; // expanded default
+    }
+
+    const isPeriodOpen = state.periodState[safePeriod];
+
+    // =========================
+    // PERIOD HEADER
+    // =========================
+    const periodHeader = document.createElement("tr");
+    periodHeader.className = "periodHeader";
+    periodHeader.innerHTML = `
+      <td colspan="6" style="background:#fde047; font-weight:900; font-size:16px; cursor:pointer;">
+        <span id="periodArrow_${safePeriod}">${isPeriodOpen ? "▼" : "▶"}</span> ${period}
+      </td>
+    `;
+
+    periodHeader.onclick = () => {
+      state.periodState[safePeriod] = !state.periodState[safePeriod];
+      renderTaskGrades(); // 🔥 FULL RE-RENDER (cleanest fix)
+    };
+
+    tbody.appendChild(periodHeader);
+
+    // =========================
+    // GROUP CATEGORY
+    // =========================
+    const grouped = {};
+
+    periodGroups[period].forEach(t => {
+      const cat = (t.category || "OTHERS").toUpperCase();
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(t);
+    });
+
+    const sortedCategories = Object.keys(grouped).sort((a, b) => {
+      const ia = categoryOrder.indexOf(a);
+      const ib = categoryOrder.indexOf(b);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+    });
+
+    // =========================
+    // LOOP CATEGORY
+    // =========================
+    sortedCategories.forEach(cat => {
+
+      const safeCat = cat.replace(/[^a-zA-Z0-9]/g, "_");
+      const catKey = safePeriod + "_" + safeCat;
+
+      if (state.gradeCategoryState[catKey] === undefined) {
+        state.gradeCategoryState[catKey] = true;
+      }
+
+      const isCatOpen = state.gradeCategoryState[catKey];
+
+      // ===== HEADER
+      const headerRow = document.createElement("tr");
+      headerRow.className = "gradeCategoryHeader";
+
+      // 🔥 IMPORTANT: hide if period collapsed
+      if (!isPeriodOpen) headerRow.classList.add("hidden");
+
+      headerRow.innerHTML = `
+        <td colspan="6" style="background:#f1f5f9; font-weight:700; cursor:pointer;">
+          <span id="catArrow_${catKey}">${isCatOpen ? "▼" : "▶"}</span>
+          ${cat}
+        </td>
+      `;
+
+      headerRow.onclick = () => {
+        state.gradeCategoryState[catKey] = !state.gradeCategoryState[catKey];
+        renderTaskGrades(); // 🔥 ALWAYS re-render
+      };
+
+      tbody.appendChild(headerRow);
+
+      // ===== TASKS
+      grouped[cat].forEach(t => {
+
+        const tr = document.createElement("tr");
+
+        // 🔥 FORCE RULE
+        if (!isPeriodOpen || !isCatOpen) {
+          tr.classList.add("hidden");
+        }
+
+        const percent = (!isTaskMissing(t.score) && Number(t.max) > 0)
+          ? (Number(t.score) / Number(t.max)) * 100
+          : 0;
+
+        const isMissing = isTaskMissing(t.score);
+
+        tr.innerHTML = `
+          <td>${formatGradeDate(t.date)}</td>
+          <td>${t.category}</td>
+          <td>
+            ${t.taskName}
+            ${isMissing ? `<span style="color:#b42318;font-weight:700;">⚠️ NOT SUBMITTED</span>` : ""}
+          </td>
+          <td>${t.max || 0}</td>
+          <td>
+            <input class="gradeInput"
+              type="number"
+              min="0"
+              max="${t.max || 0}"
+              value="${t.score ?? ""}"
+              data-taskcode="${t.taskCode}" />
+          </td>
+          <td>${percent.toFixed(1)}%</td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      // ===== CATEGORY AVG
+      const transmuted = state.categoryGrades?.[period]?.[cat] || 0;
+
+      const avgRow = document.createElement("tr");
+
+      if (!isPeriodOpen) avgRow.classList.add("hidden");
+
+      avgRow.innerHTML = `
+        <td colspan="5" style="text-align:right;font-weight:700;">
+          ${cat} AVERAGE
+        </td>
+        <td style="font-weight:900;color:#1f7a3f;">
+          ${transmuted.toFixed(0)}
+        </td>
+      `;
+
+      tbody.appendChild(avgRow);
+    });
+
+    // =========================
+    // PERIOD AVG
+    // =========================
+    const periodGrade = computePeriodGrade(period);
+
+    const periodAvgRow = document.createElement("tr");
+
+    if (!isPeriodOpen) periodAvgRow.classList.add("hidden");
+
+    periodAvgRow.innerHTML = `
+      <td colspan="5" style="text-align:right;font-weight:900;background:#e2e8f0;">
+        ${period} AVERAGE
+      </td>
+      <td style="font-weight:900;color:#1f7a3f;">
+        ${periodGrade.toFixed(1)}
+      </td>
+    `;
+
+    tbody.appendChild(periodAvgRow);
+  });
+
+  // =========================
+  // INPUT EVENTS
+  // =========================
+  document.querySelectorAll(".gradeInput").forEach(input => {
+    input.oninput = function () {
+      let val = Number(this.value);
+      let max = Number(this.max);
+
+      if (isNaN(val)) val = 0;
+      if (val < 0) val = 0;
+      if (val > max) val = max;
+
+      this.value = val;
+
+      updateGradeRealtime(this.dataset.taskcode, this);
+      recomputeTaskFinal();
+    };
+  });
+
+  setTimeout(() => {
+    recomputeAllGrades();
+  }, 0);
 }
 
 /* OBSOLETE */
@@ -3672,7 +3889,7 @@ function renderSeatGrid() {
   seatGrid.innerHTML = "";
 
   const seats = Array.isArray(state.seat.seats) ? state.seat.seats : [];
-
+  console.log("state.seat.seats: ", state.seat.seats);
   // Build seat map from backend seats
   const map = new Map();
   seats.forEach(s => {
@@ -10571,7 +10788,7 @@ function closeSeatPreview() {
 ********************************************************/
 async function openMobilePreview(seat) {
   state.seat.currentSeat = seat;
-
+  console.log("seat: ", seat);
   const pv = document.getElementById("seatPreviewMobile");
   pv.classList.remove("hidden");
 
@@ -11421,6 +11638,16 @@ function goToMainMenu() {
 }*/
 async function loadDashboard() {
 
+  if (navigator.onLine) {
+    console.log("online");
+    toast("online");
+  } else {
+    console.log("offline");
+    toast("offline");
+    renderDashboardSkeleton();
+    renderDashboard(DASH_CACHE.items);
+  }
+
   const wrap = document.getElementById("dashboardWrap");
   if (!wrap) return;
 
@@ -11521,7 +11748,7 @@ function hashDashboard(items) {
 * purpose: 
 ********************************************************/
 function renderDashboardSkeleton() {
-
+  if (navigator.online) console.log("called renderDashboardSkeleton");
   const wrap = document.getElementById("dashboardWrap");
   if (!wrap) return;
 
