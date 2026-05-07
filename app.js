@@ -3119,7 +3119,9 @@ async function loadTaskGrades(studentId) {
     // LOAD FROM CACHE FIRST
     // ========================================
     const cachedGrades = await getCachedStudentGrades(studentId);
+
     console.log("cachedGrades: ", cachedGrades);
+
     if (cachedGrades?.length) {
 
       console.log("Loaded grades from cache:", studentId);

@@ -172,13 +172,13 @@
         font-size: 16px;
     }
 
-    .seatPreviewMobile {
+    /* .seatPreviewMobile {
         display: none !important;
-    }
+    } */
 
-    .seatPreview {
+    /* .seatPreview {
         display: none !important;
-    }
+    } */
 
     .container {
         padding: 12px;

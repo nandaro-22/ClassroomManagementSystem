@@ -68,7 +68,7 @@
 
 }
 
-.seatPreviewMobile {
+/* .seatPreviewMobile {
     position: fixed;
     left: 0;
     right: 0;
@@ -82,7 +82,7 @@
     padding: 16px;
 
     z-index: 999999;
-}
+} */
 
 /* IMPORTANT: allow tooltips to overflow */
 #screenSeatMap,
