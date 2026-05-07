@@ -1337,6 +1337,14 @@ function setupAutocomplete(inputEl, type) {
   let dropdown = document.createElement("div");
   dropdown.className = "autocomplete-dropdown";
 
+  dropdown.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  dropdown.addEventListener("touchstart", (e) => {
+    e.stopPropagation();
+  });
+
   Object.assign(dropdown.style, {
     position: "fixed",
     background: "#fff",
@@ -1363,7 +1371,8 @@ function setupAutocomplete(inputEl, type) {
     const rect = inputEl.getBoundingClientRect();
 
     const dropdownHeight = 220; // same as maxHeight
-    const viewportHeight = window.innerHeight;
+    // const viewportHeight = window.innerHeight;
+    const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 
     const spaceBelow = viewportHeight - rect.bottom;
     const spaceAbove = rect.top;
@@ -1376,10 +1385,12 @@ function setupAutocomplete(inputEl, type) {
     // 🔥 KEY FIX LOGIC
     if (isMobile && spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
       // 👉 SHOW ABOVE (mobile + keyboard case)
-      top = rect.top - dropdownHeight;
+      // top = rect.top - dropdownHeight;
+      top = Math.max(8, rect.top - dropdownHeight - 8);
     } else {
       // 👉 DEFAULT BELOW
-      top = rect.bottom + 5;
+      // top = rect.bottom + 5;
+      top = Math.min(viewportHeight - dropdownHeight - 8, rect.bottom + 5);
     }
 
     // 🔥 prevent overflow (extra safety)
@@ -1435,7 +1446,17 @@ function setupAutocomplete(inputEl, type) {
       item.style.cursor = "pointer";
 
       item.onmouseenter = () => setActive(index);
-      item.onclick = () => selectItem(index, inputEl);
+      item.addEventListener("touchstart", (e) => {
+        e.stopPropagation();
+      });
+      // item.onclick = () => selectItem(index, inputEl);
+      item.onclick = (e) => {
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        selectItem(index, inputEl);
+      };
 
       dropdown.appendChild(item);
     });
@@ -1641,6 +1662,19 @@ function setupAutocomplete(inputEl, type) {
 
   window.addEventListener("resize", positionDropdown);
   window.addEventListener("scroll", positionDropdown);
+
+  if (window.visualViewport) {
+
+    window.visualViewport.addEventListener(
+      "resize",
+      positionDropdown
+    );
+
+    window.visualViewport.addEventListener(
+      "scroll",
+      positionDropdown
+    );
+  }
 }
 
 /* ======================================================
@@ -4562,7 +4596,7 @@ function renderSeatGrid() {
     div.onclick = async (e) => {
       if (state.seat.editMode === true) {
         if (isMobile()) {
-          openSeatEditMobile(seat);
+          safeOpenSeatEditMobile(e, seat);
           console.log("open");
           return;
         } else {
@@ -4719,13 +4753,14 @@ function openSeatEditModal(seat) {
 ********************************************************/
 function openSeatEditMobile(seat) {
 
-  console.log("openSeatEditMobile");
-  const modal = document.getElementById("seatEditMobile");
-  if (!modal) return;
+  // const modal = document.getElementById("seatEditMobile");
+  if (!seatEditMobile) return;
 
-  modal.classList.remove("hidden");
+  seatEditMobile.classList.remove("hidden");
 
   setSeatEditLocked(false); // ✅ unlock on open
+
+  console.log("openSeatEditMobile");
 
   // Show room label
   if (seatEditRoomLabelMobile) seatEditRoomLabelMobile.textContent = `Room: ${state.seat.room || "-"}`;
@@ -4739,6 +4774,20 @@ function openSeatEditMobile(seat) {
   // Store currently editing seat reference
   state.seat.editingSeat = { ...seat };
 
+}
+
+// ========================================
+// SAFE OPEN MOBILE SEAT EDIT
+// prevents instant close from bubbling
+// ========================================
+function safeOpenSeatEditMobile(event, seat) {
+
+  // stop bubbling to document click
+  if (event) {
+    event.stopPropagation();
+  }
+
+  openSeatEditMobile(seat);
 }
 
 /*******************************************************
@@ -13787,6 +13836,33 @@ if (btnSeatEditCancel) {
 if (btnSeatEditCancelMobile) {
   btnSeatEditCancelMobile.onclick = () => closeSeatEditModal(true);
 }
+
+// ========================================
+// CLOSE MOBILE SEAT EDIT ON OUTSIDE CLICK
+// ========================================
+document.addEventListener("click", (e) => {
+
+  // const isMobile = window.innerWidth <= 768;
+
+  if (!isMobile()) return;
+
+  if (!seatEditMobile) return;
+
+  if (seatEditMobile.classList.contains("hidden")) return;
+
+  // clicked inside modal
+  if (seatEditMobile.contains(e.target)) return;
+
+  // clicked autocomplete dropdown
+  if (e.target.closest(".autocomplete-dropdown")) return;
+
+  // clicked autocomplete item
+  if (e.target.closest(".autocomplete-item")) return;
+
+  // close modal
+  seatEditMobile.classList.add("hidden");
+
+});
 
 if (btnDeleteRoom) btnDeleteRoom.onclick = deleteRoom;
 

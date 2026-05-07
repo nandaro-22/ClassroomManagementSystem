@@ -413,6 +413,80 @@
         width: 100%;
     }
 
+    /* =========================================
+   MOBILE SEAT EDIT = SEAT PREVIEW STYLE
+========================================= */
+
+    #seatEditMobile {
+
+        position: fixed !important;
+
+        left: 12px !important;
+        right: 12px !important;
+        bottom: 12px !important;
+
+        top: auto !important;
+
+        width: auto !important;
+        max-width: none !important;
+
+        max-height: 82vh !important;
+
+        overflow-y: auto !important;
+
+        border-radius: 24px !important;
+
+        background: #fff !important;
+
+        z-index: 999999 !important;
+
+        padding: 18px !important;
+
+        box-shadow:
+            0 10px 30px rgba(0, 0, 0, .18) !important;
+
+        animation: seatPreviewUp .18s ease;
+    }
+
+    /* remove full modal look */
+    #seatEditMobile.modal,
+    #seatEditMobile .modal-inner {
+
+        background: transparent !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+    }
+
+    /* hide cancel button */
+    #btnSeatEditCancelMobile {
+        display: none !important;
+    }
+
+    /* save/delete layout */
+    #seatEditMobile .row.gap {
+
+        display: grid !important;
+
+        grid-template-columns: 1fr 1fr !important;
+
+        gap: 10px !important;
+    }
+
+    /* autocomplete should float above keyboard */
+    .autocomplete-dropdown {
+
+        position: fixed !important;
+
+        z-index: 2147483647 !important;
+
+        max-height: 220px !important;
+
+        overflow-y: auto !important;
+
+        -webkit-overflow-scrolling: touch;
+    }
+
 }
 
 /* tablet seat columns */
