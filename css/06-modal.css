@@ -1,0 +1,139 @@
+/* =========================================
+   06. MODALS
+========================================= */
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    /* soft gray overlay */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    z-index: 21474
+        /* z-index: 2147483647; */
+        /* max safe z-index */
+}
+
+.modal.hidden {
+    display: none !important;
+}
+
+.modalBox {
+    width: min(920px, 96vw);
+    max-height: 92vh;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+}
+
+.modalTop {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.modalBody {
+    padding: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #ffffff;
+    /* NO BLACK */
+}
+
+.modalImg {
+    max-width: 100%;
+    max-height: 78vh;
+    width: auto;
+    height: auto;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    object-fit: contain;
+    /* important */
+}
+
+.modal-inner {
+    background: white;
+    border-radius: 14px;
+    padding: 14px;
+    max-width: 900px;
+    width: 100%;
+    max-height: 90vh;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.modal-close {
+    margin-bottom: 10px;
+}
+
+.modal-wide {
+    width: min(720px, 95vw);
+    max-height: 85vh;
+    overflow: auto;
+}
+
+.modal-photo {
+    width: 100%;
+    height: auto;
+    max-height: 80vh;
+    object-fit: contain;
+
+    /* allow pinch zoom / smooth gestures */
+    touch-action: pan-x pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+
+    /*width: 100%;*/
+    /*max-height: 75vh;*/
+    /*object-fit: contain;*/
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    display: block;
+}
+
+#photoModal {
+    touch-action: manipulation;
+}
+
+.modalViewer {
+    max-width: 920px;
+    width: 100%;
+    max-height: 92vh;
+    overflow: hidden;
+    /* important */
+}
+
+.modalViewerTop {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.modalViewerWrap {
+    width: 100%;
+    height: 78vh;
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #0b1220;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    /* allow JS to handle drag */
+}
+
+.modal-photo:active {
+    cursor: grabbing;
+}

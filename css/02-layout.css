@@ -1,0 +1,505 @@
+/* =========================================
+   02. LAYOUT
+========================================= */
+
+.container {
+    width: 100%;
+    max-width: 100%;
+    margin: 18px 0;
+    padding: 0 14px;
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    /* padding: 14px; */
+    /* box-shadow: var(--shadow-sm); */
+    margin-top: 12px;
+
+    /* background: #ffffff; */
+    /* border: 1px solid #e2e8f0; */
+    /* border-radius: 14px; */
+    padding: 16px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    margin-top: 12px;
+    /* padding: 12px; */
+}
+
+.row {
+    display: flex;
+    align-items: center;
+}
+
+.space-between {
+    justify-content: space-between;
+}
+
+.gap {
+    gap: 10px;
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+    align-items: center;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.hint {
+    margin-top: 8px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.note {
+    margin-top: 14px;
+    padding: 12px;
+    background: #f1f5f9;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #334155;
+}
+
+.sep {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 14px 0;
+}
+
+/* ===========================
+   TOPBAR
+=========================== */
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: #0ea5e9;
+    color: white;
+    font-weight: bold;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.title {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.subtitle {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* ===========================
+   FORMS
+=========================== */
+label {
+    display: block;
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: #334155;
+}
+
+input[type="text"],
+input[type="file"],
+select,
+textarea {
+    width: 100%;
+    padding: 10px 10px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    outline: none;
+    font-size: 13px;
+    background: white;
+}
+
+textarea {
+    resize: vertical;
+}
+
+/* ===========================
+   GRID + ROW HELPERS
+=========================== */
+.row {
+    display: flex;
+    align-items: center;
+}
+
+.space-between {
+    justify-content: space-between;
+}
+
+.gap {
+    gap: 10px;
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.grid-4>div,
+.grid-2>div {
+    min-width: 0;
+}
+
+/* ===========================
+   CHECKBOX LABELS
+=========================== */
+.chk {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #334155;
+}
+
+.chk input {
+    width: 16px;
+    height: 16px;
+}
+
+/* ===========================
+   TOOLBAR
+=========================== */
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+    align-items: center;
+}
+
+.toolbar input[type="text"] {
+    flex: 1;
+    min-width: 240px;
+}
+
+/* ===========================
+   PAGINATION
+=========================== */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+/* ===========================
+   DETAILS VIEW (LEFT LIST + MAIN)
+=========================== */
+
+/* Backward compatibility */
+.details-shell {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 14px;
+    margin-top: 14px;
+    align-items: start;
+}
+
+/* ===========================
+   MAIN MENU
+=========================== */
+.menuGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.menuCard {
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 14px;
+    padding: 16px;
+    cursor: pointer;
+    transition: 0.15s ease;
+}
+
+.menuCard:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.menuTitle {
+    font-size: 16px;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+.menuSub {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.menuCard:hover .menuTitle {
+    color: #0ea5e9;
+    text-decoration: underline;
+}
+
+.inputBox {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    outline: none;
+    font-size: 14px;
+    background: #ffffff;
+    box-sizing: border-box;
+}
+
+.inputBox:focus {
+    border-color: #0ea5e9;
+}
+
+.inputSmall {
+    max-width: 160px;
+}
+
+/* ===========================
+   HELP MODAL (Responsive)
+=========================== */
+.helpModalInner {
+    max-width: 860px;
+    width: 95%;
+    max-height: 85vh;
+    overflow: auto;
+}
+
+.helpContent h3 {
+    margin: 14px 0 8px;
+}
+
+.helpContent p {
+    margin: 6px 0 10px;
+}
+
+.helpGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.helpBox {
+    background: #f8fbff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px;
+}
+
+.helpBoxTitle {
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.helpBox.danger {
+    background: #fff5f5;
+    border: 1px solid #fecaca;
+}
+
+.helpContent ul {
+    margin: 6px 0 0 18px;
+    padding: 0;
+}
+
+.helpContent li {
+    margin: 4px 0;
+}
+
+.pendingPanel {
+    margin-top: 12px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.pendingHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.pendingActions {
+    display: flex;
+    gap: 8px;
+}
+
+.pendingList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pendingItem {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px;
+    background: #f8fafc;
+}
+
+.pendingTopRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.pendingTitle {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.pendingMeta {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 3px;
+    word-break: break-word;
+}
+
+.pendingBtns {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.progressWrap {
+    margin-top: 8px;
+}
+
+.progressBar {
+    width: 100%;
+    height: 10px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.progressFill {
+    height: 100%;
+    width: 0%;
+    background: #0ea5e9;
+    /* MOBILE FIXES (768px and below) */
+    transition: width 0.2s ease;
+}
+
+.progressText {
+    font-size: 12px;
+    color: #475569;
+    margin-top: 4px;
+}
+
+.pendingPanel {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* hide left nav + photo only */
+body.student-mode .recordNav,
+body.student-mode .photo-card,
+body.student-mode .detailsHeaderBtns,
+body.student-mode #btnSave,
+body.student-mode #btnUploadEvidence,
+body.student-mode #btnHistory,
+body.student-mode #subjectType,
+body.student-mode #btnaddTaskRow,
+body.student-mode #btnsaveTaskGrades,
+body.student-mode #btnresetGradesUI,
+body.student-mode #newTaskPeriod,
+body.student-mode #newTaskCategory,
+body.student-mode #newTaskMax,
+body.student-mode #ldAdminControls {
+    display: none !important;
+}
+
+body.student-mode .gradeInput {
+    pointer-events: none;
+    background: #f1f5f9;
+    color: #0000ff;
+    border-color: #e2e8f0;
+    width: 60px;
+    max-width: 60px;
+    text-align: center;
+}
+
+/* collapse outer layout to 1 column */
+.student-mode .detailsLayout,
+.student-mode .details-shell {
+    grid-template-columns: 1fr !important;
+}
+
+/* rebuild details grid cleanly */
+.student-mode .details-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+/* info card becomes full width */
+.student-mode .info-card {
+    grid-column: 1 !important;
+}
+
+.app-booting #screenConfig {
+    display: none !important;
+}

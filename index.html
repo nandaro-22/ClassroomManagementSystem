@@ -272,6 +272,8 @@
 								</label>
 							</div>
 
+							<hr class="sep" />
+
 							<div class="row gap">
 								<button id="btnSave" class="btn btn-primary">Save Remarks</button>
 								<button id="btnUploadEvidence" class="btn btn-primary">Upload Evidence</button>
@@ -284,7 +286,6 @@
 
 						</div>
 					</div>
-
 
 					<div id="historyWrap" class="history hidden"></div>
 
@@ -380,8 +381,8 @@
 			<div class="card" style="margin-top:14px;">
 				<h3 style="margin-top:0 0 8px 0;">Learner Development</h3>
 
-				<div class="row gap" style="flex-wrap:wrap;" id="ldAdminControls">
-					<!-- <input id="ldCategory" placeholder="Category (e.g. Physical)"> -->
+				<!-- <div class="row gap" style="flex-wrap:wrap;" id="ldAdminControls">
+
 					<select id="ldCategory" class="gradeField gradeDropdown">
 						<option value="">-- Select Category --</option>
 						<option value="Physical">Physical</option>
@@ -395,6 +396,30 @@
 						class="gradeField gradeInputField">
 					<button id="btnaddLearnerDev" class="btn btn-primary">Add</button>
 					<button id="btnsaveLearnerDev" class="btn btn-ghost">Save Radar</button>
+				</div> -->
+
+				<div id="ldAdminControls" class="learnerDevToolbar">
+
+					<select id="ldCategory" class="gradeField">
+						<option value="">-- Select Category --</option>
+						<option value="Physical">Physical</option>
+						<option value="Cognitive">Cognitive</option>
+						<option value="Social">Language & Communication</option>
+						<option value="Emotional">Psychosocial & Emotional</option>
+						<option value="Communication">Social</option>
+						<option value="Leadership">Moral & Values</option>
+					</select>
+
+					<input id="ldScore" type="number" min="0" max="5" placeholder="Score 0–5" class="gradeField">
+
+					<button id="btnaddLearnerDev" class="btn btn-primary">
+						Add Radar
+					</button>
+
+					<button id="btnsaveLearnerDev" class="btn btn-ghost">
+						Save Radar
+					</button>
+
 				</div>
 
 				<div class="learnerDevChartWrap">
@@ -429,7 +454,7 @@
 				</div>
 
 				<!-- ✅ GRADES — ADMIN ADD TOOL (TEMP - frontend only) -->
-				<div class="row gradeToolbar" id="gradeAdminTools">
+				<!-- <div class="row gradeToolbar" id="gradeAdminTools">
 					<select id="newTaskCourseSection" class="gradeField gradeDropdown">
 						<option value="">-- Select Course/Section --</option>
 					</select>
@@ -456,6 +481,58 @@
 					<input id="newTaskMax" type="number" min="0" step="1" class="gradeField gradeInputField"
 						placeholder="Items">
 					<button id="btnaddTaskRow" class="btn btn-primary">Add Item</button>
+				</div> -->
+				<!-- =====================================
+     GRADE TOOLBAR
+===================================== -->
+				<div class="gradeToolbarGrid" id="gradeAdminTools">
+
+					<!-- COURSE -->
+					<div class="gradeToolbarCell">
+						<select id="newTaskCourseSection" class="gradeField">
+							<option value="">-- Select Course/Section --</option>
+						</select>
+					</div>
+
+					<!-- PERIOD -->
+					<div class="gradeToolbarCell">
+						<select id="newTaskPeriod" class="gradeField">
+							<option value="">-- Select Period --</option>
+							<option value="MIDTERM PERIOD">MIDTERM PERIOD</option>
+							<option value="FINAL PERIOD">FINAL PERIOD</option>
+						</select>
+					</div>
+
+					<!-- CATEGORY -->
+					<div class="gradeToolbarCell">
+						<select id="newTaskCategory" class="gradeField">
+							<option value="">-- Select Category --</option>
+							<option value="AUGUSTINIAN VALUE">AUGUSTINIAN VALUE</option>
+							<option value="CLASS PARTICIPATION">CLASS PARTICIPATION</option>
+							<option value="QUIZ">QUIZ</option>
+							<option value="ASSIGNMENT">ASSIGNMENT</option>
+							<option value="EXAM">EXAM</option>
+							<option value="FINAL EXAM">FINAL EXAM</option>
+							<option value="MIDTERM EXAM">MIDTERM EXAM</option>
+							<option value="PROJECT">PROJECT</option>
+							<option value="EXERCISE">EXERCISE</option>
+						</select>
+					</div>
+
+					<!-- ITEMS + BUTTON -->
+					<div class="gradeToolbarCell">
+						<div class="gradeItemsRow">
+
+							<input id="newTaskMax" type="number" min="0" step="1" class="gradeField"
+								placeholder="Items">
+
+							<button id="btnaddTaskRow" class="btn btn-primary">
+								Add Item
+							</button>
+
+						</div>
+					</div>
+
 				</div>
 
 				<!-- Grades Table -->

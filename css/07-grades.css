@@ -1,0 +1,543 @@
+/* =========================================
+   07. GRADE SYSTEM
+========================================= */
+
+/* ===== GRADE STATUS BADGE ===== */
+.gradeStatus {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .3px;
+}
+
+/* PASS */
+.gradeStatus.pass {
+    background: #e6f6ec;
+    color: #1f7a3f;
+    border: 1px solid #b7e4c7;
+}
+
+/* FAIL */
+.gradeStatus.fail {
+    background: #fdeaea;
+    color: #b42318;
+    border: 1px solid #f5c2c7;
+}
+
+/* .gradeInput {
+    width: 70px;
+    text-align: center;
+} */
+
+/* score input field*/
+.gradeInput {
+
+    /* width: 90px; */
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    text-align: center;
+}
+
+.catAvgRow {
+    font-weight: 900;
+}
+
+.periodHeader td {
+    background: #fde047;
+}
+
+.finalGradeValue {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: .5px;
+}
+
+/* widths */
+#newGradeName {
+    width: 240px;
+}
+
+#newGradeMax {
+    width: 110px;
+}
+
+#newGradeWeight {
+    width: 120px;
+}
+
+/* =========================
+   GRADES TABLE
+========================= */
+.gradeTable {
+    width: 100%;
+    min-width: 650px;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.gradeTable th {
+    text-align: left;
+    font-weight: 600;
+    padding: 8px 6px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.gradeTable td {
+    padding: 8px 6px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 14px;
+}
+
+.gradePercent.pass {
+    color: #16a34a;
+    font-weight: 600;
+}
+
+.gradePercent.fail {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.taskGradeTable {
+
+    width: 100%;
+    border-collapse: collapse;
+
+}
+
+.taskGradeTable th {
+
+    text-align: left;
+    padding: 8px;
+    font-weight: 800;
+    border-bottom: 1px solid #e2e8f0;
+
+}
+
+.taskGradeTable td {
+
+    padding: 8px;
+    border-bottom: 1px solid #f1f5f9;
+
+}
+
+.gradeReadonly {
+    font-weight: 800;
+    color: #2563eb;
+}
+
+#gradeStatusBadge {
+    padding: 6px 14px;
+    border-radius: 14px;
+    font-weight: 600;
+}
+
+.passed {
+    background: #e6f9ed;
+    color: #15803d;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 10px;
+}
+
+.failed {
+    background: #fde8e8;
+    color: #b42318;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 10px;
+}
+
+.incomplete {
+    background: #fde8e8;
+    color: #b26a00;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 10px;
+}
+
+.hidden {
+    display: none;
+}
+
+.gradeCategoryHeader:hover {
+    background: #e2e8f0;
+}
+
+/* =============================
+   GRADE TOOLBAR POLISH
+============================= */
+
+.gradeField {
+    height: 42px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    padding: 0 12px;
+    font-size: 14px;
+    outline: none;
+    transition: all .2s ease;
+}
+
+.gradeField:focus {
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, .2);
+}
+
+/* Dropdown slightly smaller */
+.gradeDropdown {
+    min-width: 160px;
+    max-width: 360px;
+}
+
+/* Input larger */
+.gradeInputField {
+    width: 120px;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Button same height */
+.gradeBtn {
+    height: 42px;
+    padding: 0 20px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+/* ================================
+   RESPONSIVE GRADE TABLE FIX
+================================ */
+
+.gradeTableWrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.tag-success {
+    background: #16a34a;
+    color: white;
+}
+
+.tag-danger {
+    background: #dc2626;
+    color: white;
+}
+
+.gradeTableWrap {
+    overflow-x: auto;
+}
+
+/* =========================
+   LEARNER DEVELOPMENT CHART
+========================= */
+
+.learnerDevChartWrap {
+    width: 100%;
+    max-width: 900px;
+    height: 520px;
+    margin: 14px auto 0;
+}
+
+#learnerDevChart {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+/* =========================================================
+   GRADES LAYOUT FIXES
+   FIX:
+   - dropdown alignment
+   - input alignment
+   - button overshoot
+   - responsive wrapping
+   - student grades overflow
+========================================================= */
+
+/* =========================
+   MAIN GRADES CARD
+========================= */
+.gradesCard,
+#tabContentGrades,
+.gradeWrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+/* =========================
+   FULL WIDTH INPUTS
+========================= */
+.gradeFilters select,
+.gradeFilters input,
+.gradeFilters textarea,
+.gradeFilters .input,
+.gradeFilters .select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* =========================
+   ITEM INPUT
+========================= */
+#inpTaskName,
+#inpGradeTask,
+#inpTask,
+.gradeTaskInput {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* =========================
+   ADD ITEM BUTTON
+========================= */
+#btnaddTaskRow,
+.gradeAddBtn {
+    min-width: 140px;
+    white-space: nowrap;
+}
+
+/* =========================
+   BUTTON ROW
+========================= */
+.gradeActionRow,
+.gradeButtonRow,
+.gradeBtnRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+}
+
+/* =========================
+   DETAILS ACTION BUTTONS
+========================= */
+.row.gap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* =========================
+   PREVENT BUTTON OVERFLOW
+========================= */
+.row.gap .btn,
+.gradeBtnRow .btn,
+.gradeActionRow .btn {
+    flex: 0 1 auto;
+    max-width: 100%;
+}
+
+/* =========================
+   FIX STUDENT GRADES BUTTON
+========================= */
+#btnGrades {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* =========================
+   GRADE TABLE WRAPPER
+========================= */
+.gradeTableWrap {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* =========================
+   GRADE TABLE
+========================= */
+.gradeTable {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+/* =========================
+   TABLE CELLS
+========================= */
+.gradeTable th,
+.gradeTable td {
+    word-break: break-word;
+    vertical-align: middle;
+}
+
+/* =========================
+   SCORE INPUT
+========================= */
+.gradeInput {
+    width: 90px;
+    max-width: 100%;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+/* =========================
+   PERIOD HEADER
+========================= */
+.periodHeader td {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+/* =========================================================
+   GRADE TOOLBAR - FINAL CLEAN VERSION
+========================================================= */
+
+/* =========================
+   TOOLBAR CONTAINER
+========================= */
+
+.gradeToolbarGrid {
+
+    display: grid;
+
+    grid-template-columns:
+        minmax(220px, 2fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(240px, 1.5fr);
+
+    gap: 12px;
+
+    width: 100%;
+
+    align-items: stretch;
+
+    margin-bottom: 16px;
+}
+
+/* =========================
+   TOOLBAR CELL
+========================= */
+
+.gradeToolbarCell {
+    width: 100%;
+    min-width: 0;
+}
+
+/* =========================
+   INPUTS + SELECTS
+========================= */
+
+.gradeToolbarGrid select,
+.gradeToolbarGrid input {
+
+    width: 100%;
+
+    height: 48px;
+
+    border-radius: 12px;
+
+    border: 1px solid #cbd5e1;
+
+    padding: 0 14px;
+
+    font-size: 14px;
+
+    box-sizing: border-box;
+
+    background: #fff;
+}
+
+/* =========================
+   ITEMS + BUTTON ROW
+========================= */
+
+.gradeItemsRow {
+
+    display: grid;
+
+    grid-template-columns: 1fr auto;
+
+    gap: 10px;
+
+    width: 100%;
+
+    align-items: center;
+}
+
+/* =========================
+   ITEMS INPUT
+========================= */
+
+#newTaskMax {
+    min-width: 0;
+}
+
+/* =========================
+   ADD BUTTON
+========================= */
+
+#btnaddTaskRow {
+
+    height: 48px;
+
+    min-width: 130px;
+
+    padding: 0 18px;
+
+    white-space: nowrap;
+
+    flex-shrink: 0;
+}
+
+/* =========================================================
+   LEARNER DEVELOPMENT TOOLBAR
+========================================================= */
+
+.learnerDevToolbar {
+
+    display: grid;
+
+    grid-template-columns:
+        260px 110px 110px 110px;
+
+    gap: 12px;
+
+    align-items: center;
+
+    width: 100%;
+
+    margin-top: 14px;
+
+    margin-bottom: 18px;
+}
+
+/* =========================
+   INPUTS
+========================= */
+
+.learnerDevToolbar select,
+.learnerDevToolbar input {
+
+    width: 100%;
+
+    height: 48px;
+
+    min-width: 0;
+
+    box-sizing: border-box;
+}
+
+/* =========================
+   BUTTONS
+========================= */
+
+.learnerDevToolbar .btn {
+
+    height: 48px;
+
+    padding: 0 18px;
+
+    white-space: nowrap;
+}

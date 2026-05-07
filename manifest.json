@@ -1,6 +1,6 @@
 {
-  "name": "Student Form Viewer",
-  "short_name": "SF Viewer",
+  "name": "Student-Classroom Managament System",
+  "short_name": "SCM System",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f6fbff",
