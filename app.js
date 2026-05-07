@@ -13801,6 +13801,17 @@ if (seatEditModal) {
   });
 }
 
+if (seatEditMobile) {
+  setupAutocomplete(editStudentNameMobile, "name");
+  setupAutocomplete(editStudentIdMobile, "id");
+  setupAutocomplete(editStudentEmailMobile, "email");
+  seatEditMobile.addEventListener("click", e => {
+    if (e.target === seatEditMobile) {
+      closeSeatEditModal(true);
+    }
+  });
+}
+
 if (btnSeatEditSave) {
   btnSeatEditSave.onclick = async () => {
     showLoading("Updating seat no. " + editSeatNo.value + ". Please wait...");
